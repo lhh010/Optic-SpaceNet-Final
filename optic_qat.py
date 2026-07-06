@@ -113,33 +113,92 @@ def fake_int4_quantize(x: torch.Tensor,
 
 
 # ============================================================
-#  QAT-aware Conv2d
+#  LSQ (Learned Step Size) 伪量化 — 梯度可流经 scale 参数
+# ============================================================
+
+class _LSQInt4Fn(torch.autograd.Function):
+    """
+    LSQ int4 量化 — 自定义 autograd Function。
+
+    前向: 将 float32 张量量化到 int4 [-8,7] 再反量化
+    反向: STE 梯度流经 x, LSQ 梯度流经 scale (保持 per-channel)
+
+    参考: Esser et al., "Learned Step Size Quantization" (ICLR 2020)
+    """
+
+    @staticmethod
+    def forward(ctx, x, scale):
+        # 量化
+        x_int = (x / scale).round().clamp(-8, 7)
+        x_dq = x_int * scale
+        ctx.save_for_backward(x, scale, x_int)
+        return x_dq
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        x, scale, x_int = ctx.saved_tensors
+        n_levels = 8  # 2^(4-1) for signed int4
+
+        # === x 的梯度: STE (直通) ===
+        grad_x = grad_output
+
+        # === scale 的梯度 (LSQ 公式) ===
+        inner = (x_int.abs() < 7).float()
+        outer = 1.0 - inner
+        grad_scale = (
+            inner * (x_int - x / scale) +
+            outer * torch.sign(x) * 7.0
+        ) * grad_output
+
+        # === 规约到 scale 的 shape ===
+        # scale 被 broadcast 到 x 的 shape, 需要 sum 回 scale 的每个元素
+        sum_dims = []
+        for d in range(x.dim()):
+            if d >= scale.dim() or (d < scale.dim() and scale.shape[d] == 1):
+                sum_dims.append(d)
+        if sum_dims:
+            grad_scale = grad_scale.sum(dim=sum_dims)
+        grad_scale = grad_scale.view(scale.shape)
+
+        # === LSQ 梯度缩放: 1 / sqrt(N * n_levels) ===
+        # N = 每个 scale 参数负责的元素数量
+        N = x.numel() / max(1, scale.numel())
+        grad_scale = grad_scale / (N * n_levels) ** 0.5
+
+        return grad_x, grad_scale
+
+
+def lsq_int4_quantize(x: torch.Tensor,
+                      scale: torch.Tensor) -> torch.Tensor:
+    """
+    LSQ int4 伪量化: 使用可学习的 scale 参数。
+
+    与 fake_int4_quantize 的区别:
+      - scale 不是动态计算的，而是可学习的参数
+      - 梯度可以流经 scale (通过 LSQ 公式)
+      - 模型学会每层最优的量化范围
+
+    Args:
+        x:     float32 输入
+        scale: 可学习的 scale (必须能 broadcast 到 x)
+    Returns:
+        量化后的 float32 张量
+    """
+    return _LSQInt4Fn.apply(x, scale)
+
+
+# ============================================================
+#  QAT-aware Conv2d (支持 LSQ)
 # ============================================================
 
 class QATConv2d(nn.Module):
     """
-    QAT-aware 2D 卷积层。
-
-    对输入特征图和权重施加伪 int4 量化，模拟光计算硬件的精度限制。
-    通过 STE 梯度，模型在训练中学会对 int4 量化具有鲁棒性。
-
-    量化方案 (与光计算硬件一致):
-      - 输入:  per-channel int4 (对称, 沿 C_in 维度)
-      - 权重:  per-output-channel int4 (对称, 沿 C_out 维度)
-      - bias:  保持 float32 (不在光计算矩阵乘法中，无需量化)
-
-    与 OpticConv2d 的对应关系:
-      - QATConv2d: 训练时使用，F.conv2d + 伪量化
-      - OpticConv2d: 推理时使用，im2col → 光计算 matmul → col2im
-      - 两者共享相同的 float32 权重
+    QAT-aware 2D 卷积层 — 支持两种模式:
+      - 动态 scale 模式 (use_lsq=False): 每步从 abs_max 计算 scale
+      - LSQ 模式 (use_lsq=True):  可学习的 scale 参数, 梯度优化
     """
 
-    def __init__(self, conv_layer: nn.Conv2d):
-        """
-        Args:
-            conv_layer: 标准 nn.Conv2d 层 (已初始化权重)
-                        支持从预训练模型加载的权重。
-        """
+    def __init__(self, conv_layer: nn.Conv2d, use_lsq: bool = True):
         super().__init__()
 
         # ---- 复制卷积参数 ----
@@ -152,7 +211,7 @@ class QATConv2d(nn.Module):
         self.groups = conv_layer.groups
         self.padding_mode = conv_layer.padding_mode
 
-        # ---- 复制权重 (float32, 通过 STE 微调) ----
+        # ---- 复制权重 ----
         self.weight = nn.Parameter(conv_layer.weight.data.clone())
         if conv_layer.bias is not None:
             self.bias = nn.Parameter(conv_layer.bias.data.clone())
@@ -161,63 +220,55 @@ class QATConv2d(nn.Module):
 
         # ---- QAT 状态 ----
         self._qat_enabled = True
+        self._use_lsq = use_lsq
 
-        # ---- 统计 ----
-        self._input_scale_stats = None  # 记录最近一次输入的 scale
-        self._weight_scale_stats = None
+        # ---- LSQ 可学习 scale 参数 ----
+        if use_lsq:
+            # 权重 scale: per-output-channel (C_out, 1, 1, 1)
+            # 从权重统计初始化，梯度通过 LSQ 公式优化
+            w_amax = self.weight.data.abs().view(self.out_channels, -1).max(dim=1)[0]
+            init_w_scale = (w_amax / 7.0).clamp(min=1e-8)
+            self.weight_scale = nn.Parameter(init_w_scale.view(-1, 1, 1, 1))
+            # 输入 scale 使用动态计算 (fake_int4_quantize)，无需可学习参数
 
     @property
     def qat_enabled(self) -> bool:
         return self._qat_enabled
 
     def enable_qat(self):
-        """启用 QAT 伪量化"""
         self._qat_enabled = True
 
     def disable_qat(self):
-        """禁用 QAT 伪量化 (使用原始 float32 精度)"""
         self._qat_enabled = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x: (N, C_in, H, W) float32 输入
-        Returns:
-            (N, C_out, OH, OW) float32 输出
-
-        注意: QAT 模式下 (self._qat_enabled=True)，无论训练还是评估
-        都会施加伪 int4 量化。这确保:
-          - 训练时: 伪量化 + STE 梯度 → 权重适应 int4
-          - 评估时: 伪量化 (无梯度) → 准确测量 int4 精度
-        disable_qat() 后恢复为标准 float32 推理。
-        """
-        if self._qat_enabled:
-            # === QAT 模式: 伪量化输入和权重 ===
-            # 1. 伪量化输入 (per-channel, 沿 C_in 维度)
-            #    模拟: 光计算 DAC 将模拟信号量化为 int4
-            x_q = fake_int4_quantize(x, per_channel=True, ch_dim=1)
-
-            # 2. 伪量化权重 (per-output-channel, 沿 C_out 维度)
-            #    模拟: 光计算交叉阵列存储 int4 权重
-            w_q = fake_int4_quantize(self.weight, per_channel=True, ch_dim=0)
-
-            # 3. 标准浮点卷积 (使用量化后的值)
-            #    由于 x_q 和 w_q 已模拟 int4 精度，等价于低精度卷积
-            return F.conv2d(
-                x_q, w_q, self.bias,
-                self.stride, self.padding, self.dilation, self.groups
-            )
-        else:
-            # === 非 QAT 模式: 标准 float32 卷积 ===
+        if not self._qat_enabled:
             return F.conv2d(
                 x, self.weight, self.bias,
                 self.stride, self.padding, self.dilation, self.groups
             )
 
+        # === 混合量化策略 ===
+        # 输入: 动态 scale — 激活值分布在训练中快速变化, 动态 scale 更稳定
+        x_q = fake_int4_quantize(x, per_channel=True, ch_dim=1)
+
+        # 权重: LSQ 可学习 scale — 权重变化慢, 适合学习全局最优量化范围
+        if self._use_lsq and hasattr(self, 'weight_scale'):
+            w_s = self.weight_scale.abs().clamp(min=1e-8)
+            w_q = lsq_int4_quantize(self.weight, w_s)
+        else:
+            w_q = fake_int4_quantize(self.weight, per_channel=True, ch_dim=0)
+
+        return F.conv2d(
+            x_q, w_q, self.bias,
+            self.stride, self.padding, self.dilation, self.groups
+        )
+
     def extra_repr(self) -> str:
+        mode = "LSQ" if self._use_lsq else "dynamic"
         return (f"{self.in_channels}, {self.out_channels}, "
                 f"kernel_size={self.kernel_size}, stride={self.stride}, "
-                f"padding={self.padding}, qat={'on' if self._qat_enabled else 'off'}")
+                f"qat={'on' if self._qat_enabled else 'off'}, mode={mode}")
 
 
 # ============================================================
@@ -226,21 +277,10 @@ class QATConv2d(nn.Module):
 
 class QATLinear(nn.Module):
     """
-    QAT-aware 全连接层。
-
-    对输入向量和权重矩阵施加伪 int4 量化，模拟光计算硬件的精度限制。
-
-    量化方案:
-      - 输入:  per-row int4 (对称, 沿最后一维, 即 in_features 维度)
-      - 权重:  per-output-channel int4 (对称, 沿 C_out 维度)
-      - bias:  保持 float32
+    QAT-aware 全连接层 — 支持动态 scale 和 LSQ 两种模式。
     """
 
-    def __init__(self, linear_layer: nn.Linear):
-        """
-        Args:
-            linear_layer: 标准 nn.Linear 层 (已初始化权重)
-        """
+    def __init__(self, linear_layer: nn.Linear, use_lsq: bool = True):
         super().__init__()
 
         self.in_features = linear_layer.in_features
@@ -255,6 +295,14 @@ class QATLinear(nn.Module):
 
         # ---- QAT 状态 ----
         self._qat_enabled = True
+        self._use_lsq = use_lsq
+
+        # ---- LSQ 可学习 scale ----
+        if use_lsq:
+            # 权重 scale: per-output-channel (out_features, 1)
+            w_amax = self.weight.data.abs().view(self.out_features, -1).max(dim=1)[0]
+            init_w_scale = (w_amax / 7.0).clamp(min=1e-8)
+            self.weight_scale = nn.Parameter(init_w_scale.view(-1, 1))
 
     @property
     def qat_enabled(self) -> bool:
@@ -267,26 +315,24 @@ class QATLinear(nn.Module):
         self._qat_enabled = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x: (N, in_features) float32 输入
-        Returns:
-            (N, out_features) float32 输出
-
-        注意: 与 QATConv2d 一致，QAT 模式下无论 train/eval 都施加伪量化。
-        """
-        if self._qat_enabled:
-            # 伪量化输入 (per-row, dim=-1)
-            x_q = fake_int4_quantize(x, per_channel=True, ch_dim=-1)
-            # 伪量化权重 (per-output-channel, dim=0)
-            w_q = fake_int4_quantize(self.weight, per_channel=True, ch_dim=0)
-            return F.linear(x_q, w_q, self.bias)
-        else:
+        if not self._qat_enabled:
             return F.linear(x, self.weight, self.bias)
 
+        # 混合: 输入动态 scale, 权重 LSQ
+        x_q = fake_int4_quantize(x, per_channel=True, ch_dim=-1)
+
+        if self._use_lsq and hasattr(self, 'weight_scale'):
+            w_s = self.weight_scale.abs().clamp(min=1e-8)
+            w_q = lsq_int4_quantize(self.weight, w_s)
+        else:
+            w_q = fake_int4_quantize(self.weight, per_channel=True, ch_dim=0)
+
+        return F.linear(x_q, w_q, self.bias)
+
     def extra_repr(self) -> str:
+        mode = "LSQ" if self._use_lsq else "dynamic"
         return (f"in_features={self.in_features}, out_features={self.out_features}, "
-                f"qat={'on' if self._qat_enabled else 'off'}")
+                f"qat={'on' if self._qat_enabled else 'off'}, mode={mode}")
 
 
 # ============================================================
@@ -396,42 +442,36 @@ def fuse_conv_bn_in_sequential(seq: nn.Sequential) -> nn.Sequential:
 
 def prepare_qat_model(model: nn.Module,
                       fuse_bn: bool = True,
+                      use_lsq: bool = True,
                       inplace: bool = True) -> nn.Module:
     """
-    将标准 PyTorch 模型转换为 QAT-ready 模型。
+    将标准 PyTorch 模型转换为 QAT-ready 模型 (用于 fine-tuning)。
 
     流程:
       1. [可选] 融合 Conv2d + BatchNorm2d 层
       2. 将所有 nn.Conv2d 替换为 QATConv2d
       3. 将所有 nn.Linear  替换为 QATLinear
-      4. 其他层 (BN, ReLU, MaxPool, Dropout 等) 保持不变
 
     Args:
         model:   标准 PyTorch 模型 (已加载 float32 权重)
-        fuse_bn: 是否先进行 Conv+BN 融合 (强烈推荐)
+        fuse_bn: 是否先进行 Conv+BN 融合
+        use_lsq: 是否使用 LSQ 可学习 scale (推荐 True)
         inplace: 是否原地修改模型
 
     Returns:
         QAT-ready 模型
-
-    Example:
-        >>> model = BaselineVGG()
-        >>> model.load_state_dict(torch.load("baseline_vgg.pth"))
-        >>> qat_model = prepare_qat_model(model, fuse_bn=True)
-        >>> # 开始 QAT 训练...
     """
     if not inplace:
         model = copy.deepcopy(model)
 
-    # Step 1: Conv+BN 融合
     if fuse_bn:
         _fuse_all_conv_bn(model)
 
-    # Step 2 & 3: 替换 Conv2d 和 Linear
-    _replace_with_qat(model)
+    _replace_with_qat(model, use_lsq=use_lsq)
 
+    mode = "LSQ" if use_lsq else "dynamic"
     print(f"[prepare_qat_model] Model converted to QAT-ready "
-          f"(fuse_bn={fuse_bn})")
+          f"(fuse_bn={fuse_bn}, mode={mode})")
 
     return model
 
@@ -449,19 +489,51 @@ def _fuse_all_conv_bn(module: nn.Module):
             _fuse_all_conv_bn(child)
 
 
-def _replace_with_qat(module: nn.Module):
+def _replace_with_qat(module: nn.Module, use_lsq: bool = True):
     """递归将所有 nn.Conv2d 替换为 QATConv2d, nn.Linear 替换为 QATLinear"""
     for name, child in list(module.named_children()):
         if isinstance(child, nn.Conv2d):
-            setattr(module, name, QATConv2d(child))
+            setattr(module, name, QATConv2d(child, use_lsq=use_lsq))
         elif isinstance(child, nn.Linear):
-            setattr(module, name, QATLinear(child))
+            setattr(module, name, QATLinear(child, use_lsq=use_lsq))
         elif isinstance(child, QATConv2d) or isinstance(child, QATLinear):
-            # 已经转换过，跳过
             continue
         else:
-            # 递归处理子模块
-            _replace_with_qat(child)
+            _replace_with_qat(child, use_lsq=use_lsq)
+
+
+def prepare_qat_model_from_scratch(model: nn.Module,
+                                    use_lsq: bool = True,
+                                    inplace: bool = True) -> nn.Module:
+    """
+    准备从零开始 QAT 训练的模型。
+
+    与 prepare_qat_model(fuse_bn=True) 不同，此函数:
+      1. 保留 BatchNorm 层 (不融合) — 训练稳定性更好
+      2. 将 Conv2d/Linear 替换为 QAT 版本 (默认 LSQ 模式)
+      3. LSQ 可学习 scale 让模型自适应地找到最优量化范围
+
+    Args:
+        model:   标准 PyTorch 模型 (随机初始化)
+        use_lsq: 是否使用 LSQ 可学习 scale (推荐 True)
+        inplace: 是否原地修改
+
+    Returns:
+        QAT-ready 模型
+    """
+    if not inplace:
+        model = copy.deepcopy(model)
+
+    _replace_with_qat(model, use_lsq=use_lsq)
+
+    qat_count = sum(1 for m in model.modules()
+                    if isinstance(m, (QATConv2d, QATLinear)))
+    bn_count = sum(1 for m in model.modules()
+                   if isinstance(m, nn.BatchNorm2d))
+    mode = "LSQ" if use_lsq else "dynamic"
+    print(f"[prepare_qat_from_scratch] Converted {qat_count} layers to QAT "
+          f"(mode={mode}), {bn_count} BN layers preserved")
+    return model
 
 
 # ============================================================
