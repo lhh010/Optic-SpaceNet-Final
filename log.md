@@ -2732,29 +2732,82 @@ PS E:\LT-Simulator\train-test> python model3_spacenet_v2_phase4_v2.py
 ============================================================
 ```
 
+```powershell
+PS E:\LT-Simulator\train-test> python model2_spacenet_v1_lsq.py
+设备: cpu
+
+============================================================
+  Model 2 LSQ+ int8: 可学习 scale/zero_point + Gazelle 噪声
+  修复: in_scale 真正参与前向, int8 激活, BN 保留
+============================================================
+训练: 21600, 验证: 5400
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+
+参数量: 267,944
+
+[Step 1] 转换为 LSQ+ int8
+[prepare_model_lsq] LSQ+ int8 QAT: w8/a8
+  LSQ Conv: 3 enabled + 1 fp32 (first layer)
+  LSQ Linear: 2, BN: 4
+  LSQ+ learnable params: scale + zero_point per layer
+  首层 Conv 保留 FP32
+
+[Step 2] 训练 (100 epochs, LSQ warmup=10)
+  前 10 epochs: STE fallback (稳定激活分布)
+  后 90 epochs: LSQ+ (可学习 scale/zp, lr=0.1x)
+[set_lsq_lr] Weight params: 14, LSQ params: 24 (lr=0.0001)
+----------------------------------------------------------------------
+  Epoch | Train Loss Train Acc |  Val Loss  Val Acc |     Best |       LR |    Time
+  --------------------------------------------------------------------
+      1  |     1.2294   62.92% |    0.9576  74.24% |  74.24% | 0.00020 |   46.0s  [STE]
+      5  |     0.8811   77.31% |    0.7500  82.48% |  82.48% | 0.00100 |   57.5s  [STE]
+     10  |     0.7864   81.87% |    0.6637  86.44% |  86.44% | 0.00099 |   58.0s  [STE]
+  >>> Epoch 11: 切换到 LSQ+ (可学习 scale/zp) <<<
+[set_lsq_lr] Weight params: 14, LSQ params: 24 (lr=0.0001)
+     15  |     0.7655   81.96% |    0.7658  86.93% |  86.93% | 0.00100 |   63.7s  [LSQ+]
+     20  |     0.6912   85.20% |    0.7510  87.67% |  87.67% | 0.00100 |   63.4s  [LSQ+]
+     25  |     0.6493   86.90% |    0.7290  88.96% |  88.96% | 0.00100 |   53.4s  [LSQ+]
+     30  |     0.6218   88.05% |    0.7069  90.09% |  90.09% | 0.00100 |   53.8s  [LSQ+]
+     35  |     0.6103   88.37% |    0.6847  90.26% |  90.26% | 0.00100 |   60.5s  [LSQ+]
+     40  |     0.6013   88.74% |    0.7135  89.78% |  90.35% | 0.00100 |   62.7s  [LSQ+]
+     45  |     0.5795   89.75% |    0.7204  90.63% |  90.69% | 0.00100 |   56.5s  [LSQ+]
+     50  |     0.5749   89.80% |    0.6813  91.22% |  91.22% | 0.00100 |   64.7s  [LSQ+]
+     55  |     0.5677   90.17% |    0.7120  90.67% |  91.22% | 0.00100 |   53.2s  [LSQ+]
+     60  |     0.5599   90.39% |    0.7060  91.17% |  91.89% | 0.00100 |   62.4s  [LSQ+]
+     65  |     0.5519   90.87% |    0.7317  90.63% |  92.09% | 0.00100 |   57.8s  [LSQ+]
+     70  |     0.5534   90.62% |    0.6895  91.78% |  92.15% | 0.00100 |   54.6s  [LSQ+]
+     75  |     0.5466   90.93% |    0.7049  91.56% |  92.15% | 0.00100 |   47.8s  [LSQ+]
+     80  |     0.5446   90.91% |    0.7220  91.24% |  92.15% | 0.00100 |   52.1s  [LSQ+]
+     85  |     0.5438   91.02% |    0.7102  91.17% |  92.15% | 0.00100 |   45.5s  [LSQ+]
+     90  |     0.5346   91.45% |    0.7034  91.87% |  92.15% | 0.00100 |   35.9s  [LSQ+]
+     95  |     0.5355   91.32% |    0.6780  92.80% |  92.80% | 0.00100 |   36.3s  [LSQ+]
+    100  |     0.5242   91.88% |    0.7002  92.02% |  92.80% | 0.00100 |   36.5s  [LSQ+]
+
+[Step 3] 最终评估
+[enable_qat] Enabled QAT on 6 layers
+  LSQ+ int8 模式准确率: 92.67%
+[disable_qat] Disabled QAT on 6 layers
+  Float32 模式准确率:   62.52%
+  LSQ+ 量化损失:        -30.15%
+
+  模型已保存: spacenet_v1_lsq_int8.pth
+
+============================================================
+  训练完成 — 结果汇总
+============================================================
+  模型:              SpaceNet V1 (LSQ+ int8, bias=False)
+  参数量:            271,298
+  LSQ+ 可学习层:     6
+  训练策略:          STE warmup 10ep + LSQ+ 90ep
+  训练总耗时:        5355.7s (89.3min)
+  LSQ+ int8 最佳:    92.80%
+  Float32:           62.52%
+  STE int8 参考:     93.11% (Phase4 v3)
+  FP32 基准:         90.15%
+============================================================
+```
 
 
 
 
 
-
----
-
-## 2026-07-09 训练日志总结
-
-### 今日新增 5 轮训练 (基于 Gazelle 硬件逆向分析)
-
-| # | 脚本 | 模型 | 配置 | Int 精度 | FP32 精度 | 耗时 | 备注 |
-|---|---|---|---|---|---|---|---|
-| 1 | model2_spacenet_v1_phase4_v2.py | Model 2 | int4, Conv+Linear QAT 全开 | 91.06% | 87.54% | 75min | v2 修复: 旧版 bug 导致 Conv QAT 全关 |
-| 2 | model2_spacenet_v1_phase4_v3.py | Model 2 | int4 + Gazelle (bug) | 92.56% | 91.76% | 86min | _first bug: Conv 全 FP32 |
-| 3 | model2_spacenet_v1_phase4_v3.py | Model 2 | int8 + Gazelle (bug) | 93.20% | 93.24% | 73min | _first bug: Conv 全 FP32 |
-| 4 | model2_spacenet_v1_phase4_v3.py | Model 2 | int8 + Gazelle (修复) | 93.11% | 93.02% | 81min | ★★ 最佳! 首层 FP32 + 其余 int8 |
-| 5 | model3_spacenet_v2_phase4_v2.py | Model 3 | int4 + KD, Conv+Linear QAT 全开 | 91.50% | 80.98% | 119min | KD+int4 超 FP32 KD 基准 |
-
-### 关键发现
-
-1. 硬件真相: Gazelle 8×2 tile, 原生 8a8w12o, 线性度 99.4% → 硬件几乎理想
-2. v2 int4 (91.06%) 超过 FP32 基准 (90.15%): QAT 量化噪声充当正则化
-3. v3 int8 (93.11%) 是最佳: 匹配硬件原生 8-bit, 量化损失仅 0.09%
-4. QAT 训练后 disable_qat 精度反而更低: 权重已适应量化 — QAT 成功标志

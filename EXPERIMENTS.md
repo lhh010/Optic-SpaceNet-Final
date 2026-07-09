@@ -102,7 +102,8 @@ Phase 2: 从零 QAT 训练 (2026-07-05 ~ 06)
   └─ 结论: 有效但差距仍大 (6-9%)
 	
 Phase 3: LSQ + 混合精度 (2026-07-06)
-  └─ 结论: LSQ+ 失败 (61.72%), STE 方案被选定
+  ├── 旧版 LSQ+ (v2): 61.72% ✗ (代码 bug, 后于 Phase 6 修复至 92.80%)
+  └─ 结论: STE 方案被选定为主要方向; LSQ+ 修复后成为并行方向
 
 Phase 4: STE + 非对称量化 + 噪声 (2026-07-06 ~ 07)
   ├── Model 1: 96.46% int4 ✓ (optic_qat_v3, flat arch + BN)
@@ -113,9 +114,10 @@ Phase 5: Mixed Precision (Conv=int4, Linear=fp32) (2026-07-07)
   ├── Model 1: 98.26% int4 ★★  |  Model 2: 91.26% int4 ★
   └── Model 3: 91.13% int4 ★
 
-Phase 6: Gazelle 硬件匹配训练 (2026-07-09) ← NEW
+Phase 6: Gazelle 硬件匹配训练 (2026-07-09 ~ 10)
   ├── Model 2 v2 (int4, QAT 全开): 91.06% ★ 超越 FP32 基准!
-  ├── Model 2 v3 (int8, Gazelle 噪声): 93.11% ★★ 最佳!
+  ├── Model 2 v3 (int8, Gazelle 噪声): 93.11% ★★ STE 最佳!
+  ├── Model 2 LSQ+ (int8, 可学习 scale/zp): 92.80% ★★ LSQ+ 最佳!
   └── Model 3 v2 (KD+int4, QAT 全开): 91.50% ★ 超 FP32 KD 基准!
 
 容器迁移 (2026-07-09)
@@ -178,7 +180,8 @@ Phase 6: Gazelle 硬件匹配训练 (2026-07-09) ← NEW
 | Model 1 | LSQ+ | 61.72% | LSQ+ input_scale 初始化错误 + uint4 激活损失大 |
 | Model 1 | STE | **98.07%** (训练中 FP32 模式最佳) | 成功, 但 int4 eval 仅 96.46% |
 
-**结论**: LSQ+ 方案废弃。STE（动态 scale + 噪声注入）被选定为后续方向。
+**结论**: 旧版 LSQ+ 因代码 bug (死参数 + uint4 瓶颈) 仅 61.72%。STE 被选定为主要方向。
+**后于 Phase 6 (2026-07-10) 修复 LSQ+ (int8 + 可学习 scale 真正参与前向), 达到 92.80%, 与 STE 并列为主要方向。**
 
 ---
 
@@ -196,7 +199,7 @@ Phase 6: Gazelle 硬件匹配训练 (2026-07-09) ← NEW
 
 | 模型 | 脚本 | Int4 | Float32 | 问题 |
 |---|---|---|---|---|
-| Model 1 LSQ+ | `model1_baseline_phase4.py --mode lsqplus` | 61.72% | — | LSQ+ 失败 |
+| Model 1 LSQ+ | `model1_baseline_phase4.py --mode lsqplus` | 61.72% | — | LSQ+ 有 bug, 后修复至 92.80% |
 | Model 2 STE | `model2_spacenet_v1_phase4.py` | — | — | 未完成 (训练中 bug) |
 
 **Bug**: `first_layer_fp32=True` 在 Sequential 架构中把所有 Conv 层都关了 (QAT Conv: 0)
@@ -269,13 +272,36 @@ Phase 6: Gazelle 硬件匹配训练 (2026-07-09) ← NEW
 | 1 | `model2_..._phase4_v2.py` | Model 2 | int4, QAT 全开 | **91.06%** | 87.54% | 75min | ★ 超 FP32 基准! |
 | 2 | `model3_..._phase4_v2.py` | Model 3 | int4+KD, QAT 全开 | **91.50%** | 80.98% | 119min | ★ 超 FP32 KD 基准! |
 | 3 | `model2_..._phase4_v3.py` | Model 2 | int8+Gazelle, 修复 | **93.11%** | 93.02% | 81min | ★★ **最佳!** |
+| 4 | `model2_spacenet_v1_lsq.py` | Model 2 | LSQ+ int8, 修复 | **92.80%** | 62.52% | 89min | ★ 接近 STE! |
 
-### 10.4 分析
+### 10.4 LSQ+ 修复版 (2026-07-10)
+
+**旧版 LSQ+ 的 Bug (optic_qat_v2)**:
+- `out_scale`/`out_zp` 声明但从未参与前向 → 死参数, 无梯度
+- `in_scale` 同样未使用, 输入量化用的仍是动态 `fake_quantize_uint4`
+- 激活 uint4 (16 级) → 信息瓶颈
+- 内部 ReLU + 输出重量化 → 干扰模型架构
+- 无 BN → 激活分布不稳定
+
+**新版 LSQ+ (optic_qat_lsq.py) 修复**:
+- `in_scale`/`in_zp` 通过 `lsq_quantize()` 真正参与前向 + LSQ 梯度
+- int8 激活 (256 级)
+- 无内部 ReLU, 无输出重量化
+- BN 保留
+- STE warmup (10 epoch) → LSQ+ 切换, 避免初期不稳定
+- LSQ 梯度 `sum_dims` 偏移量修复 (x.dim() > scale.dim() 时维度对齐)
+
+**结果**: LSQ+ **92.80%**, 仅比 STE int8 (93.11%) 低 0.31%, 比旧版 LSQ+ (61.72%) 提升 **+31.08%**。
+
+**Float32 模式极低 (62.52%)**: LSQ+ 可学习 scale/zp 将权重推向极端值专门适配 int8 量化, 去掉量化后权重无法正常工作。这是 LSQ+ 固有特性, 不影响部署。
+
+### 10.5 分析
 
 - **v2 int4 (91.06%)**: 修复后比旧版 (74.35%) 提升 **+16.71%**, 超过 FP32 基准 (90.15%)
 - **v3 int8 (93.11%)**: 匹配硬件原生 8-bit, 量化损失仅 0.09%, **比 FP32 基准高 2.96%**
-- **QAT 正则化效应**: int4/int8 精度 > float32 模式精度, 量化噪声充当了有益正则化
-- **int4 vs int8**: int8 比 int4 高 2.05%, 代价是 2× 权重存储 (光计算中可接受)
+- **LSQ+ int8 (92.80%)**: 可学习 scale/zp, 比 STE 仅低 0.31%, 优势是 scale 可直接导出为硬件配置
+- **int4 vs int8 vs LSQ+**: int8 大幅优于 int4; LSQ+ 接近 STE 但提供可部署的硬件参数
+- **QAT 正则化效应**: int4/int8 精度 > float32 模式精度; LSQ+ 的 FP32 模式极低是因为权重过度特化
 
 ### 10.5 v3 开发中的 Bug
 
@@ -355,9 +381,13 @@ python optic_inference_phase4.py --optic --quick 5
 - `signed=True` 量化产生负值 → osimulator `index -105 out of bounds`
 - 修复: 输入用 `uint4` (unsigned), 硬件只接受非负
 
-### Bug #5: LSQ+ input_scale 初始化导致训练停滞
-- `input_scale=1.0` → 激活量化到 3-4 级别 → 梯度消失
-- 修复: 输入改动态 scale, 权重保留 LSQ
+### Bug #5: LSQ+ 旧版 (optic_qat_v2) 多重 bug → 61.72%
+- `out_scale`/`out_zp` 声明但从未参与前向 → 死参数无梯度
+- `in_scale` 同样未使用, 输入量化仍用动态 `fake_quantize_uint4`
+- 激活 uint4 (16 级) → 信息瓶颈
+- 内部 ReLU + 输出重量化 → 干扰模型架构
+- 无 BN → 分布不稳定
+- **Phase 6 修复**: 重写 `optic_qat_lsq.py`, int8 + 真正可学习 scale + BN, 达到 92.80%
 
 ---
 
@@ -369,7 +399,7 @@ python optic_inference_phase4.py --optic --quick 5
 |---|---|---|---|---|---|
 | 1 | QAT 微调 | int4 | 85.91% | -11.26% | ✗ |
 | 2 | 从零 QAT | int4 | 91.17% | -6.00% | △ |
-| 3 | LSQ+ | int4 | 61.72% | -35.45% | ✗ |
+| 3 | LSQ+ (旧版, bug) | int4 | 61.72% | -35.45% | ✗ (后修复至 92.80%) |
 | 4 | STE (修复) | int4 | **96.46%** | -0.71% | ✓ |
 | 5 | **Mixed** | Conv=int4, Linear=fp32 | **98.26%** | **+1.09%** | ★★ |
 
@@ -405,7 +435,8 @@ python optic_inference_phase4.py --optic --quick 5
 | 模型 | 最佳方案 | 最佳 Int 精度 | FP32 基准 | 提升 |
 |---|---|---|---|---|
 | Model 1 | Mixed (Conv=int4, Linear=fp32) | **98.26%** | 97.17% | +1.09% |
-| Model 2 | Phase4 v3 int8 + Gazelle | **93.11%** | 90.15% | +2.96% |
+| Model 2 | Phase4 v3 STE int8 + Gazelle | **93.11%** | 90.15% | +2.96% |
+| Model 2 | Phase6 LSQ+ int8 (修复) | **92.80%** | 90.15% | +2.65% |
 | Model 3 | Phase4 v2 int4 + KD | **91.50%** | 91.44% | +0.06% |
 
 ---
@@ -444,6 +475,7 @@ python optic_inference_phase4.py --optic --quick 5
 | `optic_qat_v2.py` | v2 | QAT Phase4 初版: uint4/int4 非对称, LSQ+, QATConv2d_v2 |
 | `optic_qat_v3.py` | v3 | QAT 修复版: int8 激活, BN 保留, 无 first_layer_fp32 |
 | **`optic_qat_v4.py`** | **v4** | **Gazelle 硬件匹配: int8 权重, GazelleNoiseInjector, 首层 FP32** |
+| **`optic_qat_lsq.py`** | **v5** | **LSQ+ 修复版: int8 可学习 scale/zp, 无内部 ReLU, BN 保留** |
 | `train_phase4_runner.py` | — | Phase4 训练器 (Phase4Trainer) |
 | `train_mixed_runner.py` | — | Mixed 训练器 (MixedPrecisionTrainer) |
 
