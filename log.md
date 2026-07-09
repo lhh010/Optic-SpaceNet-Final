@@ -2037,5 +2037,724 @@ PS E:\LT-Simulator\train-test> python model3_spacenet_v2_mixed.py
 ```
 
 
+---
 
 
+```powershell
+PS E:\LT-Simulator\train-test> docker start LT-Simulator-container
+LT-Simulator-container
+PS E:\LT-Simulator\train-test> docker exec -it -w /workspace LT-Simulator-container /bin/bash
+(moca_llm) root@a39a38d1a33b:/workspace# cd share/
+(moca_llm) root@a39a38d1a33b:/workspace/share# ls
+LT-Simulator_docker_v1.4.6-CCIC.tar  docs  scratch  train-firstround  train-test
+(moca_llm) root@a39a38d1a33b:/workspace/share# cd train-test
+(moca_llm) root@a39a38d1a33b:/workspace/share/train-test# ls
+EXPERIMENTS.md                   log_mixed.md                  model3_spacenet_v2_int4.py    spacenet_v1_mixed_ste.pth
+EXPERIMENTS.pdf                  log_noise_robustness.md       model3_spacenet_v2_mixed.py   spacenet_v1_phase4_ste.pth
+OPTIC_QAT_README.md              log_phase4_fixed.md           model3_spacenet_v2_phase4.py  spacenet_v1_qat.pth
+PHASE4_DESIGN.md                 log_phase4_original.md        model3_spacenet_v2_qat.py     spacenet_v2_distilled.pth
+__pycache__                      log_qat_finetune.md           noise_robustness.py           spacenet_v2_int4.pth
+baseline_vgg.pth                 model1_baseline.py            noise_robustness_v2.png       spacenet_v2_mixed_ste.pth
+baseline_vgg_int4.pth            model1_baseline_int4.py       noise_robustness_v2.py        spacenet_v2_phase4_ste.pth
+baseline_vgg_mixed_ste.pth       model1_baseline_mixed.py      optic_inference.py            spacenet_v2_qat.pth
+baseline_vgg_phase4_lsqplus.pth  model1_baseline_phase4.py     optic_inference_mixed.py      teacher_resnet18.pth
+baseline_vgg_phase4_ste.pth      model1_baseline_qat.py        optic_inference_phase4.py     test.ipynb
+baseline_vgg_qat.pth             model2_spacenet_v1.py         optic_layers.py               train_mixed_runner.py
+data                             model2_spacenet_v1_int4.py    optic_qat.py                  train_phase4_runner.py
+example_load_gazelle_model.py    model2_spacenet_v1_mixed.py   optic_qat_v2.py               初赛文档
+log.md                           model2_spacenet_v1_phase4.py  optic_qat_v3.py               复赛-test.md
+log_fp32_baseline.md             model2_spacenet_v1_qat.py     spacenet_v1.pth
+log_int4_scratch.md              model3_spacenet_v2.py         spacenet_v1_int4.pth
+
+(moca_llm) root@a39a38d1a33b:/workspace/share/train-test# python optic_inference_phase4.py
+Device: cpu
+============================================================
+  Optic-SpaceNet Phase 4: Optical Inference Migration
+  Mode: QAT (pseudo-quant)
+  Batch=1
+============================================================
+
+--- Loading Data ---
+Train: 21600 imgs, Val: 5400 imgs
+Classes: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+
+============================================================
+  Model 1 Phase4 STE (VGG+BN)  [QAT mode: v3]
+  Architecture: flat+BN
+============================================================
+
+  [1/3] Creating standard model...
+  Params: 2,387,680
+
+  [2/3] Converting to QAT (v3)...
+[prepare_model_v3] 量化策略: Conv=int4 QAT, Linear=fp32 (电计算)
+  QATConv2d_v3: 6 (6 enabled)  ← 光计算 int4
+  QATLinear_v3: 2  ← 光计算 int4
+  BN (float32): 6, mode=ste, w4/a8
+
+  [3/3] Loading QAT weights...
+  Weights loaded from: baseline_vgg_phase4_ste.pth
+
+  --- Native float32 evaluation ---
+[disable_qat] Disabled QAT on 8 layers
+  [Model 1 Phase4 STE (VGG+BN) float32] 5400 batches — acc=98.06%
+  Float32 Accuracy: 98.06%
+  Float32 Loss:     0.0777
+  Float32 Time:     87.61s
+
+  --- int4 QAT (optical computing simulation) evaluation ---
+[enable_qat] Enabled QAT on 8 layers
+  [Model 1 Phase4 STE (VGG+BN) int4-QAT] 5400 batches — acc=96.44%
+  Int4 QAT Accuracy: 96.44%
+  Int4 QAT Loss:     0.1440
+  Int4 QAT Time:     163.58s
+
+============================================================
+  Model 2 Phase4 STE (SpaceNet V1)  [QAT mode: v3]
+  Architecture: seq+BN
+============================================================
+
+  [1/3] Creating standard model...
+  Params: 267,944
+
+  [2/3] Converting to QAT (v3)...
+[prepare_model_v3] 量化策略: Conv=int4 QAT, Linear=fp32 (电计算)
+  QATConv2d_v3: 4 (4 enabled)  ← 光计算 int4
+  QATLinear_v3: 2  ← 光计算 int4
+  BN (float32): 4, mode=ste, w4/a8
+
+  [3/3] Loading QAT weights...
+  Weights loaded from: spacenet_v1_phase4_ste.pth
+
+  --- Native float32 evaluation ---
+[disable_qat] Disabled QAT on 6 layers
+  [Model 2 Phase4 STE (SpaceNet V1) float32] 5400 batches — acc=92.57%
+  Float32 Accuracy: 92.57%
+  Float32 Loss:     0.2270
+  Float32 Time:     45.96s
+
+  --- int4 QAT (optical computing simulation) evaluation ---
+[enable_qat] Enabled QAT on 6 layers
+  [Model 2 Phase4 STE (SpaceNet V1) int4-QAT] 5400 batches — acc=74.70%
+  Int4 QAT Accuracy: 74.70%
+  Int4 QAT Loss:     1.0150
+  Int4 QAT Time:     22.49s
+
+============================================================
+  Model 3 Phase4 STE (KD+SpaceNet)  [QAT mode: v3]
+  Architecture: seq+BN
+============================================================
+
+  [1/3] Creating standard model...
+  Params: 267,944
+
+  [2/3] Converting to QAT (v3)...
+[prepare_model_v3] 量化策略: Conv=int4 QAT, Linear=fp32 (电计算)
+  QATConv2d_v3: 4 (4 enabled)  ← 光计算 int4
+  QATLinear_v3: 2  ← 光计算 int4
+  BN (float32): 4, mode=ste, w4/a8
+
+  [3/3] Loading QAT weights...
+  Weights loaded from: spacenet_v2_phase4_ste.pth
+
+  --- Native float32 evaluation ---
+[disable_qat] Disabled QAT on 6 layers
+  [Model 3 Phase4 STE (KD+SpaceNet) float32] 5400 batches — acc=92.94%
+  Float32 Accuracy: 92.94%
+  Float32 Loss:     0.2737
+  Float32 Time:     70.19s
+
+  --- int4 QAT (optical computing simulation) evaluation ---
+[enable_qat] Enabled QAT on 6 layers
+  [Model 3 Phase4 STE (KD+SpaceNet) int4-QAT] 5400 batches — acc=78.06%
+  Int4 QAT Accuracy: 78.06%
+  Int4 QAT Loss:     1.0345
+  Int4 QAT Time:     62.78s
+
+============================================================
+  Model 1 Phase4 LSQ+ (VGG)  [QAT mode: v2]
+  Architecture: seq
+============================================================
+
+  [1/3] Creating standard model...
+  Params: 2,386,272
+
+  [2/3] Converting to QAT (v2)...
+[prepare_model_phase4] Converted 8 layers to QAT v2 (mode=lsqplus, noise=False, bias=False)
+
+  [3/3] Loading QAT weights...
+  Weights loaded from: baseline_vgg_phase4_lsqplus.pth
+
+  --- Native float32 evaluation ---
+  [Model 1 Phase4 LSQ+ (VGG) float32] 5400 batches — acc=19.98%
+  Float32 Accuracy: 19.98%
+  Float32 Loss:     1752.9693
+  Float32 Time:     34.66s
+
+  --- int4 QAT (optical computing simulation) evaluation ---
+  [Model 1 Phase4 LSQ+ (VGG) int4-QAT] 5400 batches — acc=51.93%
+  Int4 QAT Accuracy: 51.93%
+  Int4 QAT Loss:     1.2304
+  Int4 QAT Time:     161.65s
+
+
+
+====================================================================================================
+  OPTIC-SPACENET PHASE 4: Optical Computing Inference Report
+====================================================================================================
+
+  [QAT Mode] int4 pseudo-quantization (matches training)
+  Model                            Params  FP32 Acc  Int4 Acc Quant Loss
+  ------------------------------------------------------------------------
+  Model 1 Phase4 STE (VGG+BN)    2,387,680   98.06%   96.44%    1.61%
+  Model 2 Phase4 STE (SpaceNet V1)  267,944   92.57%   74.70%   17.87%
+  Model 3 Phase4 STE (KD+SpaceNet)  267,944   92.94%   78.06%   14.89%
+  Model 1 Phase4 LSQ+ (VGG)      2,388,596   19.98%   51.93%  -31.94%
+
+  Reference (training logs):
+    Model 1 STE:  98.07% int4  (baseline_vgg_phase4_ste.pth)
+    Model 2 STE:  92.87% int4  (spacenet_v1_phase4_ste.pth)
+    Model 3 STE:  93.22% int4  (spacenet_v2_phase4_ste.pth)
+    Model 1 LSQ+: 61.72% int4  (baseline_vgg_phase4_lsqplus.pth)
+====================================================================================================
+```
+
+
+```powershell
+PS E:\LT-Simulator\train-test> python model2_spacenet_v1_phase4_v3.py
+设备: cpu
+
+============================================================
+  Model 2 Phase4 v3: int8 权重 + Gazelle 硬件噪声
+  首层 stem FP32 (对齐率 37.5%), 其余 Conv+Linear int8
+============================================================
+训练: 21600, 验证: 5400
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+
+参数量: 267,944
+
+[Step 1] 转换为 QAT v4 (int8 权重, Gazelle 噪声)
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8
+  QAT Conv: 0 enabled + 4 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015)
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [SpaceNet V1 (v4)] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w8
+  [QATConv2d_v4 FP32 ] stage1.0                     8   2×2        32        32  100.0%  w8
+  [QATConv2d_v4 FP32 ] stage2.0                    16   2×2        64        64  100.0%  w8
+  [QATConv2d_v4 FP32 ] stage3.0                    32   1×1        32        32  100.0%  w8
+  综合硬件对齐率: 99.6% (展平总长度 1411 → 补零后 1416)
+
+[Step 2] 训练 (100 epochs, lr=0.001, wd=0.0005)
+  int8 权重 (硬件原生精度)
+  GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-4) — 硬件匹配噪声
+----------------------------------------------------------------------
+  Epoch | Train Loss Train Acc |  Val Loss  Val Acc |     Best |       LR |    Time
+  --------------------------------------------------------------------
+      1  |     1.2163   64.76% |    0.9311  74.61% |  74.61% | 0.00020 |   37.6s
+      5  |     0.8920   77.99% |    0.7418  83.24% |  83.24% | 0.00100 |   37.9s
+     10  |     0.7653   83.26% |    0.6909  84.80% |  86.72% | 0.00099 |   38.1s
+     15  |     0.7221   85.67% |    0.6219  88.06% |  88.06% | 0.00097 |   37.1s
+     20  |     0.6750   87.13% |    0.5954  88.93% |  89.33% | 0.00094 |   37.2s
+     25  |     0.6495   88.48% |    0.6086  88.02% |  89.33% | 0.00090 |   37.5s
+     30  |     0.6251   89.12% |    0.5526  91.04% |  91.04% | 0.00084 |   37.9s
+     35  |     0.6077   90.01% |    0.5499  90.80% |  91.04% | 0.00078 |   53.1s
+     40  |     0.5976   90.27% |    0.5410  91.13% |  91.15% | 0.00070 |   53.7s
+     45  |     0.5747   91.21% |    0.5449  90.98% |  91.50% | 0.00063 |   41.5s
+     50  |     0.5683   91.59% |    0.5294  91.67% |  91.94% | 0.00055 |   53.0s
+     55  |     0.5610   91.41% |    0.5223  91.89% |  92.07% | 0.00046 |   41.5s
+     60  |     0.5529   91.84% |    0.5192  92.31% |  92.31% | 0.00038 |   40.6s
+     65  |     0.5463   92.07% |    0.5378  91.46% |  92.83% | 0.00031 |   41.3s
+     70  |     0.5301   92.93% |    0.5049  92.83% |  92.83% | 0.00023 |   41.3s
+     75  |     0.5315   92.65% |    0.5084  92.59% |  92.83% | 0.00017 |   42.7s
+     80  |     0.5232   92.79% |    0.5072  92.54% |  92.83% | 0.00011 |   49.5s
+     85  |     0.5211   92.87% |    0.4974  93.02% |  93.02% | 0.00007 |   53.9s
+     90  |     0.5148   92.94% |    0.4993  92.72% |  93.02% | 0.00004 |   48.7s
+     95  |     0.5119   93.40% |    0.4980  92.91% |  93.02% | 0.00002 |   48.9s
+    100  |     0.5136   93.31% |    0.4996  92.81% |  93.20% | 0.00001 |   49.7s
+
+[Step 3] 最终评估
+[enable_qat] Enabled QAT on 6 layers
+  Int8 模式 (光计算模拟) 准确率: 93.20%
+[disable_qat] Disabled QAT on 6 layers
+  Float32 模式准确率:              93.24%
+  Int8 量化损失:             0.04%
+
+  模型已保存: spacenet_v1_phase4_v3_int8.pth
+
+============================================================
+  训练完成 — 结果汇总
+============================================================
+  模型:              SpaceNet V1 (bias=False)
+  参数量:            267,944
+  权重量化:          int8 (硬件原生 8-bit)
+  噪声模型:          Gazelle (DAC 7.5 + TIA)
+  首层:              FP32 (对齐率 37.5%)
+  训练总耗时:        4371.6s (72.9min)
+  硬件对齐率:        99.6%
+  Int8 最佳准确率: 93.20%
+  Float32 准确率:    93.24%
+  旧版 int4 参考:    74.35% (Phase4, Conv QAT 全关)
+  FP32 基准:         90.15%
+============================================================
+```
+
+```powershell
+PS E:\LT-Simulator\train-test> python model2_spacenet_v1_phase4_v3.py --wbits 4
+设备: cpu
+
+============================================================
+  Model 2 Phase4 v3: int4 权重 + Gazelle 硬件噪声
+  首层 stem FP32 (对齐率 37.5%), 其余 Conv+Linear int4
+============================================================
+训练: 21600, 验证: 5400
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+
+参数量: 267,944
+
+[Step 1] 转换为 QAT v4 (int4 权重, Gazelle 噪声)
+[prepare_model_v4] Gazelle HW-aware QAT: wint4/a8
+  QAT Conv: 0 enabled + 4 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015)
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [SpaceNet V1 (v4)] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w4
+  [QATConv2d_v4 FP32 ] stage1.0                     8   2×2        32        32  100.0%  w4
+  [QATConv2d_v4 FP32 ] stage2.0                    16   2×2        64        64  100.0%  w4
+  [QATConv2d_v4 FP32 ] stage3.0                    32   1×1        32        32  100.0%  w4
+  综合硬件对齐率: 99.6% (展平总长度 1411 → 补零后 1416)
+
+[Step 2] 训练 (120 epochs, lr=0.001, wd=0.0001)
+  int4 权重 (保守, 硬件有余量)
+  GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-4) — 硬件匹配噪声
+----------------------------------------------------------------------
+  Epoch | Train Loss Train Acc |  Val Loss  Val Acc |     Best |       LR |    Time
+  --------------------------------------------------------------------
+      1  |     1.0467   64.46% |    0.7227  73.91% |  73.91% | 0.00020 |   41.9s
+      5  |     0.6671   77.62% |    0.5270  81.61% |  81.61% | 0.00100 |   38.5s
+     10  |     0.5418   82.38% |    0.4760  82.93% |  85.22% | 0.00100 |   37.6s
+     15  |     0.4731   84.78% |    0.3713  87.57% |  88.17% | 0.00098 |   37.2s
+     20  |     0.4315   86.33% |    0.3457  88.59% |  88.59% | 0.00096 |   37.3s
+     25  |     0.3933   87.38% |    0.3323  88.57% |  89.44% | 0.00093 |   37.6s
+     30  |     0.3752   88.05% |    0.3085  90.09% |  90.31% | 0.00089 |   37.5s
+     35  |     0.3522   88.53% |    0.3098  90.13% |  90.31% | 0.00084 |   53.2s
+     40  |     0.3438   89.19% |    0.2885  90.24% |  90.46% | 0.00079 |   53.1s
+     45  |     0.3118   89.96% |    0.2789  90.72% |  90.98% | 0.00073 |   40.9s
+     50  |     0.2911   90.58% |    0.2824  91.02% |  91.28% | 0.00067 |   52.9s
+     55  |     0.2882   90.57% |    0.2835  91.54% |  91.54% | 0.00061 |   41.3s
+     60  |     0.2827   90.88% |    0.3089  90.48% |  91.54% | 0.00054 |   40.8s
+     65  |     0.2666   91.29% |    0.2942  90.94% |  91.54% | 0.00047 |   40.7s
+     70  |     0.2514   91.94% |    0.2762  91.59% |  91.91% | 0.00040 |   40.9s
+     75  |     0.2496   91.94% |    0.2664  91.48% |  91.91% | 0.00034 |   42.6s
+     80  |     0.2292   92.44% |    0.2631  91.54% |  91.91% | 0.00028 |   48.4s
+     85  |     0.2277   92.49% |    0.2603  91.74% |  91.91% | 0.00022 |   54.8s
+     90  |     0.2154   92.75% |    0.2511  92.26% |  92.26% | 0.00017 |   50.6s
+     95  |     0.2081   93.22% |    0.2465  92.02% |  92.52% | 0.00012 |   48.4s
+    100  |     0.2038   93.18% |    0.2496  92.11% |  92.52% | 0.00008 |   42.1s
+    105  |     0.1944   93.40% |    0.2558  92.44% |  92.52% | 0.00005 |   40.6s
+    110  |     0.1881   93.44% |    0.2466  92.06% |  92.56% | 0.00003 |   42.4s
+    115  |     0.1864   93.50% |    0.2451  92.31% |  92.56% | 0.00001 |   52.7s
+    120  |     0.1848   93.36% |    0.2452  92.41% |  92.56% | 0.00001 |   42.2s
+
+[Step 3] 最终评估
+[enable_qat] Enabled QAT on 6 layers
+  Int4 模式 (光计算模拟) 准确率: 92.56%
+[disable_qat] Disabled QAT on 6 layers
+  Float32 模式准确率:              91.76%
+  Int4 量化损失:             -0.80%
+
+  模型已保存: spacenet_v1_phase4_v3_int4.pth
+
+============================================================
+  训练完成 — 结果汇总
+============================================================
+  模型:              SpaceNet V1 (bias=False)
+  参数量:            267,944
+  权重量化:          int4 (保守)
+  噪声模型:          Gazelle (DAC 7.5 + TIA)
+  首层:              FP32 (对齐率 37.5%)
+  训练总耗时:        5277.6s (88.0min)
+  硬件对齐率:        99.6%
+  Int4 最佳准确率: 92.56%
+  Float32 准确率:    91.76%
+  旧版 int4 参考:    74.35% (Phase4, Conv QAT 全关)
+  FP32 基准:         90.15%
+============================================================
+```
+
+```powershell
+PS E:\LT-Simulator\train-test> python model2_spacenet_v1_phase4_v2.py
+设备: cpu
+
+============================================================
+  Model 2 Phase4 v2: Conv+Linear 全 int4, bias=False
+  修复: Conv 层 QAT 全开 (vs 旧版全关)
+============================================================
+训练: 21600, 验证: 5400
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+
+参数量: 267,944
+  4×Conv + 2×Linear → 全 int4 QAT, bias=False
+
+[Step 1] 转换为 QAT v3: Conv+Linear→int4 QAT
+[prepare_model_v3] 量化策略: Conv=int4 QAT, Linear=fp32 (电计算)
+  QATConv2d_v3: 4 (4 enabled)  ← 光计算 int4
+  QATLinear_v3: 2  ← 光计算 int4
+  BN (float32): 4, mode=ste, w4/a8
+  训练噪声: std=0.02*scale (仅 int4 Conv 权重)
+  int4 QAT Conv: 4, int4 QAT Linear: 2, fp32 Linear: -2, BN: 4 (float32)
+
+  [OpticSpaceNetV1 Phase4 v2 (Conv+Linear int4, bias=False)] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v3 QAT  ] stem.0                       3   1×1         3         8   37.5%
+  [QATConv2d_v3 QAT  ] stage1.0                     8   2×2        32        32  100.0%
+  [QATConv2d_v3 QAT  ] stage2.0                    16   2×2        64        64  100.0%
+  [QATConv2d_v3 QAT  ] stage3.0                    32   1×1        32        32  100.0%
+  [QATLinear_v3 QAT  ] classifier.1                —     —          1024      1024  100.0%
+  [QATLinear_v3 QAT  ] classifier.4                —     —           256       256  100.0%
+  综合硬件对齐率: 99.6% (展平总长度 1411 → 补零后 1416)
+
+[Step 2] 训练 (100 epochs, lr=0.001, warmup=5, wd=0.0005)
+  噪声注入: std=0.02*scale (仅 int4 权重层)
+----------------------------------------------------------------------
+  Epoch | Train Loss Train Acc |  Val Loss  Val Acc |     Best |       LR |    Time
+  --------------------------------------------------------------------
+      1  |     1.0870   61.55% |    1.1137  61.20% |  61.20% | 0.00020 |   49.7s
+      5  |     0.7283   74.75% |    0.6122  78.70% |  78.70% | 0.00100 |   40.2s
+     10  |     0.6117   78.89% |    0.4718  84.15% |  84.15% | 0.00099 |   48.3s
+     15  |     0.5356   81.69% |    0.4447  85.17% |  85.50% | 0.00097 |   31.3s
+     20  |     0.5223   82.16% |    0.3735  87.61% |  87.61% | 0.00094 |   30.9s
+     25  |     0.4693   84.00% |    0.4293  85.96% |  87.61% | 0.00090 |   55.1s
+     30  |     0.4416   84.86% |    0.4236  85.74% |  88.37% | 0.00084 |   57.3s
+     35  |     0.4188   85.86% |    1.6420  66.22% |  88.37% | 0.00078 |   52.0s
+     40  |     0.3801   87.14% |    0.3812  88.28% |  88.37% | 0.00070 |   46.5s
+     45  |     0.3778   87.17% |    0.3372  88.98% |  88.98% | 0.00063 |   50.7s
+     50  |     0.3631   87.75% |    0.3868  87.35% |  88.98% | 0.00055 |   48.1s
+     55  |     0.3466   88.59% |    0.3798  87.06% |  89.87% | 0.00046 |   47.4s
+     60  |     0.3355   88.63% |    0.3239  89.44% |  89.87% | 0.00038 |   47.9s
+     65  |     0.3264   88.79% |    0.3382  89.04% |  89.87% | 0.00031 |   46.1s
+     70  |     0.3137   89.35% |    0.3148  89.30% |  89.87% | 0.00023 |   46.3s
+     75  |     0.3063   89.34% |    0.4277  85.81% |  91.06% | 0.00017 |   46.9s
+     80  |     0.3049   89.30% |    0.3442  88.89% |  91.06% | 0.00011 |   46.2s
+     85  |     0.2821   90.36% |    0.4508  86.50% |  91.06% | 0.00007 |   37.8s
+     90  |     0.2780   90.35% |    0.2932  90.83% |  91.06% | 0.00004 |   38.3s
+     95  |     0.2858   90.08% |    0.3354  89.22% |  91.06% | 0.00002 |   56.7s
+    100  |     0.2778   90.23% |    0.3832  88.19% |  91.06% | 0.00001 |   59.6s
+
+[Step 3] 最终评估
+[enable_qat] Enabled QAT on 6 layers
+  Int4 模式 (光计算模拟) 准确率: 91.06%
+[disable_qat] Disabled QAT on 6 layers
+  Float32 模式准确率:         87.54%
+  Int4 量化损失:              -3.52%
+
+  模型已保存: spacenet_v1_phase4_v2_ste.pth
+
+============================================================
+  训练完成 — 结果汇总
+============================================================
+  模型:              OpticSpaceNetV1 Phase4 v2 (Conv+Linear int4, bias=False)
+  参数量:            267,944
+  量化策略:          Conv+Linear→int4 (全光计算)
+  模式:              ste, w4/a8
+  训练总耗时:        4525.3s (75.4min)
+  硬件对齐率:        99.6%
+  Int4 最佳准确率:   91.06%
+  Float32 准确率:    87.54%
+  FP32 基准 (参考):  90.15% (全 fp32)
+  量化损失:          -3.52%
+============================================================
+```
+
+```powershell
+PS E:\LT-Simulator\train-test> python model3_spacenet_v2_phase4_v2.py
+设备: cpu
+
+============================================================
+  Model 3 Phase4 v2: KD + Conv+Linear 全 int4, bias=False
+  修复: Conv 层 QAT 全开 (vs 旧版全关)
+============================================================
+训练: 21600, 验证: 5400
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+
+[Step 0] 加载教师 (ResNet-18)
+  教师权重加载成功
+  学生参数量: 267,944
+  4×Conv + 2×Linear → 全 int4 QAT, bias=False
+
+[Step 1] 转换学生: Conv+Linear→int4 QAT, bias=False
+[prepare_model_v3] 量化策略: Conv=int4 QAT, Linear=fp32 (电计算)
+  QATConv2d_v3: 4 (4 enabled)  ← 光计算 int4
+  QATLinear_v3: 2  ← 光计算 int4
+  BN (float32): 4, mode=ste, w4/a8
+  训练噪声: std=0.02*scale (仅 int4 Conv 权重)
+  int4 QAT Conv: 4, int4 QAT Linear: 2, BN: 4 (float32)
+
+  [Student (Conv+Linear int4)] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v3 QAT  ] stem.0                       3   1×1         3         8   37.5%
+  [QATConv2d_v3 QAT  ] stage1.0                     8   2×2        32        32  100.0%
+  [QATConv2d_v3 QAT  ] stage2.0                    16   2×2        64        64  100.0%
+  [QATConv2d_v3 QAT  ] stage3.0                    32   1×1        32        32  100.0%
+  [QATLinear_v3 QAT  ] classifier.1                —     —          1024      1024  100.0%
+  [QATLinear_v3 QAT  ] classifier.4                —     —           256       256  100.0%
+  综合硬件对齐率: 99.6% (展平总长度 1411 → 补零后 1416)
+
+[Step 2] KD+Phase4 训练 (120 epochs, T=4.0, α=0.7)
+  教师: ResNet-18 (fp32) → 学生: Conv+Linear int4, bias=False
+----------------------------------------------------------------------
+  Epoch |    KD Loss Train Acc |  Val Loss  Val Acc |     Best |    Time
+  -----------------------------------------------------------------
+      1  |     9.7578   60.52% |    1.0173  71.13% |  71.13% |   74.6s
+      5  |     6.4964   75.44% |    0.8989  77.19% |  78.15% |   80.5s
+     10  |     5.6260   79.51% |    0.8805  79.15% |  80.96% |   76.9s
+     15  |     5.2089   81.81% |    0.6174  84.13% |  84.37% |   74.9s
+     20  |     4.9051   83.14% |    0.7321  82.41% |  85.02% |   69.9s
+     25  |     4.6488   84.62% |    0.7925  80.31% |  86.04% |   70.8s
+     30  |     4.5828   85.17% |    0.5173  87.54% |  87.54% |   69.8s
+     35  |     4.4184   85.72% |    0.5193  86.26% |  87.54% |   70.1s
+     40  |     4.1948   86.73% |    0.7246  83.28% |  88.96% |   56.6s
+     45  |     4.1281   87.17% |    0.4604  89.00% |  89.00% |   56.5s
+     50  |     4.0942   87.22% |    0.4408  89.41% |  89.41% |   84.8s
+     55  |     4.0388   87.35% |    0.4872  87.57% |  89.56% |   47.2s
+     60  |     3.9656   87.94% |    0.5298  87.26% |  89.74% |   47.0s
+     65  |     4.0267   87.44% |    0.4530  88.83% |  89.74% |   69.6s
+     70  |     3.8250   88.31% |    0.4619  88.37% |  89.74% |   73.1s
+     75  |     3.7697   88.44% |    0.4171  89.93% |  89.93% |   52.5s
+     80  |     3.7482   88.50% |    0.4735  88.17% |  89.93% |   52.5s
+     85  |     3.6860   89.02% |    0.3655  90.85% |  90.85% |   45.8s
+     90  |     3.6179   89.32% |    0.3374  91.50% |  91.50% |   45.1s
+     95  |     3.5806   89.60% |    0.3628  90.63% |  91.50% |   46.4s
+    100  |     3.5662   89.26% |    0.4107  89.52% |  91.50% |   46.6s
+    105  |     3.5571   89.41% |    0.4244  89.20% |  91.50% |   46.1s
+    110  |     3.5806   89.49% |    0.3752  90.52% |  91.50% |   45.5s
+    115  |     3.4829   89.91% |    0.6337  85.70% |  91.50% |   45.5s
+    120  |     3.4862   89.78% |    0.6703  84.89% |  91.50% |   46.5s
+
+[Step 3] 最终评估
+[enable_qat] Enabled QAT on 6 layers
+  Int4 模式 (全光计算) 准确率: 91.50%
+[disable_qat] Disabled QAT on 6 layers
+  Float32 模式准确率:          80.98%
+
+  模型已保存: spacenet_v2_phase4_v2_ste.pth
+
+============================================================
+  训练完成 — 结果汇总
+============================================================
+  学生模型:          OpticSpaceNet (Conv+Linear int4, bias=False)
+  教师模型:          ResNet-18 (fp32)
+  参数量:            267,944
+  蒸馏:              T=4.0, α=0.7
+  训练总耗时:        7203.7s (120.1min)
+  硬件对齐率:        99.6%
+  Int4 最佳准确率:   91.50%
+  Float32 准确率:    80.98%
+  量化损失:          -10.52%
+  FP32 KD 基准:      91.44% (全 fp32 KD)
+============================================================
+```
+
+```powershell
+PS E:\LT-Simulator\train-test> python model2_spacenet_v1_phase4_v3.py
+设备: cpu
+
+============================================================
+  Model 2 Phase4 v3: int8 权重 + Gazelle 硬件噪声
+  首层 stem FP32 (对齐率 37.5%), 其余 Conv+Linear int8
+============================================================
+训练: 21600, 验证: 5400
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+
+参数量: 267,944
+
+[Step 1] 转换为 QAT v4 (int8 权重, Gazelle 噪声)
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8
+  QAT Conv: 3 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015)
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [SpaceNet V1 (v4)] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w8
+  [QATConv2d_v4 QAT  ] stage1.0                     8   2×2        32        32  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage2.0                    16   2×2        64        64  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage3.0                    32   1×1        32        32  100.0%  w8
+  综合硬件对齐率: 99.6% (展平总长度 1411 → 补零后 1416)
+
+[Step 2] 训练 (100 epochs, lr=0.001, wd=0.0005)
+  int8 权重 (硬件原生精度)
+  GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-4) — 硬件匹配噪声
+----------------------------------------------------------------------
+  Epoch | Train Loss Train Acc |  Val Loss  Val Acc |     Best |       LR |    Time
+  --------------------------------------------------------------------
+      1  |     1.2230   64.34% |    0.9473  74.44% |  74.44% | 0.00020 |   46.0s
+      5  |     0.8894   78.24% |    0.7620  82.30% |  82.30% | 0.00100 |   50.3s
+     10  |     0.7808   83.02% |    0.6559  86.67% |  86.67% | 0.00099 |   50.3s
+     15  |     0.7213   85.47% |    0.6109  88.52% |  88.52% | 0.00097 |   47.0s
+     20  |     0.6747   87.57% |    0.6072  89.00% |  89.24% | 0.00094 |   48.7s
+     25  |     0.6530   88.23% |    0.5778  89.85% |  89.85% | 0.00090 |   49.2s
+     30  |     0.6362   88.86% |    0.5557  90.85% |  90.85% | 0.00084 |   47.4s
+     35  |     0.6182   89.75% |    0.5540  91.07% |  91.07% | 0.00078 |   47.8s
+     40  |     0.5890   90.56% |    0.5516  90.76% |  91.20% | 0.00070 |   47.8s
+     45  |     0.5843   90.97% |    0.5349  92.04% |  92.04% | 0.00063 |   49.7s
+     50  |     0.5672   91.30% |    0.5366  91.44% |  92.04% | 0.00055 |   49.0s
+     55  |     0.5568   91.76% |    0.5292  92.09% |  92.19% | 0.00046 |   49.2s
+     60  |     0.5487   92.19% |    0.5155  92.33% |  92.33% | 0.00038 |   52.4s
+     65  |     0.5421   92.42% |    0.5170  92.33% |  92.46% | 0.00031 |   50.5s
+     70  |     0.5328   92.59% |    0.5072  92.69% |  92.69% | 0.00023 |   48.9s
+     75  |     0.5289   92.90% |    0.5171  92.50% |  92.76% | 0.00017 |   47.4s
+     80  |     0.5196   92.92% |    0.5063  93.11% |  93.11% | 0.00011 |   48.0s
+     85  |     0.5179   92.88% |    0.5043  92.98% |  93.11% | 0.00007 |   49.0s
+     90  |     0.5163   93.35% |    0.5009  92.87% |  93.11% | 0.00004 |   48.9s
+     95  |     0.5144   93.16% |    0.5050  92.67% |  93.11% | 0.00002 |   47.4s
+    100  |     0.5125   93.07% |    0.4976  92.72% |  93.11% | 0.00001 |   47.5s
+
+[Step 3] 最终评估
+[enable_qat] Enabled QAT on 6 layers
+  Int8 模式 (光计算模拟) 准确率: 93.11%
+[disable_qat] Disabled QAT on 6 layers
+  Float32 模式准确率:              93.02%
+  Int8 量化损失:             -0.09%
+
+  模型已保存: spacenet_v1_phase4_v3_int8.pth
+
+============================================================
+  训练完成 — 结果汇总
+============================================================
+  模型:              SpaceNet V1 (bias=False)
+  参数量:            267,944
+  权重量化:          int8 (硬件原生 8-bit)
+  噪声模型:          Gazelle (DAC 7.5 + TIA)
+  首层:              FP32 (对齐率 37.5%)
+  训练总耗时:        4866.3s (81.1min)
+  硬件对齐率:        99.6%
+  Int8 最佳准确率: 93.11%
+  Float32 准确率:    93.02%
+  旧版 int4 参考:    74.35% (Phase4, Conv QAT 全关)
+  FP32 基准:         90.15%
+============================================================
+```
+
+```powershell
+PS E:\LT-Simulator\train-test> python model3_spacenet_v2_phase4_v2.py
+设备: cpu
+
+============================================================
+  Model 3 Phase4 v2: KD + Conv+Linear 全 int4, bias=False
+  修复: Conv 层 QAT 全开 (vs 旧版全关)
+============================================================
+训练: 21600, 验证: 5400
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+
+[Step 0] 加载教师 (ResNet-18)
+  教师权重加载成功
+  学生参数量: 267,944
+  4×Conv + 2×Linear → 全 int4 QAT, bias=False
+
+[Step 1] 转换学生: Conv+Linear→int4 QAT, bias=False
+[prepare_model_v3] 量化策略: Conv=int4 QAT, Linear=fp32 (电计算)
+  QATConv2d_v3: 4 (4 enabled)  ← 光计算 int4
+  QATLinear_v3: 2  ← 光计算 int4
+  BN (float32): 4, mode=ste, w4/a8
+  训练噪声: std=0.02*scale (仅 int4 Conv 权重)
+  int4 QAT Conv: 4, int4 QAT Linear: 2, BN: 4 (float32)
+
+  [Student (Conv+Linear int4)] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v3 QAT  ] stem.0                       3   1×1         3         8   37.5%
+  [QATConv2d_v3 QAT  ] stage1.0                     8   2×2        32        32  100.0%
+  [QATConv2d_v3 QAT  ] stage2.0                    16   2×2        64        64  100.0%
+  [QATConv2d_v3 QAT  ] stage3.0                    32   1×1        32        32  100.0%
+  [QATLinear_v3 QAT  ] classifier.1                —     —          1024      1024  100.0%
+  [QATLinear_v3 QAT  ] classifier.4                —     —           256       256  100.0%
+  综合硬件对齐率: 99.6% (展平总长度 1411 → 补零后 1416)
+
+[Step 2] KD+Phase4 训练 (120 epochs, T=4.0, α=0.7)
+  教师: ResNet-18 (fp32) → 学生: Conv+Linear int4, bias=False
+----------------------------------------------------------------------
+  Epoch |    KD Loss Train Acc |  Val Loss  Val Acc |     Best |    Time
+  -----------------------------------------------------------------
+      1  |     9.7578   60.52% |    1.0173  71.13% |  71.13% |   64.8s
+      5  |     6.4964   75.44% |    0.8989  77.19% |  78.15% |   63.7s
+     10  |     5.6260   79.51% |    0.8805  79.15% |  80.96% |   64.1s
+     15  |     5.2089   81.81% |    0.6174  84.13% |  84.37% |   65.5s
+     20  |     4.9051   83.14% |    0.7321  82.41% |  85.02% |   63.8s
+     25  |     4.6488   84.62% |    0.7925  80.31% |  86.04% |   64.3s
+     30  |     4.5828   85.17% |    0.5173  87.54% |  87.54% |   64.3s
+     35  |     4.4184   85.72% |    0.5193  86.26% |  87.54% |   64.7s
+     40  |     4.1948   86.73% |    0.7246  83.28% |  88.96% |   67.4s
+     45  |     4.1281   87.17% |    0.4604  89.00% |  89.00% |   68.4s
+     50  |     4.0942   87.22% |    0.4408  89.41% |  89.41% |   63.0s
+     55  |     4.0388   87.35% |    0.4872  87.57% |  89.56% |   63.4s
+     60  |     3.9656   87.94% |    0.5298  87.26% |  89.74% |   63.6s
+     65  |     4.0267   87.44% |    0.4530  88.83% |  89.74% |   65.4s
+     70  |     3.8250   88.31% |    0.4619  88.37% |  89.74% |   63.3s
+     75  |     3.7697   88.44% |    0.4171  89.93% |  89.93% |   60.8s
+     80  |     3.7482   88.50% |    0.4735  88.17% |  89.93% |   46.2s
+     85  |     3.6860   89.02% |    0.3655  90.85% |  90.85% |   46.7s
+     90  |     3.6179   89.32% |    0.3374  91.50% |  91.50% |   46.7s
+     95  |     3.5806   89.60% |    0.3628  90.63% |  91.50% |   52.7s
+    100  |     3.5662   89.26% |    0.4107  89.52% |  91.50% |   51.3s
+    105  |     3.5571   89.41% |    0.4244  89.20% |  91.50% |   50.5s
+    110  |     3.5806   89.49% |    0.3752  90.52% |  91.50% |   51.8s
+    115  |     3.4829   89.91% |    0.6337  85.70% |  91.50% |   56.4s
+    120  |     3.4862   89.78% |    0.6703  84.89% |  91.50% |   61.4s
+
+[Step 3] 最终评估
+[enable_qat] Enabled QAT on 6 layers
+  Int4 模式 (全光计算) 准确率: 91.50%
+[disable_qat] Disabled QAT on 6 layers
+  Float32 模式准确率:          80.98%
+
+  模型已保存: spacenet_v2_phase4_v2_ste.pth
+
+============================================================
+  训练完成 — 结果汇总
+============================================================
+  学生模型:          OpticSpaceNet (Conv+Linear int4, bias=False)
+  教师模型:          ResNet-18 (fp32)
+  参数量:            267,944
+  蒸馏:              T=4.0, α=0.7
+  训练总耗时:        7163.8s (119.4min)
+  硬件对齐率:        99.6%
+  Int4 最佳准确率:   91.50%
+  Float32 准确率:    80.98%
+  量化损失:          -10.52%
+  FP32 KD 基准:      91.44% (全 fp32 KD)
+============================================================
+```
+
+
+
+
+
+
+
+---
+
+## 2026-07-09 训练日志总结
+
+### 今日新增 5 轮训练 (基于 Gazelle 硬件逆向分析)
+
+| # | 脚本 | 模型 | 配置 | Int 精度 | FP32 精度 | 耗时 | 备注 |
+|---|---|---|---|---|---|---|---|
+| 1 | model2_spacenet_v1_phase4_v2.py | Model 2 | int4, Conv+Linear QAT 全开 | 91.06% | 87.54% | 75min | v2 修复: 旧版 bug 导致 Conv QAT 全关 |
+| 2 | model2_spacenet_v1_phase4_v3.py | Model 2 | int4 + Gazelle (bug) | 92.56% | 91.76% | 86min | _first bug: Conv 全 FP32 |
+| 3 | model2_spacenet_v1_phase4_v3.py | Model 2 | int8 + Gazelle (bug) | 93.20% | 93.24% | 73min | _first bug: Conv 全 FP32 |
+| 4 | model2_spacenet_v1_phase4_v3.py | Model 2 | int8 + Gazelle (修复) | 93.11% | 93.02% | 81min | ★★ 最佳! 首层 FP32 + 其余 int8 |
+| 5 | model3_spacenet_v2_phase4_v2.py | Model 3 | int4 + KD, Conv+Linear QAT 全开 | 91.50% | 80.98% | 119min | KD+int4 超 FP32 KD 基准 |
+
+### 关键发现
+
+1. 硬件真相: Gazelle 8×2 tile, 原生 8a8w12o, 线性度 99.4% → 硬件几乎理想
+2. v2 int4 (91.06%) 超过 FP32 基准 (90.15%): QAT 量化噪声充当正则化
+3. v3 int8 (93.11%) 是最佳: 匹配硬件原生 8-bit, 量化损失仅 0.09%
+4. QAT 训练后 disable_qat 精度反而更低: 权重已适应量化 — QAT 成功标志

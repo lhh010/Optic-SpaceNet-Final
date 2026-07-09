@@ -87,8 +87,10 @@ class Phase4Trainer:
         cfg = self.config
         model = self.model
 
-        # === Step 1: 转换模型 (Conv=int4 QAT, Linear=fp32) ===
-        print(f"\n[Step 1] 转换为 QAT v3: Conv→int4 QAT, Linear→fp32")
+        # === Step 1: 转换模型 ===
+        quant_linear = cfg.get('quantize_linear', True)  # Phase4=True, Mixed=False
+        strategy = "Conv+Linear→int4 QAT" if quant_linear else "Conv→int4 QAT, Linear→fp32"
+        print(f"\n[Step 1] 转换为 QAT v3: {strategy}")
         prepare_model_v3(
             model,
             mode=cfg['mode'],
@@ -96,16 +98,19 @@ class Phase4Trainer:
             act_bits=cfg.get('act_bits', 8),
             noise=cfg.get('noise', True),
             noise_std_ratio=cfg.get('noise_std_ratio', 0.02),
-            quantize_linear=False,  # Linear 保持 fp32 电计算
+            quantize_linear=quant_linear,
             preserve_bn=True,
         )
 
         # 统计
         qc = sum(1 for m in model.modules()
                  if type(m).__name__ == 'QATConv2d_v3' and m.qat_enabled)
+        ql = sum(1 for m in model.modules()
+                 if type(m).__name__ == 'QATLinear_v3' and m.qat_enabled)
         lin = sum(1 for m in model.modules() if isinstance(m, nn.Linear))
         bn = sum(1 for m in model.modules() if isinstance(m, nn.BatchNorm2d))
-        print(f"  int4 QAT Conv: {qc}, fp32 Linear: {lin}, BN: {bn} (float32)")
+        print(f"  int4 QAT Conv: {qc}, int4 QAT Linear: {ql}, "
+              f"fp32 Linear: {lin - ql}, BN: {bn} (float32)")
 
         # 硬件对齐率
         alignment = print_alignment_detail(model, cfg.get('model_name', 'Model'))
@@ -193,11 +198,14 @@ class Phase4Trainer:
         print(f"\n  模型已保存: {fname}")
 
         # === 结果汇总 ===
+        strategy_desc = ("Conv+Linear→int4 (全光计算)" if quant_linear
+                        else "Conv→int4 (光计算) + Linear→fp32 (电计算)")
         print(f"\n{'='*60}")
         print(f"  训练完成 — 结果汇总")
         print(f"{'='*60}")
         print(f"  模型:              {cfg.get('model_name', 'Unknown')}")
         print(f"  参数量:            {sum(p.numel() for p in model.parameters()):,}")
+        print(f"  量化策略:          {strategy_desc}")
         print(f"  模式:              {cfg['mode']}, "
               f"w{cfg.get('weight_bits', 4)}/a{cfg.get('act_bits', 8)}")
         print(f"  训练总耗时:        {total_time:.1f}s ({total_time/60:.1f}min)")

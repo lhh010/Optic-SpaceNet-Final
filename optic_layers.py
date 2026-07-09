@@ -397,32 +397,56 @@ class OpticalEngine:
     def _matmul_real(self, input_matrix: torch.Tensor,
                      weight_matrix: torch.Tensor,
                      input_bit: int, weight_bit: int) -> torch.Tensor:
-        """调用真实 Ltsimulator"""
+        """调用真实 Ltsimulator
+
+        量化约定:
+          - 输入: unsigned affine (uint4/uint8), 光硬件只接受非负值
+            x_float = x_int * in_scale + in_zp
+          - 权重: signed symmetric (int4), zp=0
+            w_float = w_int * w_scale
+
+        反量化:
+          y = (X_int * in_scale + in_zp) @ (W_int * w_scale)
+            = in_scale * w_scale * X_int @ W_int  +  in_zp * w_scale * sum(W_int, axis=k)
+            = in_scale * w_scale * result_int       +  in_zp * w_scale * col_sum_W
+        """
         b, m, k = input_matrix.shape
         k_w, n = weight_matrix.shape
 
-        # 量化到整数
+        # === 输入量化: unsigned (光硬件要求非负) ===
         input_int, in_scale, in_zp = quantize_to_int(
             input_matrix.reshape(-1, k), input_bit, signed=False
         )
         input_int = input_int.reshape(b, m, k)
 
+        # === 权重量化: signed symmetric ===
         weight_int, w_scale, _ = quantize_to_int(
             weight_matrix, weight_bit, signed=True
         )
 
-        # 调用光模拟器
+        # === 调用光模拟器 ===
         input_np = input_int.cpu().numpy().astype(np.int32)
         weight_np = weight_int.cpu().numpy().astype(np.int32)
         # 权重需要 batch 维度: (1, k, n) → (b, k, n)
         weight_np = np.tile(weight_np[None, :, :], (b, 1, 1))
 
-        input_type = f"int{input_bit}"
-        result_np = self._real_model(input_np, weight_np, inputType=input_type)
+        input_type = f"uint{input_bit}"  # unsigned: 光硬件输入非负
+        print(f"    [osimulator] ({b}×{m}×{k}) @ ({k}×{n}) input={input_type} ...",
+              end=" ", flush=True)
+        t_call = time.time()
+        raw_result = self._real_model(input_np, weight_np, inputType=input_type)
+        elapsed = time.time() - t_call
+        print(f"done ({elapsed:.1f}s)", flush=True)
 
-        # 反量化
-        result = torch.from_numpy(result_np).float()
-        result = result * (in_scale * w_scale)
+        # === 反量化 (含 zero_point 修正) ===
+        if isinstance(raw_result, torch.Tensor):
+            result_int = raw_result.float()
+        else:
+            result_int = torch.from_numpy(raw_result).float()
+
+        # y = in_scale * w_scale * result_int + in_zp * w_scale * col_sum_W
+        col_sum_w = weight_int.float().sum(dim=0)  # (n,) sum over k
+        result = in_scale * w_scale * result_int + in_zp * w_scale * col_sum_w.view(1, 1, -1)
 
         return result
 
@@ -785,12 +809,11 @@ def print_alignment_detail(model: nn.Module, label: str = ""):
 # ============================================================
 @torch.no_grad()
 def evaluate_model(model: nn.Module, dataloader, device: torch.device,
-                   criterion=None) -> dict:
+                   criterion=None, max_batches: int = None,
+                   desc: str = "Evaluating",
+                   print_interval: int = None) -> dict:
     """
     评估模型准确率和损失。
-
-    Returns:
-        {"accuracy": float, "loss": float, "total_samples": int, "correct": int}
     """
     model.eval()
     model.to(device)
@@ -798,8 +821,15 @@ def evaluate_model(model: nn.Module, dataloader, device: torch.device,
     total_loss = 0.0
     correct = 0
     total = 0
+    n_batches = len(dataloader)
+    effective_n = min(n_batches, max_batches or n_batches)
+    if print_interval is None:
+        print_interval = max(1, effective_n // 10)
 
-    for images, labels in dataloader:
+    for i, (images, labels) in enumerate(dataloader):
+        if max_batches is not None and i >= max_batches:
+            break
+
         images, labels = images.to(device), labels.to(device)
         outputs = model(images)
 
@@ -810,8 +840,11 @@ def evaluate_model(model: nn.Module, dataloader, device: torch.device,
         correct += (outputs.argmax(1) == labels).sum().item()
         total += images.size(0)
 
+    acc = correct / total if total > 0 else 0
+    print(f"  [{desc}] {effective_n} batches — acc={acc:.2%}", flush=True)
+
     return {
-        "accuracy": correct / total,
+        "accuracy": acc,
         "loss": total_loss / total if criterion else 0.0,
         "total_samples": total,
         "correct": correct,
