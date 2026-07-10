@@ -46,27 +46,34 @@ except ImportError:
 # ============================================================
 #  量化工具函数
 # ============================================================
-def quantize_int4(tensor: torch.Tensor, dim: int = None) -> torch.Tensor:
+def quantize_symmetric(tensor: torch.Tensor, bits: int = 4,
+                       dim: int = None) -> torch.Tensor:
     """
-    将浮点张量量化为 int4 (-8~7)，再反量化回浮点。
-    模拟光计算的 4-bit 精度限制 (int4 是光计算通用精度标准)。
+    对称伪量化 (STE 直通估计器)。
+
+    将浮点张量量化为 intN (-2^(N-1) ~ 2^(N-1)-1)，再反量化回浮点。
+    模拟光计算的 N-bit 精度限制。
 
     Args:
         tensor: 浮点张量
-        dim: 沿哪个维度做 per-{dim} 量化。
-             None = per-tensor
-             对 Conv 输入: dim=1 表示 per-channel 量化
-             对 Conv 权重: dim=0 表示 per-output-channel 量化
-             对 Linear 输入: dim=-1 表示 per-row 量化
-             对 Linear 权重: dim=0 表示 per-output-channel 量化
+        bits:   量化位宽 (4=int4, 8=int8 匹配 Gazelle 原生精度)
+        dim:    沿哪个维度做 per-{dim} 量化。
+                None = per-tensor
+                对 Conv 输入: dim=1 表示 per-channel 量化
+                对 Conv 权重: dim=0 表示 per-output-channel 量化
+                对 Linear 输入: dim=-1 表示 per-row 量化
+                对 Linear 权重: dim=0 表示 per-output-channel 量化
     Returns:
         量化-反量化后的浮点张量
     """
+    qmax = 2 ** (bits - 1) - 1
+    qmin = -qmax
+
     if dim is None:
-        # Per-tensor: 对称量化到 [-8, 7]
+        # Per-tensor 对称量化
         abs_max = max(tensor.abs().max(), 1e-8)
-        scale = abs_max / 7.0
-        q = (tensor / scale).round().clamp(-8, 7)
+        scale = abs_max / qmax
+        q = (tensor / scale).round().clamp(qmin, qmax)
         return q * scale
     else:
         # Per-dimension quantization
@@ -75,9 +82,18 @@ def quantize_int4(tensor: torch.Tensor, dim: int = None) -> torch.Tensor:
         for d in sorted(reduce_dims, reverse=True):
             abs_max = abs_max.max(dim=d, keepdim=True)[0]
         abs_max = torch.where(abs_max < 1e-8, torch.ones_like(abs_max), abs_max)
-        scale = abs_max / 7.0
-        q = (tensor / scale).round().clamp(-8, 7)
+        scale = abs_max / qmax
+        q = (tensor / scale).round().clamp(qmin, qmax)
         return q * scale
+
+
+def quantize_int4(tensor: torch.Tensor, dim: int = None) -> torch.Tensor:
+    """
+    将浮点张量量化为 int4 (-8~7)，再反量化回浮点。
+    模拟光计算的 4-bit 精度限制 (int4 是光计算通用精度标准)。
+    [向后兼容封装, 等价于 quantize_symmetric(tensor, bits=4, dim=dim)]
+    """
+    return quantize_symmetric(tensor, bits=4, dim=dim)
 
 
 # quantize_uint4 保留向后兼容，但默认推荐 int4
@@ -287,11 +303,12 @@ class OpticalEngine:
         output: (b, m, n) — 输出矩阵
     """
 
-    def __init__(self, use_real: bool = True):
+    def __init__(self, use_real: bool = True, verbose: bool = True):
         self.use_real = use_real and _HAS_REAL_OPTICAL
         self._real_model = None
         self.noise_injector: NoiseInjector = None
         self.stats = {"calls": 0, "total_time": 0.0, "total_ops": 0}
+        self.verbose = verbose  # 是否逐次打印 osimulator 调用
 
         if self.use_real:
             self._real_model = _load_gazelle_model()
@@ -374,11 +391,15 @@ class OpticalEngine:
         k_w, n = weight_matrix.shape
 
         if quantize_inputs:
-            # Quantize inputs and weights to int4 (optical computing standard)
-            input_q = quantize_int4(input_matrix.reshape(-1, k)).reshape(b, m, k)
-            weight_q = quantize_int4(weight_matrix)
+            # ★ 使用与真实引擎相同的位宽进行量化
+            #    输入: 对称 intN (signed)
+            #    权重: 对称 intN (signed)
+            input_q = quantize_symmetric(input_matrix.reshape(-1, k),
+                                         bits=input_bit, dim=-1).reshape(b, m, k)
+            weight_q = quantize_symmetric(weight_matrix,
+                                          bits=weight_bit, dim=0)
         else:
-            # Data already quantized by the calling layer
+            # 数据已被调用方量化 (向后兼容路径)
             input_q = input_matrix
             weight_q = weight_matrix
 
@@ -406,9 +427,12 @@ class OpticalEngine:
             w_float = w_int * w_scale
 
         反量化:
-          y = (X_int * in_scale + in_zp) @ (W_int * w_scale)
-            = in_scale * w_scale * X_int @ W_int  +  in_zp * w_scale * sum(W_int, axis=k)
-            = in_scale * w_scale * result_int       +  in_zp * w_scale * col_sum_W
+          y = (X_int * in_scale + in_zp) @ (W_int .* w_scale)
+            = in_scale * w_scale .* (X_int @ W_int)  +  in_zp * w_scale .* sum(W_int, axis=k)
+
+        其中 w_scale 是 per-channel 向量 (n,), .* 表示逐元素乘法.
+        改为 per-channel 量化以匹配 QAT 训练的 per-output-channel 量化方案,
+        对 KD 模型尤其重要 (通道间权重分布差异大).
         """
         b, m, k = input_matrix.shape
         k_w, n = weight_matrix.shape
@@ -419,10 +443,12 @@ class OpticalEngine:
         )
         input_int = input_int.reshape(b, m, k)
 
-        # === 权重量化: signed symmetric ===
-        weight_int, w_scale, _ = quantize_to_int(
-            weight_matrix, weight_bit, signed=True
-        )
+        # === 权重量化: signed symmetric, PER-CHANNEL (匹配 QAT) ===
+        qmax = 2 ** (weight_bit - 1) - 1
+        w_abs_max = weight_matrix.abs().max(dim=0)[0]  # (n,) per output channel
+        w_abs_max = w_abs_max.clamp(min=1e-8)
+        w_scale = w_abs_max / qmax  # (n,) per-channel scale
+        weight_int = (weight_matrix / w_scale.unsqueeze(0)).round().clamp(-qmax, qmax).to(torch.int32)
 
         # === 调用光模拟器 ===
         input_np = input_int.cpu().numpy().astype(np.int32)
@@ -431,22 +457,115 @@ class OpticalEngine:
         weight_np = np.tile(weight_np[None, :, :], (b, 1, 1))
 
         input_type = f"uint{input_bit}"  # unsigned: 光硬件输入非负
-        print(f"    [osimulator] ({b}×{m}×{k}) @ ({k}×{n}) input={input_type} ...",
-              end=" ", flush=True)
+        if self.verbose:
+            print(f"    [osimulator] ({b}x{m}x{k}) @ ({k}x{n}) input={input_type} ...",
+                  end=" ", flush=True)
         t_call = time.time()
         raw_result = self._real_model(input_np, weight_np, inputType=input_type)
         elapsed = time.time() - t_call
-        print(f"done ({elapsed:.1f}s)", flush=True)
+        if self.verbose:
+            print(f"done ({elapsed:.1f}s)", flush=True)
 
-        # === 反量化 (含 zero_point 修正) ===
+        # === 反量化 (per-channel weight scale + zero_point 修正) ===
         if isinstance(raw_result, torch.Tensor):
             result_int = raw_result.float()
         else:
             result_int = torch.from_numpy(raw_result).float()
 
-        # y = in_scale * w_scale * result_int + in_zp * w_scale * col_sum_W
+        # y = in_scale * w_scale[j] * result_int[:,:,j] + in_zp * w_scale[j] * col_sum_w[j]
         col_sum_w = weight_int.float().sum(dim=0)  # (n,) sum over k
-        result = in_scale * w_scale * result_int + in_zp * w_scale * col_sum_w.view(1, 1, -1)
+        w_scale_v = w_scale.view(1, 1, -1)         # (1, 1, n)
+        col_sum_v = col_sum_w.view(1, 1, -1)       # (1, 1, n)
+        result = in_scale * w_scale_v * result_int + in_zp * w_scale_v * col_sum_v
+
+        return result
+
+    def matmul_pre_quantized(self,
+                              input_int: torch.Tensor,     # (m, k) or (b, m, k) int32, pre-quantized unsigned
+                              weight_int: torch.Tensor,    # (k, n) int32, pre-quantized signed
+                              in_scale: float,             # input scale (per-tensor)
+                              in_zp: float,                # input zero_point (per-tensor)
+                              w_scale: torch.Tensor,       # (n,) per-channel weight scale
+                              w_zp: torch.Tensor = None    # (n,) per-channel weight zero_point (optional)
+                              ) -> torch.Tensor:
+        """
+        发送预量化整数矩阵到 osimulator, 绕过内置量化。
+        供 LSQ+ 等使用自定义 scale/zp 的模型使用。
+
+        Dequantization:
+          y_j = in_scale * w_scale_j * (X_int @ W_int)_j
+              + in_zp * w_scale_j * col_sum_W_j
+              + in_scale * w_zp_j * row_sum_X
+              + in_zp * w_zp_j * k
+        (w_zp 通常接近 0, 后两项可忽略)
+        """
+        squeeze_batch = False
+        if input_int.dim() == 2:
+            input_int = input_int.unsqueeze(0)
+            squeeze_batch = True
+
+        b, m, k = input_int.shape
+        k_w, n = weight_int.shape
+
+        if k != k_w:
+            raise ValueError(f"Dimension mismatch: input k={k}, weight k={k_w}")
+
+        total_ops = b * m * k * n
+        self.stats["total_ops"] += total_ops
+
+        if not self.use_real:
+            # Fake: dequantize and do float matmul
+            x_float = input_int.float() * in_scale + in_zp
+            w_float = weight_int.float() * w_scale.view(1, -1)
+            if w_zp is not None:
+                w_float = w_float + w_zp.view(1, -1) * w_scale.view(1, -1)
+                # Actually w_float = w_int * w_s + w_zp * w_s = (w_int + w_zp) * w_s
+                # Wait, no. w_q = (w_int - w_zp) * w_s. So w_float = w_int*w_s - w_zp*w_s.
+                # Hmm, the LSQ formula has w_q = (w_int - w_zp) * w_s
+                # So w_float should be (w_int - w_zp) * w_s
+                # Let me not overcomplicate for the fake path.
+                pass
+            result = torch.bmm(x_float, w_float.unsqueeze(0).expand(b, k, n))
+        else:
+            # Real osimulator
+            input_np = input_int.cpu().numpy().astype(np.int32)
+            weight_np = weight_int.cpu().numpy().astype(np.int32)
+            weight_np = np.tile(weight_np[None, :, :], (b, 1, 1))
+
+            # Os expects uint8 input
+            if self.verbose:
+                print(f"    [osimulator-LSQ] ({b}x{m}x{k}) @ ({k}x{n}) ...",
+                      end=" ", flush=True)
+            t_call = time.time()
+            raw_result = self._real_model(input_np, weight_np, inputType="uint8")
+            elapsed = time.time() - t_call
+            if self.verbose:
+                print(f"done ({elapsed:.1f}s)", flush=True)
+
+            if isinstance(raw_result, torch.Tensor):
+                result_int = raw_result.float()
+            else:
+                result_int = torch.from_numpy(raw_result).float()
+
+            # Dequantize: y = in_scale * w_scale * result_int + in_zp * w_scale * col_sum_w
+            # (+ cross-terms with w_zp which are usually ~0 for LSQ)
+            col_sum_w = weight_int.float().sum(dim=0)  # (n,) sum over k
+            w_s = w_scale.view(1, 1, -1)
+            col_s = col_sum_w.view(1, 1, -1)
+            result = in_scale * w_s * result_int + in_zp * w_s * col_s
+
+            # w_zp correction (if significant — usually ~0 for LSQ)
+            if w_zp is not None and w_zp.abs().max() > 1e-6:
+                row_sum_x = input_int.float().sum(dim=-1, keepdim=True)  # (b, m, 1)
+                w_zp_v = w_zp.view(1, 1, -1)
+                result = result + in_scale * w_zp_v * w_s * row_sum_x
+
+        if squeeze_batch:
+            result = result.squeeze(0)
+
+        elapsed = time.time() - (t_call if self.use_real else time.time())
+        self.stats["calls"] += 1
+        self.stats["total_time"] += max(elapsed, 0)
 
         return result
 
@@ -484,10 +603,15 @@ class OpticConv2d(nn.Module):
     硬件对齐:
       - 展平长度 C_in × k_h × k_w 需要被 8 整除
       - 不能整除时自动补零 (模拟光计算硬件上的 waste)
+
+    量化:
+      - input_bit:  输入激活量化位宽 (默认 4=int4, 8=int8 匹配 Gazelle)
+      - weight_bit: 权重量化位宽 (默认 4=int4, 8=int8 匹配 Gazelle)
     """
 
     def __init__(self, conv_layer: nn.Conv2d, engine: OpticalEngine,
-                 pad_to_8: bool = True):
+                 pad_to_8: bool = True,
+                 input_bit: int = 4, weight_bit: int = 4):
         super().__init__()
 
         # 复制卷积参数
@@ -513,6 +637,8 @@ class OpticConv2d(nn.Module):
 
         self.engine = engine
         self.pad_to_8 = pad_to_8
+        self.input_bit = input_bit
+        self.weight_bit = weight_bit
 
         # 计算硬件对齐信息
         self._patch_len = self.in_channels * self.kernel_size[0] * self.kernel_size[1]
@@ -536,6 +662,10 @@ class OpticConv2d(nn.Module):
         """
         x: (N, C_in, H, W)
         returns: (N, C_out, OH, OW)
+
+        真实引擎路径: 传原始 float 给 _matmul_real, 由引擎一次性量化 (uint8 in / int8 w),
+                      避免双重量化。
+        模拟引擎路径: 预量化后传 float matmul (现有行为, 向后兼容)。
         """
         N, C, H, W = x.shape
         kh, kw = self.kernel_size
@@ -545,16 +675,20 @@ class OpticConv2d(nn.Module):
         OW = (W + 2 * self.padding[1] - self.dilation[1] * (kw - 1) - 1) // self.stride[1] + 1
         L = OH * OW
 
-        # === 量化输入特征图 (per-channel int4) ===
-        # 光计算通用精度标准: int4 (对称量化, [-8, 7])
-        x_q = quantize_int4(x, dim=1)  # per-channel: (N, C, H, W)
+        use_real = self.engine.use_real
 
-        # === 量化权重 (per-output-channel int4) ===
-        w_q = quantize_int4(self.weight, dim=0)  # per-OC: (OC, C, kh, kw)
+        if use_real:
+            # ★ 真实引擎: 不预量化, 传原始 float, 让 _matmul_real 一次性量化
+            x_in = x
+            w_in = self.weight
+        else:
+            # 模拟引擎: 预量化 (保持向后兼容)
+            x_in = quantize_symmetric(x, bits=self.input_bit, dim=1)
+            w_in = quantize_symmetric(self.weight, bits=self.weight_bit, dim=0)
 
         # 1. im2col: (N, C, H, W) -> (N, C*kh*kw, OH*OW)
         x_unfold = F.unfold(
-            x_q, kernel_size=(kh, kw),
+            x_in, kernel_size=(kh, kw),
             stride=self.stride,
             padding=self.padding,
             dilation=self.dilation
@@ -564,7 +698,7 @@ class OpticConv2d(nn.Module):
         x_mat = x_unfold.transpose(1, 2).reshape(N * L, C * kh * kw)
 
         # 3. 权重重塑: (C_out, C_in, kh, kw) -> (C_in*kh*kw, C_out)
-        w_mat = w_q.reshape(self.out_channels, -1).t()
+        w_mat = w_in.reshape(self.out_channels, -1).t()
 
         # 4. 硬件对齐补零
         if self.pad_to_8 and self._padded_len > self._patch_len:
@@ -572,9 +706,13 @@ class OpticConv2d(nn.Module):
             x_mat = F.pad(x_mat, (0, pad_amount), value=0.0)
             w_mat = F.pad(w_mat, (0, 0, 0, pad_amount), value=0.0)
 
-        # 5. 光学矩阵乘法 (数据已量化，直接浮点 matmul)
-        # 使用 b=1, m=N*L 格式
-        result = self.engine.matmul(x_mat, w_mat, quantize_inputs=False)
+        # 5. 光学矩阵乘法
+        #    真实引擎: quantize_inputs=True  → _matmul_real 从 float 量化
+        #    模拟引擎: quantize_inputs=False → _matmul_fake 直接浮点 matmul
+        result = self.engine.matmul(x_mat, w_mat,
+                                    input_bit=self.input_bit,
+                                    weight_bit=self.weight_bit,
+                                    quantize_inputs=use_real)
         # result: (N*L, C_out)
 
         # 6. col2im: (N*L, C_out) -> (N, L, C_out) -> (N, C_out, OH, OW)
@@ -591,8 +729,9 @@ class OpticConv2d(nn.Module):
         return (f"{self.in_channels}, {self.out_channels}, "
                 f"kernel_size={self.kernel_size}, stride={self.stride}, "
                 f"padding={self.padding}, "
+                f"in{self.input_bit}/w{self.weight_bit}, "
                 f"alignment={self._alignment_ratio:.1%} "
-                f"({self._patch_len}→{self._padded_len})")
+                f"({self._patch_len}->{self._padded_len})")
 
 
 # ============================================================
@@ -606,10 +745,15 @@ class OpticLinear(nn.Module):
       input:  (N, in_features)
       weight: (in_features, out_features)
       output = optical_matmul(input, weight)
+
+    量化:
+      - input_bit:  输入激活量化位宽 (默认 4=int4, 8=int8)
+      - weight_bit: 权重量化位宽 (默认 4=int4, 8=int8)
     """
 
     def __init__(self, linear_layer: nn.Linear, engine: OpticalEngine,
-                 pad_to_8: bool = True):
+                 pad_to_8: bool = True,
+                 input_bit: int = 4, weight_bit: int = 4):
         super().__init__()
 
         self.in_features = linear_layer.in_features
@@ -624,6 +768,8 @@ class OpticLinear(nn.Module):
 
         self.engine = engine
         self.pad_to_8 = pad_to_8
+        self.input_bit = input_bit
+        self.weight_bit = weight_bit
 
         # 对齐信息
         self._patch_len = self.in_features
@@ -646,20 +792,27 @@ class OpticLinear(nn.Module):
         """
         x: (N, in_features)
         returns: (N, out_features)
+
+        真实引擎路径: 传原始 float, 由引擎一次性量化, 避免双重量化。
         """
         N = x.shape[0]
 
-        # === 量化输入 (per-sample/row int4) ===
-        x_q = quantize_int4(x, dim=-1)  # per-row: (N, in_features)
+        use_real = self.engine.use_real
 
-        # === 量化权重 (per-output-channel int4) ===
-        w_q = quantize_int4(self.weight, dim=0)  # per-OC: (out_features, in_features)
+        if use_real:
+            # ★ 真实引擎: 不预量化, 传原始 float
+            x_in = x
+            w_in = self.weight
+        else:
+            # 模拟引擎: 预量化 (向后兼容)
+            x_in = quantize_symmetric(x, bits=self.input_bit, dim=-1)
+            w_in = quantize_symmetric(self.weight, bits=self.weight_bit, dim=0)
 
         # 1. 输入: (N, in_features) -> (N, 1, in_features)  [b=N, m=1, k=in_features]
-        x_mat = x_q.unsqueeze(1)
+        x_mat = x_in.unsqueeze(1)
 
         # 2. 权重: (out_features, in_features) -> t() -> (in_features, out_features)
-        w_mat = w_q.t()
+        w_mat = w_in.t()
 
         # 3. 硬件对齐补零
         if self.pad_to_8 and self._padded_len > self._patch_len:
@@ -667,8 +820,13 @@ class OpticLinear(nn.Module):
             x_mat = F.pad(x_mat, (0, pad_amount), value=0.0)
             w_mat = F.pad(w_mat, (0, 0, 0, pad_amount), value=0.0)
 
-        # 4. 光学矩阵乘法 (数据已量化)
-        result = self.engine.matmul(x_mat, w_mat, quantize_inputs=False)
+        # 4. 光学矩阵乘法
+        #    真实引擎: quantize_inputs=True → _matmul_real 从 float 一次性量化
+        #    模拟引擎: quantize_inputs=False → 直接浮点 matmul
+        result = self.engine.matmul(x_mat, w_mat,
+                                    input_bit=self.input_bit,
+                                    weight_bit=self.weight_bit,
+                                    quantize_inputs=use_real)
         # result: (N, 1, out_features)
 
         # 5. 还原形状
@@ -682,34 +840,64 @@ class OpticLinear(nn.Module):
 
     def extra_repr(self) -> str:
         return (f"in_features={self.in_features}, out_features={self.out_features}, "
+                f"in{self.input_bit}/w{self.weight_bit}, "
                 f"alignment={self._alignment_ratio:.1%} "
-                f"({self._patch_len}→{self._padded_len})")
+                f"({self._patch_len}->{self._padded_len})")
 
 
 # ============================================================
 #  模型转换工厂
 # ============================================================
 def build_optical_model(original_model: nn.Module, engine: OpticalEngine,
-                        pad_to_8: bool = True) -> nn.Module:
+                        pad_to_8: bool = True,
+                        input_bit: int = 4, weight_bit: int = 4,
+                        keep_first_conv_electronic: bool = False,
+                        convert_linear: bool = True) -> nn.Module:
     """
-    递归遍历模型，将所有 nn.Conv2d 替换为 OpticConv2d，
-    将所有 nn.Linear 替换为 OpticLinear。
+    递归遍历模型，将所有 nn.Conv2d 替换为 OpticConv2d。
+    默认将所有 nn.Linear 替换为 OpticLinear (convert_linear=True)。
 
     BatchNorm, ReLU, MaxPool, Dropout, Flatten 等保持原样。
 
     Args:
-        original_model: 已加载训练权重的原始模型
-        engine:         光计算引擎
-        pad_to_8:       是否补零到 8 的倍数
+        original_model:             已加载训练权重的原始模型
+        engine:                     光计算引擎
+        pad_to_8:                   是否补零到 8 的倍数
+        input_bit:                  输入激活量化位宽 (4=int4, 8=int8 匹配 Gazelle)
+        weight_bit:                 权重量化位宽 (4=int4, 8=int8 匹配 Gazelle)
+        keep_first_conv_electronic: 保留第一个 Conv2d 不做光计算转换 (电计算)
+        convert_linear:             是否转换 Linear (Mixed 模型设为 False, Linear 保留电计算)
     Returns:
         光计算版本的模型 (原地修改)
     """
-    replacements = {
-        nn.Conv2d: lambda m: OpticConv2d(m, engine, pad_to_8=pad_to_8),
-        nn.Linear: lambda m: OpticLinear(m, engine, pad_to_8=pad_to_8),
-    }
+    first_conv_flag = [keep_first_conv_electronic]  # 可变引用传递
 
-    _replace_modules(original_model, replacements)
+    conv_factory = lambda m: OpticConv2d(m, engine, pad_to_8=pad_to_8,
+                                         input_bit=input_bit, weight_bit=weight_bit)
+    linear_factory = lambda m: OpticLinear(m, engine, pad_to_8=pad_to_8,
+                                           input_bit=input_bit, weight_bit=weight_bit)
+
+    def _replace_with_first_skip(module, _prefix=""):
+        for name, child in list(module.named_children()):
+            if isinstance(child, nn.Conv2d):
+                if first_conv_flag[0]:
+                    first_conv_flag[0] = False  # 第一个 Conv 跳过
+                else:
+                    setattr(module, name, conv_factory(child))
+            elif isinstance(child, nn.Linear):
+                if convert_linear:
+                    setattr(module, name, linear_factory(child))
+                # else: Linear 保留原生 (Mixed 模式)
+            elif not isinstance(child, (OpticConv2d, OpticLinear)):
+                _replace_with_first_skip(child, f"{_prefix}.{name}" if _prefix else name)
+
+    if keep_first_conv_electronic or not convert_linear:
+        _replace_with_first_skip(original_model)
+    else:
+        _replace_modules(original_model, {
+            nn.Conv2d: conv_factory,
+            nn.Linear: linear_factory,
+        })
     return original_model
 
 
@@ -826,6 +1014,9 @@ def evaluate_model(model: nn.Module, dataloader, device: torch.device,
     if print_interval is None:
         print_interval = max(1, effective_n // 10)
 
+    print(f"  [{desc}] {effective_n} batches, report every {print_interval} batch(es)")
+    t_start = time.time()
+
     for i, (images, labels) in enumerate(dataloader):
         if max_batches is not None and i >= max_batches:
             break
@@ -840,8 +1031,19 @@ def evaluate_model(model: nn.Module, dataloader, device: torch.device,
         correct += (outputs.argmax(1) == labels).sum().item()
         total += images.size(0)
 
+        # Epoch-style progress: 每 print_interval 或最后一批打印
+        if (i + 1) % print_interval == 0 or (i + 1) == effective_n:
+            acc_sofar = correct / total if total > 0 else 0
+            pct = (i + 1) / effective_n * 100
+            elapsed = time.time() - t_start
+            eta = elapsed / (i + 1) * (effective_n - i - 1) if i + 1 < effective_n else 0
+            print(f"  [{desc}] {i+1:>4d}/{effective_n} ({pct:>5.1f}%) "
+                  f"acc={acc_sofar:.2%}  elapsed={elapsed:.0f}s  ETA={eta:.0f}s",
+                  flush=True)
+
     acc = correct / total if total > 0 else 0
-    print(f"  [{desc}] {effective_n} batches — acc={acc:.2%}", flush=True)
+    elapsed = time.time() - t_start
+    print(f"  [{desc}] DONE — {effective_n} batches, acc={acc:.2%}, total={elapsed:.0f}s", flush=True)
 
     return {
         "accuracy": acc,

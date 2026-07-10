@@ -313,29 +313,49 @@ Phase 6: Gazelle 硬件匹配训练 (2026-07-09 ~ 10)
 
 ### 11.1 容器代码
 
-| 文件 | 用途 | 模式 |
-|---|---|---|
-| `optic_layers.py` | 光计算核心库 (OpticalEngine, OpticConv2d, OpticLinear) | 推理 |
-| `optic_inference.py` | FP32 基准模型容器 (Part A) | Native + Optic |
-| `noise_robustness.py` | FP32 模型噪声鲁棒性 (Part B) | 噪声扫描 |
-| `noise_robustness_v2.py` | int4 模型噪声鲁棒性 | QAT eval |
-| **`optic_inference_phase4.py`** | **Phase 4 模型容器 (NEW)** | QAT(默认) + Optic(--optic) |
-| **`optic_inference_mixed.py`** | **Mixed 模型容器 (NEW)** | QAT(默认) + Optic(--optic) |
+| 文件                              | 用途                                               | 模式                                              |
+| ------------------------------- | ------------------------------------------------ | ----------------------------------------------- |
+| `optic_layers.py`               | 光计算核心库 (OpticalEngine, OpticConv2d, OpticLinear) | 推理                                              |
+| `optic_inference.py`            | FP32 基准模型容器 (Part A)                             | Native + Optic                                  |
+| `noise_robustness.py`           | FP32 模型噪声鲁棒性 (Part B)                            | 噪声扫描                                            |
+| `noise_robustness_v2.py`        | int4 模型噪声鲁棒性                                     | QAT eval                                        |
+| **`optic_inference_phase4.py`** | **Phase 4 模型容器 (NEW)**                           | QAT(默认) + Optic(--optic)                        |
+| **`optic_inference_mixed.py`**  | **Mixed 模型容器 (NEW)**                             | QAT(默认) + Optic(--optic)                        |
+| **`optic_inference_int8.py`**   | **INT8 模型容器 (NEW, 含 MOPs 统计)**                   | Optic(默认) + QAT(--qat) + MOPs-only(--mops-only) |
+
+### 11.1.1 INT8 容器 MOPs 统计 (Model 2 Phase4 v3)
+
+光计算占比按每层 MAC 操作数 (Multiply-Accumulate Operations) 计算，输入尺寸 64×64×3:
+
+| 层 | 类型 | 输入 | 输出 | 展平 | 对齐率 | 原始 MOPs | 计算位置 |
+|---|---|---|---|---|---|---|---|
+| stem.conv | Conv 3→8, 1×1 | 64×64 | 64×64 | 3→8 | 37.5% | 0.098M | ○ 电计算 (FP32) |
+| stage1.conv | Conv 8→16, 2×2 | 64×64 | 32×32 | 32→32 | 100% | 0.524M | ◉ 光计算 (INT8) |
+| stage2.conv | Conv 16→32, 2×2 | 16×16 | 8×8 | 64→64 | 100% | 0.131M | ◉ 光计算 (INT8) |
+| stage3.conv | Conv 32→16, 1×1 | 8×8 | 8×8 | 32→32 | 100% | 0.033M | ◉ 光计算 (INT8) |
+| fc1 | Linear 1024→256 | — | — | 1024 | 100% | 0.262M | ◉ 光计算 (INT8) |
+| fc2 | Linear 256→10 | — | — | 256 | 100% | 0.003M | ◉ 光计算 (INT8) |
+| **合计** | | | | | | **1.051M** | |
+
+- **光计算 MOPs**: 0.953M (stage1+stage2+stage3+fc1+fc2)
+- **电子计算 MOPs**: 0.098M (stem 首层)
+- **★ 光计算占比: 90.65%**
+- 所有光计算层展平长度均为 8 的倍数，完美对齐 Gazelle 8×2 tile，无补零浪费
+- stem 首层展平=3 对齐率仅 37.5%，保留电计算更高效
 
 ### 11.2 容器评估模式
 
-**QAT 模式 (默认)** — 匹配训练精度:
+**Optic 模式 (默认)** — 真实 osimulator 硬件仿真:
 ```bash
-python optic_inference_phase4.py                  # 全量 QAT eval
-python optic_inference_phase4.py --quick 50       # 快速测试
+python optic_inference_int8.py                    # INT8 全量测试集 + MOPs 统计
+python optic_inference_int8.py --quick 50         # 快速测试 ~3min
+python optic_inference_int8.py --mops-only        # 仅 MOPs 统计
 ```
-- 加载模型 + `prepare_model_v3/v4` → `enable_qat()` → int4/int8 伪量化
-- 精度与训练日志完全一致
-- batch=1 默认, 秒级出结果
+- `build_optical_model` → OpticConv2d/OpticLinear → osimulator
 
-**Optic 模式 (--optic)** — 硬件级仿真:
+**QAT 模式 (--qat)** — PyTorch 伪量化交叉验证:
 ```bash
-python optic_inference_phase4.py --optic --quick 5
+python optic_inference_int8.py --qat              # QAT 伪量化 (容器外可用)
 ```
 - `build_optical_model()` → OpticConv2d + OpticalEngine → osimulator
 - 真实硬件仿真 (im2col 展开, 补零对齐, 物理噪声)
@@ -359,6 +379,83 @@ python optic_inference_phase4.py --optic --quick 5
 | Model 3 Phase4 KD STE | 78.26% | 78.06% | -0.20% ✓ |
 
 **容器精度与训练完全一致**。Model 2/3 偏低是因为旧版训练的 Conv QAT bug，不是容器问题。
+
+### 11.5 INT8 容器 osimulator 真实硬件仿真 (2026-07-10)
+
+**背景**: Phase 6 训练的 Model 2 v3 INT8 (93.11%) 需要在容器内通过真实 osimulator 验证。
+
+**开发过程**:
+
+| 阶段 | 描述 | 结果 |
+|---|---|---|
+| 初版部署 | `optic_inference_int8.py` — Optic 模式默认, 含 MOPs 统计 | 84.43% ✗ |
+| Bug #6 发现 | OpticConv2d/OpticLinear 内预量化 (signed int8) + `_matmul_real` 再量化 (unsigned uint8) = 双重量化 | — |
+| Bug #7 发现 | `_matmul_fake` 硬编码 `quantize_int4`, 无视传入的 `input_bit=8`/`weight_bit=8` | — |
+| Bug #8 发现 | `build_optical_model` 无条件将所有 Conv→OpticConv2d, stem (训练时 FP32) 也被转换 | — |
+| 修复 v2 | 消除双重量化 + 修复 fake 引擎位宽 + stem 保留电计算 | **93.28%** ★ |
+
+**最终结果**:
+
+```
+python optic_inference_int8.py   # 5400 张独立测试集 (与训练 val 零重叠)
+```
+
+| 指标 | 值 |
+|---|---|
+| 光计算准确率 | **93.28%** |
+| 训练 QAT 参考 | 93.11% (训练 val set) |
+| 量化损失 (vs 训练) | **+0.17%** (略高于训练, 独立测试集差异) |
+| 总耗时 | 14841s (~4.1h) |
+| 光计算占比 | **90.65%** (5/6 层在光计算) |
+| 硬件对齐率 | 99.6% |
+| 容器文件 | `optic_inference_int8.py` |
+| 日志 | `log_optic_int8.md` |
+
+**MOPs 分布**:
+
+| 层 | MOPs | 位置 |
+|---|---|---|
+| stem (Conv 3→8, 1×1) | 0.098M (9.3%) | 电计算 FP32 |
+| stage1 (Conv 8→16, 2×2) | 0.524M (49.9%) | 光计算 INT8 |
+| stage2 (Conv 16→32, 2×2) | 0.131M (12.5%) | 光计算 INT8 |
+| stage3 (Conv 32→16, 1×1) | 0.033M (3.1%) | 光计算 INT8 |
+| fc1 (Linear 1024→256) | 0.262M (24.9%) | 光计算 INT8 |
+| fc2 (Linear 256→10) | 0.003M (0.2%) | 光计算 INT8 |
+
+### 11.6 其余模型容器验证 (2026-07-10)
+
+基于 INT8 容器经验, 为其余 4 个模型创建了容器验证文件:
+
+| 文件                                | 模型              | 训练精度   | Quick 验证              | 光计算占比  | 状态     |
+| --------------------------------- | --------------- | ------ | --------------------- | ------ | ------ |
+| `optic_inference_int4.py`         | Model 2 v2 INT4 | 91.06% | ~90% (quick 50)       | 90.65% | ✅ 待全量  |
+| `optic_inference_lsq.py`          | Model 2 LSQ+    | 92.80% | **96.00%** (quick 50) | 90.65% | ✅ 待全量  |
+| `optic_inference_kd.py`           | Model 3 KD INT4 | 91.50% | 83.50%* (quick 200)   | 90.65% | ⚠️ 待重测 |
+| `optic_inference_mixed_model1.py` | Model 1 Mixed   | 98.26% | 100% (quick 20)       | 98.67% | ⚠️ 仅抽检 |
+
+\* per-channel 量化修复前; 修复后待重新验证。
+\*\* LSQ+ 通过 monkey-patch 保留学到的 scale/zp 量化, 再送入 osimulator。LSQ 量化后的粗粒度网格使 `_matmul_real` 再量化基本无损。
+
+#### INT4/KD 容器开发中的关键发现
+
+| Bug | 现象 | 修复 |
+|---|---|---|
+| stem 转光计算 (int4) | 46% | `keep_first_conv_electronic=True` |
+| 激活压到 int4 | 74% | `input_bit=8` (匹配 QAT act_bits=8) |
+| osimulator 混合位宽 | 10% | 统一 `input_bit=8, weight_bit=8` |
+| per-tensor 权重量化 (KD) | 83.50% | 改为 per-channel 量化 |
+
+**核心结论**: osimulator 原生 8a8w12o, 不支持混合位宽。所有模型统一用 `input_bit=8, weight_bit=8`。QAT 训练的低精度权重以 FP32 存储, 量化到 int8 是无损 (或更优) 的。
+
+#### Model 1 速度限制
+
+⚠️ Model 1 的 MACs 是 Model 2 的 ~150 倍 (156.6M vs 1.05M/张), 全量 5400 张预计 ~9 天。
+
+**推荐策略**:
+```bash
+python optic_inference_mixed_model1.py --qat       # QAT 精度评估 (秒级全量)
+python optic_inference_mixed_model1.py --quick 5   # Optic 硬件抽样 (~10min)
+```
 
 ---
 
@@ -389,6 +486,36 @@ python optic_inference_phase4.py --optic --quick 5
 - 无 BN → 分布不稳定
 - **Phase 6 修复**: 重写 `optic_qat_lsq.py`, int8 + 真正可学习 scale + BN, 达到 92.80%
 
+### Bug #6: 光计算容器双重量化 (2026-07-10)
+- `OpticConv2d.forward()` 先 `quantize_symmetric` (signed int8) 预量化
+- 然后 `_matmul_real` 再 `quantize_to_int(signed=False)` (unsigned uint8) 二次量化
+- 两次量化叠加 → 精度从 93% 跌至 84.43%
+- **修复**: `engine.use_real` 时跳过预量化, 传 raw float, `quantize_inputs=True`
+
+### Bug #7: `_matmul_fake` 硬编码 int4 (2026-07-10)
+- `_matmul_fake` 内始终调用 `quantize_int4()`, 无视 `input_bit`/`weight_bit` 参数
+- 即使传入 `input_bit=8`, 模拟引擎仍按 int4 量化
+- **修复**: 改用 `quantize_symmetric(x, bits=input_bit)` 和 `quantize_symmetric(w, bits=weight_bit)`
+
+### Bug #8: stem 层被错误转为光计算 (2026-07-10)
+- `build_optical_model` 无条件将所有 Conv→OpticConv2d
+- 训练时 stem 是 FP32 (`first_conv_fp32=True`, 对齐率仅 37.5%)
+- **修复**: `build_optical_model` 新增 `keep_first_conv_electronic=True`, 保留首个 Conv2d 不转换
+
+### Bug #9: `_matmul_real` per-tensor 权重量化 (2026-07-10)
+- `quantize_to_int(weight_matrix, signed=True)` 对整个 (k,n) 矩阵用单一 scale
+- QAT 训练用的是 per-output-channel 量化 (每个输出通道独立 scale)
+- KD 模型通道间权重分布差异大, per-tensor 浪费精度 → 83.50%
+- **修复**: `_matmul_real` 改为 per-channel 权重量化, `w_scale` 从标量变为向量 (n,)
+- 此修复对所有模型有益, 特别是 int4 和 KD 模型
+
+### Bug #10: LSQ+ per-channel scale 被通用路径破坏 (2026-07-10)
+- LSQ+ 的 `in_scale`/`in_zp`/`weight_scale`/`weight_zp` 是训练学出来的
+- `build_optical_model` → `quantize_to_int` 重新计算 scale → 精度降至 15-60%
+- `in_scale` 跨通道差异高达 6722x, per-tensor 近似完全失效
+- **修复**: Monkey-patch LSQ 层, 保留 `lsq_quantize` + 学到的 scale/zp, 量化后送 osimulator
+- LSQ 量化后的粗粒度网格使 `_matmul_real` 再量化基本无损 → 96.00%
+
 ---
 
 ## 13. 精度演进总表
@@ -415,8 +542,9 @@ python optic_inference_phase4.py --optic --quick 5
 | 5 | Mixed | Conv=int4, Linear=fp32 | 91.26% | +1.11% | ★ |
 | **6 v2** | **Phase4 修复** | **int4, QAT 全开** | **91.06%** | **+0.91%** | ★ |
 | **6 v3** | **Gazelle 匹配** | **int8, 首层 FP32** | **93.11%** | **+2.96%** | ★★ |
+| **容器 osimulator** | **真实光计算硬件仿真** | **int8, stem 电计算** | **93.28%** | **+3.13%** | ★★ |
 
-**Model 2 结论**: v3 int8 (93.11%) 最佳。从旧版 74.35% 到 93.11%，提升 **+18.76%**。
+**Model 2 结论**: v3 int8 (93.11%) 训练最佳; 容器 osimulator 真实硬件仿真 **93.28%** (独立测试集), 略超训练精度。从旧版 74.35% 到 93.28%，提升 **+18.93%**。
 
 ### Model 3 (SpaceNet V2 KD, ~268K params, FP32=91.44%)
 
@@ -436,6 +564,7 @@ python optic_inference_phase4.py --optic --quick 5
 |---|---|---|---|---|
 | Model 1 | Mixed (Conv=int4, Linear=fp32) | **98.26%** | 97.17% | +1.09% |
 | Model 2 | Phase4 v3 STE int8 + Gazelle | **93.11%** | 90.15% | +2.96% |
+| **Model 2** | **容器 osimulator 真实硬件仿真** | **93.28%** ★ | 90.15% | **+3.13%** |
 | Model 2 | Phase6 LSQ+ int8 (修复) | **92.80%** | 90.15% | +2.65% |
 | Model 3 | Phase4 v2 int4 + KD | **91.50%** | 91.44% | +0.06% |
 
@@ -488,6 +617,11 @@ python optic_inference_phase4.py --optic --quick 5
 | `noise_robustness_v2.py` | int4 噪声鲁棒性 |
 | **`optic_inference_phase4.py`** | **Phase4 模型容器 (QAT + Optic 双模式)** |
 | **`optic_inference_mixed.py`** | **Mixed 模型容器 (QAT + Optic 双模式)** |
+| **`optic_inference_int8.py`** | **INT8 模型容器 (已验证 93.28%)** |
+| **`optic_inference_int4.py`** | **INT4 模型容器 (~90% quick)** |
+| **`optic_inference_lsq.py`** | **LSQ+ 模型容器 (LSQ 专用路径, 96.00% quick)** |
+| **`optic_inference_kd.py`** | **KD+INT4 模型容器 (83.5% 旧版, per-channel 修复后待重测)** |
+| **`optic_inference_mixed_model1.py`** | **Model 1 Mixed 容器 (⚠️ ~150s/张, 仅抽检)** |
 
 ### 文档
 
@@ -500,6 +634,11 @@ python optic_inference_phase4.py --optic --quick 5
 | `log.md` | 原始训练日志 (所有 console 输出) |
 | `log_mixed.md` | Mixed 训练日志 |
 | `log_phase4_fixed.md` | Phase4 修复版日志 |
+| **`log_optic_int8.md`** | **INT8 容器推理日志 (2026-07-10)** |
+| **`log_optic_int4.md`** | **INT4 容器推理日志 (2026-07-10)** |
+| **`log_optic_lsq.md`** | **LSQ+ 容器推理日志 (2026-07-10)** |
+| **`log_optic_kd.md`** | **KD+INT4 容器推理日志 (2026-07-10)** |
+| **`log_optic_mixed_model1.md`** | **Model 1 Mixed 容器推理日志 (2026-07-10)** |
 | `osimulator/GAZELLE_ARCHITECTURE.md` | Gazelle 硬件逆向报告 |
 
 ---
@@ -521,12 +660,15 @@ python optic_inference_phase4.py --optic --quick 5
 
 2. **容器内完整验证**:
    ```bash
-   # 全量 QAT 验证
+   # INT8 容器 osimulator 全量验证 (已完成 2026-07-10)
+   python optic_inference_int8.py                  # 5400 张独立测试集, 93.28%, ~4.1h
+
+   # Phase4 / Mixed 容器 (QAT 伪量化, 已完成)
    python optic_inference_phase4.py
    python optic_inference_mixed.py
 
-   # Optic 模式硬件仿真 (需 osimulator license)
-   python optic_inference_phase4.py --optic --quick 50
+   # Optic 模式硬件仿真快速测试
+   python optic_inference_int8.py --quick 50      # 50 张, ~3min
    ```
 
 3. **导出 ONNX/量化为实际 int8 整数**: 将 QAT 权重导出为可直接部署的 int8 格式
