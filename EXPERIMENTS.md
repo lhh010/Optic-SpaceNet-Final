@@ -426,12 +426,12 @@ python optic_inference_int8.py   # 5400 张独立测试集 (与训练 val 零重
 
 基于 INT8 容器经验, 为其余模型创建了容器验证文件:
 
-| 文件                                | 模型              | 训练精度   | Quick               | 全量 osimulator        | 光计算占比  | 状态                    |
-| --------------------------------- | --------------- | ------ | ------------------- | -------------------- | ------ | --------------------- |
-| `optic_inference_int4.py`         | Model 2 v2 INT4 | 91.06% | ~90% (quick 50)     | **~88%** (50%进度)     | 90.65% | ⚠️ 比 QAT 低 ~6%, 见 §16 |
-| `optic_inference_lsq.py`          | Model 2 LSQ+    | 92.80% | 96.00% (quick 50)   | **92.76%** (全量 5400) | 90.65% | ✅ 与训练几乎一致             |
-| `optic_inference_kd.py`           | Model 3 KD INT4 | 91.50% | 83.50%* (quick 200) | 待全量                  | 90.65% | ⚠️ 待重测                |
-| `optic_inference_mixed_model1.py` | Model 1 Mixed   | 98.26% | 100% (quick 20)     | 待全量 (⚠️ ~9天)         | 98.67% | ⚠️ 仅抽检                |
+| 文件                                | 模型              | 训练精度   | Quick                  | 全量 osimulator        | 光计算占比  | 状态                     |
+| --------------------------------- | --------------- | ------ | ---------------------- | -------------------- | ------ | ---------------------- |
+| `optic_inference_int4.py`         | Model 2 v2 INT4 | 91.06% | ~90% (quick 50)        | **87.94%** (全量 5400) | 90.65% | ⚠️ 比 QAT 低 6.6%, 见 §16 |
+| `optic_inference_lsq.py`          | Model 2 LSQ+    | 92.80% | 96.00% (quick 50)      | **92.76%** (全量 5400) | 90.65% | ✅ 与训练几乎一致              |
+| `optic_inference_kd.py`           | Model 3 KD INT4 | 91.50% | 83.50%* (quick 200)    | 待全量                  | 90.65% | ⚠️ 待重测                 |
+| `optic_inference_mixed_model1.py` | Model 1 Mixed   | 98.26% | 100% (quick 50, ~2.1h) | 待全量 (⚠️ ~9天)         | 98.67% | ⚠️ 仅抽检 (50/50 全对)      |
 
 \* per-channel 量化修复前; 修复后待重新验证。
 
@@ -451,28 +451,36 @@ python optic_inference_lsq.py   # 5400 张独立测试集
 LSQ+ 的 per-channel learned scales 使量化后的数据天然适合 osimulator 重量化,
 是全系列模型中推理精度与训练精度最接近的。
 
-### 11.8 INT4 容器全量 osimulator 验证 (2026-07-11) ⚠️
+### 11.8 INT4 容器全量 osimulator 验证 (2026-07-12) ⚠️
 
 ```
-python optic_inference_int4.py  # 5400 张
+python optic_inference_int4.py  # 5400 张全量
 python optic_inference_int4.py --qat  # QAT 交叉验证
 ```
 
 | 指标 | 值 |
 |---|---|
-| 光计算准确率 (50% 进度) | **88.41%** (预计终值 ~88%) |
-| QAT int4 (test set, 全量) | **94.57%** |
+| 光计算准确率 (全量 5400) | **87.94%** |
+| QAT int4 (test set, 全量) | 94.57% |
 | QAT float32 (test set) | 91.43% |
-| 量化损失 vs QAT | **~-6.6%** |
+| 训练 val 参考 | 91.06% |
+| 量化损失 vs QAT test | **-6.63%** |
+| 总耗时 | 20316s (~5.6h) |
+
+**全量进度曲线:**
+```
+ 540/5400 ( 10.0%) acc=85.74%    2160/5400 ( 40.0%) acc=87.41%
+1080/5400 ( 20.0%) acc=87.22%    2700/5400 ( 50.0%) acc=88.00%
+1620/5400 ( 30.0%) acc=87.47%    3240/5400 ( 60.0%) acc=87.96%
+                                  3780/5400 ( 70.0%) acc=88.07%
+4320/5400 ( 80.0%) acc=88.17%    4860/5400 ( 90.0%) acc=88.00%
+5400/5400 (100.0%) acc=87.94%
+```
 
 **根因** (详见 §16):
 1. int4→int8 权重量化网格不对齐 (scale=max/7 → max/127)
 2. per-channel→per-tensor 激活量化退化
 3. stem QAT→FP32 BN 统计量偏移
-
-**核心结论修正**: 之前认为 "QAT int4→int8 无损" 是**错误的**.
-int4 和 int8 量化网格不同, 重量化引入额外误差.
-INT4 在 osimulator 上的实际上限约为 88%.
 
 #### Model 1 速度限制
 
@@ -665,7 +673,7 @@ python optic_inference_mixed_model1.py --quick 5   # Optic 硬件抽样 (~10min)
 | **`log_optic_int4.md`** | **INT4 容器推理日志 (2026-07-10)** |
 | **`log_optic_lsq.md`** | **LSQ+ 容器推理日志 (2026-07-10)** |
 | **`log_optic_kd.md`** | **KD+INT4 容器推理日志 (2026-07-10)** |
-| **`log_optic_mixed_model1.md`** | **Model 1 Mixed 容器推理日志 (2026-07-10)** |
+| **`log_optic_mixed_model1.md`** | **Model 1 Mixed 容器推理日志 (2026-07-10 ~ 11)** |
 | `osimulator/GAZELLE_ARCHITECTURE.md` | Gazelle 硬件逆向报告 |
 
 ---
@@ -845,4 +853,4 @@ Float32 精度从 v2 的 91% 降至 83%, 说明去量化后的权重已无法正
 
 ---
 
-*文档版本: v2.2 | 最后更新: 2026-07-11 | LSQ+ 全量验证 (92.76%) + INT4 根因调查 (上限 88%)*
+*文档版本: v2.3 | 最后更新: 2026-07-12 | INT4 全量验证 (87.94%) + Mixed Model 1 quick 50 (100%)*

@@ -3912,3 +3912,166 @@ input_mapping_factor:  1
   [Note] LSQ+ 模型优势: scale/zp 可直接导出为硬件配置, 无需软件量化
 ```
 
+```powershell
+# python optic_inference_mixed_model1.py --quick 50
+
+[optic]   49/50 ( 98.0%) acc=100.00%  elapsed=7585s  ETA=155s
+    [osimulator] (1x4096x32) @ (32x32) input=uint8 ... done (3.8s)
+    [osimulator] (1x4096x288) @ (288x32) input=uint8 ... done (30.3s)
+    [osimulator] (1x1024x288) @ (288x64) input=uint8 ... done (14.0s)
+    [osimulator] (1x1024x576) @ (576x64) input=uint8 ... done (35.3s)
+    [osimulator] (1x256x576) @ (576x128) input=uint8 ... done (17.6s)
+    [osimulator] (1x256x1152) @ (1152x128) input=uint8 ... done (27.8s)
+  [optic]   50/50 (100.0%) acc=100.00%  elapsed=7714s  ETA=0s
+  [optic] DONE — 50 batches, acc=100.00%, total=7714s
+  Optical Accuracy: 100.00%  Time: 7713.8s
+
+--- Optical Engine Statistics ---
+  [OpticalEngine 统计] 调用: 300, 总耗时: 7688.931s, 总运算量: 7.76e+09 MACs
+
+====================================================================================================
+  Model 1 Mixed (VGG) — Container Verification Report
+====================================================================================================
+  Optic osimulator: 100.00%  |  Time: 7714s
+  Training ref: 98.26% int4 Mixed
+
+==============================================================================================================
+  Mixed 模型光计算 MOPs 统计 — Model 1 Baseline VGG (Conv=int4 光, Linear=fp32 电)
+  Gazelle 硬件: 8x2 tile, 4w8a for Conv, Linear 保留电计算
+==============================================================================================================
+
+  Layer            Type    C_in C_out Kernel      Input    ConvOut   Pool  Patch Padded   Align    RawMOPs    OptMOPs   ElecMOPs      Compute
+  ------------------------------------------------------------------------------------------------------------------------
+  conv1_1          Conv       3    32    3x3      64x64      64x64   None     27     32  84.4%    3.5389M    4.1943M    0.0000M [Optical]
+  conv1_2          Conv      32    32    3x3      64x64      64x64 Max2x2    288    288 100.0%   37.7487M   37.7487M    0.0000M [Optical]
+  conv2_1          Conv      32    64    3x3      32x32      32x32   None    288    288 100.0%   18.8744M   18.8744M    0.0000M [Optical]
+  conv2_2          Conv      64    64    3x3      32x32      32x32 Max2x2    576    576 100.0%   37.7487M   37.7487M    0.0000M [Optical]
+  conv3_1          Conv      64   128    3x3      16x16      16x16   None    576    576 100.0%   18.8744M   18.8744M    0.0000M [Optical]
+  conv3_2          Conv     128   128    3x3      16x16      16x16 Max2x2   1152   1152 100.0%   37.7487M   37.7487M    0.0000M [Optical]
+  fc1              Linear  8192   256      -          -          -   None   8192   8192 100.0%    2.0972M    0.0000M    2.0972M [Electronic]
+  fc2              Linear   256    10      -          -          -   None    256    256 100.0%    0.0026M    0.0000M    0.0026M [Electronic]
+  ------------------------------------------------------------------------------------------------------------------------
+  Total                                                                                          156.6336M  155.1892M    2.0997M
+
+  [MOPs] 光计算占比: 98.67%  |  总 MOPs: 156.63 M
+  补零浪费: 0.6554 M (conv1_1 展平=27→32)
+  [Note] Mixed 策略: 6 Conv 在 Gazelle 光计算 (int4), 2 Linear 在 CPU/GPU 电计算 (fp32)
+```
+
+```powershell
+(moca_llm) root@a39a38d1a33b:/workspace/share/train-test# python optic_inference_int4.py
+Device: cpu
+============================================================
+  Optic-SpaceNet INT4: In-Container Optical Inference
+  Model 2 Phase4 v2 (int4, 91.06%)  |  Weight: spacenet_v1_phase4_v2_ste.pth
+  Mode: Optic (default)
+============================================================
+
+--- Loading Test Set ---
+Full: 27000 | Test: 5400 imgs | Test/Val overlap: 0
+[optic_layers] [OK] Real optical simulator loaded (osimulator)
+wght_mapping_factor:  64
+input_mapping_factor:  85
+wght_mapping_factor:  64
+input_mapping_factor:  64
+wght_mapping_factor:  16
+input_mapping_factor:  17
+wght_mapping_factor:  16
+input_mapping_factor:  16
+wght_mapping_factor:  1
+input_mapping_factor:  1
+wght_mapping_factor:  1
+input_mapping_factor:  1
+[OpticalEngine] Using real optical simulator
+
+============================================================
+  Model 2 Phase4 v2 INT4  [Optic mode: osimulator]
+============================================================
+
+  [1/3] Loading weights...
+  Params: 267,944
+
+  Original FP32 层名                          C_in   K      展平长度  补零后  对齐率
+  ------------------------------------------------------------------------
+  [Conv2d]      stem.0                       3   1×1          3          8   37.5%
+  [Conv2d]      stage1.0                     8   2×2         32         32   100.0%
+  [Conv2d]      stage2.0                    16   2×2         64         64   100.0%
+  [Conv2d]      stage3.0                    32   1×1         32         32   100.0%
+  [Linear]      classifier.1               —     —           1024       1024   100.0%
+  [Linear]      classifier.4               —     —            256        256   100.0%
+  综合硬件对齐率: 99.6% (总展平 1411 → 补零后 1416)
+
+  [2/3] Converting to optical (int8 act + int8 weight, stem=electronic)...
+  [Note] osimulator 原生 8a8w. QAT int4→optical int8 重量化非无损:
+         int4 grid (scale=max/7, 16级) → int8 grid (scale=max/127, 256级)
+         叠加 per-channel→per-tensor 输入量化差异, 预期光学精度 ~88%
+         (QAT 参考: ~94% on test set, 91.06% on val set)
+
+  Optical 层名                          C_in   K      展平长度  补零后  对齐率
+  ------------------------------------------------------------------------
+  [Conv2d]      stem.0                       3   1×1          3          8   37.5%
+  [OpticConv2d] stage1.0                     8   2×2         32         32   100.0%
+  [OpticConv2d] stage2.0                    16   2×2         64         64   100.0%
+  [OpticConv2d] stage3.0                    32   1×1         32         32   100.0%
+  [OpticLinear] classifier.1               —     —           1024       1024   100.0%
+  [OpticLinear] classifier.4               —     —            256        256   100.0%
+  综合硬件对齐率: 99.6% (总展平 1411 → 补零后 1416)
+
+  [3/3] Evaluating via osimulator (预期 ~88%, 见 EXPERIMENTS.md §16)...
+  [optic] 5400 batches, report every 540 batch(es)
+  [optic]  540/5400 ( 10.0%) acc=85.74%  elapsed=1828s  ETA=16451s
+  [optic] 1080/5400 ( 20.0%) acc=87.22%  elapsed=3619s  ETA=14478s
+  [optic] 1620/5400 ( 30.0%) acc=87.47%  elapsed=5404s  ETA=12609s
+  [optic] 2160/5400 ( 40.0%) acc=87.41%  elapsed=7142s  ETA=10713s
+  [optic] 2700/5400 ( 50.0%) acc=88.00%  elapsed=8669s  ETA=8669s
+  [optic] 3240/5400 ( 60.0%) acc=87.96%  elapsed=10994s  ETA=7329s
+  [optic] 3780/5400 ( 70.0%) acc=88.07%  elapsed=13869s  ETA=5944s
+  [optic] 4320/5400 ( 80.0%) acc=88.17%  elapsed=16727s  ETA=4182s
+  [optic] 4860/5400 ( 90.0%) acc=88.00%  elapsed=18384s  ETA=2043s
+  [optic] 5400/5400 (100.0%) acc=87.94%  elapsed=20316s  ETA=0s
+  [optic] DONE — 5400 batches, acc=87.94%, total=20316s
+  Optical Accuracy: 87.94%  Time: 20316.1s
+
+--- Optical Engine Statistics ---
+  [OpticalEngine 统计] 调用: 27000, 总耗时: 20247.814s, 总运算量: 5.15e+09 MACs
+
+====================================================================================================
+  Model 2 Phase4 v2 INT4 — Container Verification Report
+====================================================================================================
+  Optic osimulator: 87.94%  |  Time: 20316s
+  ---
+  QAT 参考: 91.06% (训练 val) / ~94% (test set)
+  Optic 预期: ~88% (int4→int8 重量化 + per-channel→per-tensor 导致 ~6% 损失)
+  ---
+  根因 (详见 EXPERIMENTS.md §16):
+    1. 权重 int4→int8: 量化网格 scale=max/7 → scale=max/127
+    2. 激活 per-channel→per-tensor: im2col 后通道维度被展平
+    3. stem QAT→FP32 电子: BN 统计量不匹配
+
+==============================================================================================================
+  INT4 模型光计算 MOPs 统计 — Model 2 SpaceNet V1 Phase4 v2
+  Gazelle 硬件: 8x2 tile, act=int8, weight=int4, stem 电计算
+==============================================================================================================
+
+  Layer            Type    C_in C_out Kernel      Input    ConvOut   Pool  Patch Padded   Align    RawMOPs    OptMOPs   ElecMOPs      Compute
+  ------------------------------------------------------------------------------------------------------------------------
+  stem.conv        Conv       3     8    1x1      64x64      64x64   None      3      8  37.5%    0.0983M    0.0000M    0.0983M [Electronic]
+  stage1.conv      Conv       8    16    2x2      64x64      32x32 Max2x2     32     32 100.0%    0.5243M    0.5243M    0.0000M [Optical]
+  stage2.conv      Conv      16    32    2x2      16x16        8x8   None     64     64 100.0%    0.1311M    0.1311M    0.0000M [Optical]
+  stage3.conv      Conv      32    16    1x1        8x8        8x8   None     32     32 100.0%    0.0328M    0.0328M    0.0000M [Optical]
+  fc1              Linear  1024   256      -          -          -   None   1024   1024 100.0%    0.2621M    0.2621M    0.0000M [Optical]
+  fc2              Linear   256    10      -          -          -   None    256    256 100.0%    0.0026M    0.0026M    0.0000M [Optical]
+  ------------------------------------------------------------------------------------------------------------------------
+  Total                                                                                            1.0511M    0.9528M    0.0983M
+
+  ------------------------------------------------------------
+  [MOPs] 光计算占比汇总
+  ------------------------------------------------------------
+  光计算占比:          90.65%
+  总 MOPs:             1.0511 M
+  [Note] stem 展平=3 对齐率仅 37.5%, 保留电计算 (FP32)
+  [Note] 预期光学精度 ~88%, QAT 参考 ~94% (test) / 91.06% (val)
+  [Note] 6% 损失来源: int4→int8 重量化 + per-channel→per-tensor + stem 不一致
+  [Note] 详见 EXPERIMENTS.md §16
+```
+

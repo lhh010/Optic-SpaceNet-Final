@@ -1,9 +1,28 @@
 # Model 1 Mixed 光计算容器推理日志
 
-> 日期: 2026-07-10
+> 日期: 2026-07-10 (quick 20) → 2026-07-11 (quick 50)
 > 模型: Model 1 Baseline VGG Mixed (Conv=int4 光计算, Linear=fp32 电计算, 98.26%)
 > 权重: baseline_vgg_mixed_ste.pth
 > 文件: optic_inference_mixed_model1.py
+
+---
+
+## Quick 50 验证 (2026-07-11)
+
+```bash
+python optic_inference_mixed_model1.py --quick 50
+```
+
+| 指标 | 值 |
+|---|---|
+| 准确率 | **100.00%** (50 张, 统计波动大) |
+| 训练参考 | 98.26% int4 Mixed |
+| 单张耗时 | ~154s |
+| 总耗时 | 7714s (~2.1h) |
+| 引擎调用 | 300 次 |
+| 总 MACs | 7.76e+09 |
+
+**50 张全对**, 说明 Mixed 策略的 Conv=int4 光计算 + Linear=fp32 电计算方案质量很高。
 
 ---
 
