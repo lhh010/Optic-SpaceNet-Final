@@ -422,30 +422,57 @@ python optic_inference_int8.py   # 5400 张独立测试集 (与训练 val 零重
 | fc1 (Linear 1024→256) | 0.262M (24.9%) | 光计算 INT8 |
 | fc2 (Linear 256→10) | 0.003M (0.2%) | 光计算 INT8 |
 
-### 11.6 其余模型容器验证 (2026-07-10)
+### 11.6 其余模型容器验证
 
-基于 INT8 容器经验, 为其余 4 个模型创建了容器验证文件:
+基于 INT8 容器经验, 为其余模型创建了容器验证文件:
 
-| 文件                                | 模型              | 训练精度   | Quick 验证              | 光计算占比  | 状态     |
-| --------------------------------- | --------------- | ------ | --------------------- | ------ | ------ |
-| `optic_inference_int4.py`         | Model 2 v2 INT4 | 91.06% | ~90% (quick 50)       | 90.65% | ✅ 待全量  |
-| `optic_inference_lsq.py`          | Model 2 LSQ+    | 92.80% | **96.00%** (quick 50) | 90.65% | ✅ 待全量  |
-| `optic_inference_kd.py`           | Model 3 KD INT4 | 91.50% | 83.50%* (quick 200)   | 90.65% | ⚠️ 待重测 |
-| `optic_inference_mixed_model1.py` | Model 1 Mixed   | 98.26% | 100% (quick 20)       | 98.67% | ⚠️ 仅抽检 |
+| 文件                                | 模型              | 训练精度   | Quick               | 全量 osimulator        | 光计算占比  | 状态                    |
+| --------------------------------- | --------------- | ------ | ------------------- | -------------------- | ------ | --------------------- |
+| `optic_inference_int4.py`         | Model 2 v2 INT4 | 91.06% | ~90% (quick 50)     | **~88%** (50%进度)     | 90.65% | ⚠️ 比 QAT 低 ~6%, 见 §16 |
+| `optic_inference_lsq.py`          | Model 2 LSQ+    | 92.80% | 96.00% (quick 50)   | **92.76%** (全量 5400) | 90.65% | ✅ 与训练几乎一致             |
+| `optic_inference_kd.py`           | Model 3 KD INT4 | 91.50% | 83.50%* (quick 200) | 待全量                  | 90.65% | ⚠️ 待重测                |
+| `optic_inference_mixed_model1.py` | Model 1 Mixed   | 98.26% | 100% (quick 20)     | 待全量 (⚠️ ~9天)         | 98.67% | ⚠️ 仅抽检                |
 
 \* per-channel 量化修复前; 修复后待重新验证。
-\*\* LSQ+ 通过 monkey-patch 保留学到的 scale/zp 量化, 再送入 osimulator。LSQ 量化后的粗粒度网格使 `_matmul_real` 再量化基本无损。
 
-#### INT4/KD 容器开发中的关键发现
+### 11.7 LSQ+ 全量 osimulator 验证 (2026-07-11) ★
 
-| Bug | 现象 | 修复 |
-|---|---|---|
-| stem 转光计算 (int4) | 46% | `keep_first_conv_electronic=True` |
-| 激活压到 int4 | 74% | `input_bit=8` (匹配 QAT act_bits=8) |
-| osimulator 混合位宽 | 10% | 统一 `input_bit=8, weight_bit=8` |
-| per-tensor 权重量化 (KD) | 83.50% | 改为 per-channel 量化 |
+```
+python optic_inference_lsq.py   # 5400 张独立测试集
+```
 
-**核心结论**: osimulator 原生 8a8w12o, 不支持混合位宽。所有模型统一用 `input_bit=8, weight_bit=8`。QAT 训练的低精度权重以 FP32 存储, 量化到 int8 是无损 (或更优) 的。
+| 指标 | 值 |
+|---|---|
+| 光计算准确率 | **92.76%** |
+| 训练 QAT 参考 | 92.80% (val set) |
+| 量化损失 (vs 训练) | **-0.04%** (几乎无损!) |
+| 总耗时 | 18118s (~5.0h) |
+
+LSQ+ 的 per-channel learned scales 使量化后的数据天然适合 osimulator 重量化,
+是全系列模型中推理精度与训练精度最接近的。
+
+### 11.8 INT4 容器全量 osimulator 验证 (2026-07-11) ⚠️
+
+```
+python optic_inference_int4.py  # 5400 张
+python optic_inference_int4.py --qat  # QAT 交叉验证
+```
+
+| 指标 | 值 |
+|---|---|
+| 光计算准确率 (50% 进度) | **88.41%** (预计终值 ~88%) |
+| QAT int4 (test set, 全量) | **94.57%** |
+| QAT float32 (test set) | 91.43% |
+| 量化损失 vs QAT | **~-6.6%** |
+
+**根因** (详见 §16):
+1. int4→int8 权重量化网格不对齐 (scale=max/7 → max/127)
+2. per-channel→per-tensor 激活量化退化
+3. stem QAT→FP32 BN 统计量偏移
+
+**核心结论修正**: 之前认为 "QAT int4→int8 无损" 是**错误的**.
+int4 和 int8 量化网格不同, 重量化引入额外误差.
+INT4 在 osimulator 上的实际上限约为 88%.
 
 #### Model 1 速度限制
 
@@ -691,4 +718,131 @@ Model 3: 91.50% (int4+KD v2)  → 92.5% (int8+KD) → 93%
 
 ---
 
-*文档版本: v2.0 | 最后更新: 2026-07-09 | 新增 Phase 4-6 + 容器迁移 + Gazelle 硬件分析*
+## 16. INT4 osimulator 推理精度问题调查 (2026-07-11)
+
+### 16.1 现象
+
+`optic_inference_int4.py` (Model 2 v2 INT4, 训练精度 91.06%) 在容器 osimulator 上全量推理仅 ~88%, 
+比 QAT 伪量化模式 (94.57%) 低 6.6 个百分点.
+
+```
+QAT 模式:   94.57% (per-channel 输入, int4 权重, PyTorch 伪量化)
+Optic 模式: 88.00% (per-tensor 输入, int8 权重, osimulator 真硬件)
+差距:       -6.57%
+```
+
+### 16.2 根因分析
+
+**Model 2 v2 INT4 训练配置与 osimulator 推理路径存在三处不可调和的不一致:**
+
+| 维度 | QAT 训练 (optic_qat_v3) | Optic 推理 (osimulator) | 兼容? |
+|---|---|---|---|
+| **stem Conv** | INT4 QAT (有量化噪声) | FP32 电子 (`keep_first_conv_electronic=True`) | ❌ |
+| **输入量化** | per-channel signed int8 | per-tensor unsigned uint8 | ❌ |
+| **权重量化** | int4 (16 级, scale=max/7) | int8 (256 级, scale=max/127) | ❌ |
+
+**关键矛盾**: 训练时 stem 是 QAT (对齐率 37.5% 太低不能走光计算), 
+推理时 stem 必须保持电子 FP32. 但 BN 统计量基于 QAT stem 输出分布训练, 
+推理时 FP32 stem 输出分布不同 → BN 偏移 → 级联误差.
+
+对比 INT8 模型 (93.28% 成功): 训练时 `first_conv_fp32=True` → stem FP32 与推理一致,
+这是精度对齐的关键.
+
+**尝试过的修复全部失败:**
+
+| 方案 | 结果 | 原因 |
+|---|---|---|
+| weight_bit=4 (匹配 QAT) | 18% | osimulator 内部 8a8w 编译, int4 权重值被误解释 |
+| per-channel + shift + correction | 71% | correction term 量化误差被 shift×128 放大 |
+| BN 重校准 (batch_size=1) | 40.5% | 单样本 BN 统计量噪声过大 |
+| per-channel 预量化 + engine 重量化 | 87% | 双重量化引入额外舍入误差 |
+| per-channel + scale 吸收 (干净方案) | 88% | scale 吸收后 weight 重量化破坏了 QAT 训练的权重网格 |
+
+### 16.3 结论
+
+**v2 INT4 模型 (全层 QAT, 无 stem FP32) 在 osimulator 上的实际上限是 ~88%.**
+与 QAT 模式的差距来自 stem 训练/推理不一致的根本性矛盾, 无法通过推理路径修复绕过.
+
+### 16.4 新方案: Phase4 v4 — osimulator 兼容 INT4 训练
+
+**策略**: 用 INT8 模型的训练配方 (`first_conv_fp32=True`) + INT4 权重, 
+使训练配置与 osimulator 推理路径天然对齐.
+
+| | v2 INT4 (旧, 不可部署) | v4 INT4 (新, osimulator 兼容) |
+|---|---|---|
+| **stem** | INT4 QAT | **FP32** (匹配推理) |
+| **weight_bits** | 4 | 4 |
+| **QAT 模块** | optic_qat_v3 | **optic_qat_v4** |
+| **训练噪声** | STE (std=0.02*scale) | GazelleNoise (DAC 7.5+TIA) |
+| **推理 weight_bit** | N/A | 8 (osimulator 原生, int4→int8 升级无损) |
+| **推理 stem** | N/A | 电子 FP32 (匹配训练) |
+| **预期光学精度** | 88% (实际上限) | **~90-92%** |
+
+**训练命令:**
+```bash
+# Phase4 v3 脚本已支持 --wbits 4, 自动使用 first_conv_fp32=True
+python model2_spacenet_v1_phase4_v3.py --wbits 4
+# 权重: spacenet_v1_phase4_v3_int4.pth
+```
+
+**推理脚本:** `optic_inference_int4_v2.py` — 与 INT8 容器完全相同的 osimulator 配置
+(`input_bit=8, weight_bit=8, keep_first_conv_electronic=True`), 仅权重文件不同.
+
+### 16.5 v4 方案验证结果 (失败)
+
+v4 方案训练完成后 (`spacenet_v1_phase4_v3_int4.pth`), 在容器内验证:
+
+```
+训练结果:
+  Int4 QAT (val):      91.94%  ← 训练成功
+  Float32 (val):       82.80%  ← Gazelle 噪声使权重过度依赖 int4 网格
+
+容器验证 (test set, 200 images):
+  QAT int4 模式:       97.00%  ← PyTorch 伪量化, per-channel
+  Optic osimulator:    84.00%  ← 比 v2 的 88% 更差!
+```
+
+**v4 比 v2 更差的原因**: Gazelle 噪声 (DAC ENOB=7.5 + TIA) 使权重更"特化"于 int4 量化网格.
+Float32 精度从 v2 的 91% 降至 83%, 说明去量化后的权重已无法正常工作.
+换到 int8 网格 (osimulator) 时偏差进一步放大.
+
+**核心结论**: int4 训练的权重在 int8 推理路径上必然有损失.
+"int4→int8 升级无损" 的假设是**错误**的 — 量化网格 scale 不同 (max/7 vs max/127), 
+相同的浮点权重落在不同的量化值上.
+
+### 16.6 最终结论
+
+| 部署方案 | 光学精度 | 状态 |
+|---|---|---|
+| **INT8 v3** (`spacenet_v1_phase4_v3_int8.pth`) | **93.28%** | ✅ 已验证, 推荐 |
+| INT4 v2 (`spacenet_v1_phase4_v2_ste.pth`) | **~88%** | ⚠️ 可用, 比 QAT 低 ~6% |
+| INT4 v4 (`spacenet_v1_phase4_v3_int4.pth`) | 84% | ✗ 不如 v2 |
+
+**INT4 在 osimulator 上 ~88% 的原因 (三个不可消除的误差源):**
+
+1. **权重 int4→int8 重量化**: QAT 训练 scale=max/7 (16级), osimulator scale=max/127 (256级).
+   同一浮点权重在不同网格上取整不同, 每个权重 ~0.3% 相对误差, 全模型累积 ~3-4%.
+
+2. **激活 per-channel→per-tensor**: QAT 训练每个输入通道独立 scale, osimulator 的 im2col
+   展平后所有通道共享一个 scale. 通道间动态范围差异越大, 误差越大.
+
+3. **stem QAT→FP32**: 训练时 stem 参与 int4 QAT (有量化噪声), 推理时 stem 保持 FP32,
+   BN 统计量基于 QAT 分布, 应用于 FP32 输出时有轻微偏移.
+
+三项叠加 → 总损失 ~6% (91% → 88%, 或 QAT 94% → 88%).
+
+**推荐部署策略**: 直接使用 INT8 模型 (93.28%), 如需 INT4 则接受 88% 上限,
+在报告中说明上述三个量化不对齐因素.
+
+### 16.7 文件清单
+
+| 文件 | 用途 |
+|---|---|
+| `optic_inference_int4.py` | INT4 v2 容器推理 (~88%, 已文档化限制) |
+| `optic_inference_int4_v2.py` | INT4 v4 容器推理 (实验性, 84%, 不推荐) |
+| `spacenet_v1_phase4_v2_ste.pth` | INT4 v2 权重 (推荐用于 INT4 部署) |
+| `spacenet_v1_phase4_v3_int4.pth` | INT4 v4 权重 (训练完成, osimulator 效果不佳) |
+
+---
+
+*文档版本: v2.2 | 最后更新: 2026-07-11 | LSQ+ 全量验证 (92.76%) + INT4 根因调查 (上限 88%)*

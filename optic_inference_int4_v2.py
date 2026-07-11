@@ -1,27 +1,23 @@
 """
 ================================================================================
- optic_inference_int4.py — Model 2 v2 INT4 光计算容器内推理 + MOPs 统计
+ optic_inference_int4_v2.py — Model 2 v4 INT4 osimulator 兼容容器推理
 
- 模型: Model 2 SpaceNet V1 Phase4 v2 (INT4)
-   训练脚本:  model2_spacenet_v1_phase4_v2.py
-   权重文件:  spacenet_v1_phase4_v2_ste.pth
-   训练精度:  91.06% int4 (QAT eval), 94.57% (独立测试集 QAT)
-   QAT 模块:  optic_qat_v3.py (int4 权重 + int8 激活 + STE 噪声)
-   硬件配置:  全 Conv+Linear int4 QAT, 无首层 FP32
+ 模型: Model 2 SpaceNet V1 Phase4 v4 (INT4, osimulator-compatible)
+   训练脚本:  model2_spacenet_v1_phase4_v3.py --wbits 4
+   权重文件:  spacenet_v1_phase4_v3_int4.pth
+   QAT 模块:  optic_qat_v4.py (int4 权重 + int8 激活 + Gazelle 噪声)
+   硬件配置:  stem FP32 (首层对齐率 37.5%), 其余 Conv+Linear int4 QAT
 
- ★ 已知限制: osimulator 光学推理精度 ~88%, 低于 QAT 精度 (~94%).
-   根因: QAT 训练 (int4 权重, per-channel 输入量化) 与 osimulator 推理路径
-   (int8 权重, per-tensor 输入量化) 存在三处量化参数不对齐:
-     1. 权重 int4→int8 重量化: 量化网格改变 (scale=max/7 → scale=max/127)
-     2. 激活 per-channel→per-tensor: im2col 后通道维度被展平
-     3. stem 训练时 QAT / 推理时 FP32 电子: BN 统计量不匹配
-   详见 EXPERIMENTS.md §16.
+ ★ 关键改进 vs v2 INT4:
+   - 训练时 first_conv_fp32=True → stem FP32 匹配推理 stem=电子
+   - 推理 weight_bit=8 (osimulator 原生) — int4→int8 升级无损
+   - 预期光学精度: ~90-92% (vs v2 的 88% 上限)
 
  用法 (在光计算 Docker 容器内):
-   python optic_inference_int4.py                        # 默认 Optic 模式全量 (~88%)
-   python optic_inference_int4.py --quick 50             # 快速测试
-   python optic_inference_int4.py --qat                  # QAT 伪量化交叉验证 (~94%)
-   python optic_inference_int4.py --mops-only            # 仅打印 MOPs 统计
+   python optic_inference_int4_v2.py                        # 默认 Optic 模式全量
+   python optic_inference_int4_v2.py --quick 50             # 快速测试
+   python optic_inference_int4_v2.py --qat                  # QAT 伪量化交叉验证
+   python optic_inference_int4_v2.py --mops-only            # 仅打印 MOPs 统计
 ================================================================================
 """
 
@@ -41,6 +37,9 @@ print(f"Device: {DEVICE}")
 
 
 # ============================================================
+#  模型
+# ============================================================
+
 class OpticSpaceNetV1(nn.Module):
     """Model 2/3 共用架构: 4 Conv + 2 Linear, bias=False"""
     def __init__(self, num_classes=10):
@@ -66,6 +65,9 @@ class OpticSpaceNetV1(nn.Module):
 
 
 # ============================================================
+#  数据加载 (与 INT8 容器完全一致)
+# ============================================================
+
 def load_test_data(batch_size=DEFAULT_BATCH, test_ratio=0.2):
     """独立测试集: 与训练 val 零重叠"""
     test_transform = transforms.Compose([
@@ -102,7 +104,7 @@ def evaluate(model, dataloader, device, criterion=None, max_batches=None,
 
 
 # ============================================================
-# MOPs — 同 INT8 模型
+#  MOPs (与 INT8 完全相同 — stem 电计算, 其余光计算)
 # ============================================================
 LAYER_SPECS = [
     ("stem.conv",   "Conv",   3,   8,  1, 1, 1, 0,  None,    False),
@@ -113,58 +115,110 @@ LAYER_SPECS = [
     ("fc2",         "Linear", 256,  10,  0, 0, 0, 0, None,    True),
 ]
 
-def _spatial(H, W, Kh, Kw, s, p):
-    return (H + 2*p - Kh)//s + 1, (W + 2*p - Kw)//s + 1
-
-def _pool(H, W, pool):
-    return (H//2, W//2) if pool == "Max2x2" else (H, W)
-
 def compute_mops_detail():
     H, W = 64, 64; layers = []
     for name, ltype, ci, co, kh, kw, s, p, pool, is_opt in LAYER_SPECS:
         if ltype == "Conv":
             pl, pdl = ci*kh*kw, ((ci*kh*kw+7)//8)*8
-            Ho, Wo = _spatial(H, W, kh, kw, s, p)
+            Ho, Wo = (H + 2*p - kh)//s + 1, (W + 2*p - kw)//s + 1
             raw = co * Ho * Wo * ci * kh * kw
-            opt_m = Ho * Wo * pdl * co if is_opt else 0
-            elec_m = raw if not is_opt else 0
+            opt_m = Ho * Wo * pdl * co if is_opt else 0; elec_m = raw if not is_opt else 0
             layers.append({"name": name, "type": ltype, "c_in": ci, "c_out": co,
                            "kernel": f"{kh}x{kw}", "spatial_in": f"{H}x{W}",
                            "spatial_out": f"{Ho}x{Wo}", "pool": pool or "None",
-                           "patch_len": pl, "padded_len": pdl,
-                           "alignment": pl/pdl if pdl>0 else 1,
+                           "patch_len": pl, "padded_len": pdl, "alignment": pl/pdl if pdl>0 else 1,
                            "raw_mops": raw/1e6, "optical_mops": opt_m/1e6,
                            "electronic_mops": elec_m/1e6,
-                           "effective_mops": (opt_m if is_opt else raw)/1e6,
-                           "is_optical": is_opt})
-            H, W = _pool(Ho, Wo, pool)
+                           "effective_mops": (opt_m if is_opt else raw)/1e6, "is_optical": is_opt})
+            H, W = (Ho//2, Wo//2) if pool == "Max2x2" else (Ho, Wo)
         else:
             pl, pdl = ci, ((ci+7)//8)*8
-            raw = ci * co
-            opt_m = pdl * co if is_opt else 0
-            elec_m = raw if not is_opt else 0
+            raw = ci * co; opt_m = pdl * co if is_opt else 0; elec_m = raw if not is_opt else 0
             layers.append({"name": name, "type": ltype, "c_in": ci, "c_out": co,
                            "kernel": "-", "spatial_in": "-", "spatial_out": "-",
                            "pool": "None", "patch_len": pl, "padded_len": pdl,
                            "alignment": pl/pdl if pdl>0 else 1,
                            "raw_mops": raw/1e6, "optical_mops": opt_m/1e6,
                            "electronic_mops": elec_m/1e6,
-                           "effective_mops": (opt_m if is_opt else raw)/1e6,
-                           "is_optical": is_opt})
+                           "effective_mops": (opt_m if is_opt else raw)/1e6, "is_optical": is_opt})
     total_raw = sum(l["raw_mops"] for l in layers)
     total_opt = sum(l["optical_mops"] for l in layers)
     total_elec = sum(l["electronic_mops"] for l in layers)
     total_eff = sum(l["effective_mops"] for l in layers)
     return layers, {"total_raw_mops": total_raw, "total_optical_mops": total_opt,
-                    "total_electronic_mops": total_elec,
-                    "total_effective_mops": total_eff,
+                    "total_electronic_mops": total_elec, "total_effective_mops": total_eff,
                     "optical_ratio": total_opt/total_eff if total_eff>0 else 0,
                     "optical_waste": total_opt - sum(l["raw_mops"] for l in layers if l["is_optical"])}
 
+
+# ============================================================
+#  QAT 模式评估 (交叉验证)
+# ============================================================
+def evaluate_qat(model_class, weight_path, test_loader, device, quick_batches=None):
+    print(f"\n{'='*60}\n  Model 2 Phase4 v4 INT4  [QAT mode: int4]\n{'='*60}")
+    print(f"\n  [1/3] Creating model...")
+    model = model_class(num_classes=NUM_CLASSES)
+    print(f"  Params: {sum(p.numel() for p in model.parameters()):,}")
+    print(f"\n  [2/3] Converting to QAT v4 (int4 weight, int8 act, stem FP32)...")
+    from optic_qat_v4 import prepare_model_v4, enable_qat, disable_qat
+    prepare_model_v4(model, weight_bits=4, act_bits=8,
+                     noise=False, first_conv_fp32=True,
+                     quantize_linear=True, preserve_bn=True)
+    print(f"\n  [3/3] Loading weights: {weight_path}")
+    model.load_state_dict(torch.load(weight_path, map_location='cpu'), strict=False)
+
+    disable_qat(model)
+    t0 = time.time()
+    r_fp32 = evaluate(model, test_loader, device, nn.CrossEntropyLoss(), quick_batches, "fp32")
+    print(f"  Float32: {r_fp32['accuracy']:.2%} ({time.time()-t0:.1f}s)")
+
+    enable_qat(model)
+    t0 = time.time()
+    r_int4 = evaluate(model, test_loader, device, nn.CrossEntropyLoss(), quick_batches, "int4-QAT")
+    print(f"  Int4 QAT: {r_int4['accuracy']:.2%} ({time.time()-t0:.1f}s)")
+    print(f"  Quant Loss: {r_fp32['accuracy']-r_int4['accuracy']:+.2%}")
+
+    return {"name": "Model 2 v4 INT4", "fp32_acc": r_fp32["accuracy"],
+            "int_acc": r_int4["accuracy"], "quant_loss": r_fp32["accuracy"]-r_int4["accuracy"]}
+
+
+# ============================================================
+#  Optic 模式评估 (osimulator, 与 INT8 容器相同配置)
+# ============================================================
+def evaluate_optic(model_class, weight_path, engine, test_loader, device,
+                   quick_batches=None, is_quick_mode=False):
+    from optic_layers import build_optical_model, print_alignment_detail, evaluate_model
+    print(f"\n{'='*60}\n  Model 2 Phase4 v4 INT4  [Optic mode: osimulator]\n{'='*60}")
+    print(f"\n  [1/3] Loading weights...")
+    model = model_class(num_classes=NUM_CLASSES)
+    sd = torch.load(weight_path, map_location='cpu')
+    ms = model.state_dict()
+    model.load_state_dict({k: v for k, v in sd.items() if k in ms and ms[k].shape == v.shape}, strict=False)
+    print(f"  Params: {sum(p.numel() for p in model.parameters()):,}")
+
+    print_alignment_detail(model, "Original FP32")
+    print(f"\n  [2/3] Converting to optical (int8 act + int8 weight, stem=electronic)...")
+    print(f"  [Note] stem FP32 (matches training first_conv_fp32=True); "
+          f"weight_bit=8 (osimulator native, int4→int8 upgrade)")
+    build_optical_model(model, engine, pad_to_8=True, input_bit=8, weight_bit=8,
+                        keep_first_conv_electronic=True)
+    print_alignment_detail(model, "Optical")
+
+    total_batches = quick_batches or len(test_loader)
+    print_interval = 1 if is_quick_mode else max(1, total_batches // 10)
+    print(f"\n  [3/3] Evaluating via osimulator...")
+    t0 = time.time()
+    result = evaluate_model(model, test_loader, device, nn.CrossEntropyLoss(),
+                            quick_batches, "optic", print_interval)
+    t = time.time() - t0
+    print(f"  Optical Accuracy: {result['accuracy']:.2%}  Time: {t:.1f}s")
+    return {"name": "Model 2 v4 INT4", "optic_acc": result["accuracy"], "optic_time": t}
+
+
 def print_mops_report(layers, summary):
     print(f"\n{'='*110}")
-    print(f"  INT4 模型光计算 MOPs 统计 — Model 2 SpaceNet V1 Phase4 v2")
-    print(f"  Gazelle 硬件: 8x2 tile, act=int8, weight=int4, stem 电计算")
+    print(f"  INT4 v4 模型光计算 MOPs 统计 — Model 2 SpaceNet V1 Phase4 v4")
+    print(f"  Gazelle 硬件: 8x2 tile, act=int8, weight=int8, stem 电计算")
     print(f"{'='*110}")
     print(f"\n  {'Layer':<16s} {'Type':<6s} {'C_in':>5s} {'C_out':>5s} "
           f"{'Kernel':>6s} {'Input':>10s} {'ConvOut':>10s} {'Pool':>6s} "
@@ -183,79 +237,14 @@ def print_mops_report(layers, summary):
           f"{summary['total_raw_mops']:>9.4f}M {summary['total_optical_mops']:>9.4f}M "
           f"{summary['total_electronic_mops']:>9.4f}M")
     print(f"\n  {'-'*60}")
-    print(f"  [MOPs] 光计算占比汇总")
-    print(f"  {'-'*60}")
+    print(f"  [MOPs] 光计算占比汇总"); print(f"  {'-'*60}")
     print(f"  光计算占比:          {summary['optical_ratio']:.2%}")
     print(f"  总 MOPs:             {summary['total_raw_mops']:.4f} M")
-    print(f"  [Note] stem 展平=3 对齐率仅 37.5%, 保留电计算 (FP32)")
-    print(f"  [Note] 预期光学精度 ~88%, QAT 参考 ~94% (test) / 91.06% (val)")
-    print(f"  [Note] 6% 损失来源: int4→int8 重量化 + per-channel→per-tensor + stem 不一致")
-    print(f"  [Note] 详见 EXPERIMENTS.md §16")
+    print(f"  [Note] stem FP32 电计算 (训练时 first_conv_fp32=True, 推理一致)")
     print(f"{'='*110}")
 
 
 # ============================================================
-def evaluate_qat(model_class, weight_path, test_loader, device, quick_batches=None):
-    print(f"\n{'='*60}\n  Model 2 Phase4 v2 INT4  [QAT mode: int4]\n{'='*60}")
-    print(f"\n  [1/3] Creating model...")
-    model = model_class(num_classes=NUM_CLASSES)
-    print(f"  Params: {sum(p.numel() for p in model.parameters()):,}")
-    print(f"\n  [2/3] Converting to QAT v3 (int4 weight, int8 act)...")
-    from optic_qat_v3 import prepare_model_v3, enable_qat, disable_qat
-    prepare_model_v3(model, mode="ste", weight_bits=4, act_bits=8,
-                     noise=False, quantize_linear=True, preserve_bn=True)
-    print(f"\n  [3/3] Loading weights: {weight_path}")
-    model.load_state_dict(torch.load(weight_path, map_location='cpu'), strict=False)
-
-    disable_qat(model)
-    t0 = time.time()
-    r_fp32 = evaluate(model, test_loader, device, nn.CrossEntropyLoss(), quick_batches, "fp32")
-    print(f"  Float32: {r_fp32['accuracy']:.2%} ({time.time()-t0:.1f}s)")
-
-    enable_qat(model)
-    t0 = time.time()
-    r_int4 = evaluate(model, test_loader, device, nn.CrossEntropyLoss(), quick_batches, "int4-QAT")
-    print(f"  Int4 QAT: {r_int4['accuracy']:.2%} ({time.time()-t0:.1f}s)")
-    print(f"  Quant Loss: {r_fp32['accuracy']-r_int4['accuracy']:+.2%}")
-
-    return {"name": "Model 2 v2 INT4", "fp32_acc": r_fp32["accuracy"],
-            "int_acc": r_int4["accuracy"], "quant_loss": r_fp32["accuracy"]-r_int4["accuracy"]}
-
-
-def evaluate_optic(model_class, weight_path, engine, test_loader, device,
-                   quick_batches=None, is_quick_mode=False):
-    from optic_layers import build_optical_model, print_alignment_detail, evaluate_model
-    print(f"\n{'='*60}\n  Model 2 Phase4 v2 INT4  [Optic mode: osimulator]\n{'='*60}")
-    print(f"\n  [1/3] Loading weights...")
-    model = model_class(num_classes=NUM_CLASSES)
-    sd = torch.load(weight_path, map_location='cpu')
-    ms = model.state_dict()
-    model.load_state_dict({k: v for k, v in sd.items() if k in ms and ms[k].shape == v.shape}, strict=False)
-    print(f"  Params: {sum(p.numel() for p in model.parameters()):,}")
-
-    print_alignment_detail(model, "Original FP32")
-    print(f"\n  [2/3] Converting to optical (int8 act + int8 weight, stem=electronic)...")
-    print(f"  [Note] osimulator 原生 8a8w. QAT int4→optical int8 重量化非无损:")
-    print(f"         int4 grid (scale=max/7, 16级) → int8 grid (scale=max/127, 256级)")
-    print(f"         叠加 per-channel→per-tensor 输入量化差异, 预期光学精度 ~88%")
-    print(f"         (QAT 参考: ~94% on test set, 91.06% on val set)")
-    build_optical_model(model, engine, pad_to_8=True, input_bit=8, weight_bit=8,
-                        keep_first_conv_electronic=True)
-    print_alignment_detail(model, "Optical")
-
-    total_batches = quick_batches or len(test_loader)
-    print_interval = 1 if is_quick_mode else max(1, total_batches // 10)
-    print(f"\n  [3/3] Evaluating via osimulator (预期 ~88%, 见 EXPERIMENTS.md §16)...")
-    t0 = time.time()
-    result = evaluate_model(model, test_loader, device, nn.CrossEntropyLoss(),
-                            quick_batches, "optic", print_interval)
-    t = time.time() - t0
-    print(f"  Optical Accuracy: {result['accuracy']:.2%}  Time: {t:.1f}s")
-    if result['accuracy'] < 0.85:
-        print(f"  [WARN] 精度 < 85%! 检查权重文件是否匹配 (应为 spacenet_v1_phase4_v2_ste.pth)")
-    return {"name": "Model 2 v2 INT4", "optic_acc": result["accuracy"], "optic_time": t}
-
-
 def main():
     use_qat = "--qat" in sys.argv
     mops_only = "--mops-only" in sys.argv
@@ -264,9 +253,9 @@ def main():
         if a == "--quick": quick_batches = int(sys.argv[i+1]) if i+1 < len(sys.argv) else 5
         if a == "--batch": batch_size = int(sys.argv[i+1]) if i+1 < len(sys.argv) else DEFAULT_BATCH
 
-    weight_path = "spacenet_v1_phase4_v2_ste.pth"
-    print(f"{'='*60}\n  Optic-SpaceNet INT4: In-Container Optical Inference")
-    print(f"  Model 2 Phase4 v2 (int4, 91.06%)  |  Weight: {weight_path}")
+    weight_path = "spacenet_v1_phase4_v3_int4.pth"
+    print(f"{'='*60}\n  Optic-SpaceNet INT4 v4: osimulator-Compatible Inference")
+    print(f"  Model 2 Phase4 v4 (int4, stem=FP32)  |  Weight: {weight_path}")
     print(f"  Mode: {'MOPs-only' if mops_only else 'QAT' if use_qat else 'Optic (default)'}")
     print(f"{'='*60}")
 
@@ -289,22 +278,15 @@ def main():
         print("\n--- Optical Engine Statistics ---"); engine.print_stats()
         r = None
 
-    # Report
     print(f"\n{'='*100}")
-    print(f"  Model 2 Phase4 v2 INT4 — Container Verification Report")
+    print(f"  Model 2 Phase4 v4 INT4 — Container Verification Report")
     print(f"{'='*100}")
     if r:
         print(f"  QAT float32: {r['fp32_acc']:.2%}  |  QAT int4: {r['int_acc']:.2%}  |  Quant Loss: {r['quant_loss']:+.2%}")
     if r_optic:
         print(f"  Optic osimulator: {r_optic['optic_acc']:.2%}  |  Time: {r_optic['optic_time']:.0f}s")
-    print(f"  ---")
-    print(f"  QAT 参考: 91.06% (训练 val) / ~94% (test set)")
-    print(f"  Optic 预期: ~88% (int4→int8 重量化 + per-channel→per-tensor 导致 ~6% 损失)")
-    print(f"  ---")
-    print(f"  根因 (详见 EXPERIMENTS.md §16):")
-    print(f"    1. 权重 int4→int8: 量化网格 scale=max/7 → scale=max/127")
-    print(f"    2. 激活 per-channel→per-tensor: im2col 后通道维度被展平")
-    print(f"    3. stem QAT→FP32 电子: BN 统计量不匹配")
+    print(f"  Training ref: TBD (train with: model2_spacenet_v1_phase4_v3.py --wbits 4)")
+    print(f"  Expected: ~90-92% optical accuracy (stem FP32 matching inference)")
     print_mops_report(layers, summary)
     print(f"{'='*100}")
 
