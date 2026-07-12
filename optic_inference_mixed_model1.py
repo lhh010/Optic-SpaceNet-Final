@@ -78,8 +78,10 @@ def load_test_data(batch_size=DEFAULT_BATCH, test_ratio=0.2):
     n = len(full_dataset); test_size = int(n * test_ratio)
     indices = list(range(n))
     np.random.RandomState(SEED_TRAIN).shuffle(indices)
-    test_indices = indices[test_size:test_size * 2]
-    assert len(set(indices[:test_size]) & set(test_indices)) == 0
+    test_indices = indices[:test_size]
+    # train_mixed_runner.py 用 indices[val_size:] 作训练集（val_size=0.2），
+    # 这里 test 取 indices[:test_size] 与训练 val 集一致，且与训练集无交集。
+    assert len(set(indices[test_size:]) & set(test_indices)) == 0
     test_loader = DataLoader(torch.utils.data.Subset(full_dataset, test_indices),
                              batch_size=batch_size, shuffle=False, num_workers=0)
     print(f"Full: {n} | Test: {len(test_indices)} imgs | Test/Val overlap: 0")
