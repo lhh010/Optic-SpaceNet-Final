@@ -196,9 +196,10 @@ def evaluate_qat(model_class, weight_path, test_loader, device, quick_batches=No
 
 
 def evaluate_optic(model_class, weight_path, engine, test_loader, device,
-                   quick_batches=None, is_quick_mode=False):
+                   quick_batches=None, is_quick_mode=False, is_int8=False):
     from optic_layers import build_optical_model, print_alignment_detail, evaluate_model
-    print(f"\n{'='*60}\n  Model 3 KD+INT4  [Optic mode: osimulator]\n{'='*60}")
+    w_label = "int8+KD" if is_int8 else "int4+KD"
+    print(f"\n{'='*60}\n  Model 3 KD ({w_label})  [Optic mode: osimulator]\n{'='*60}")
     print(f"\n  [1/3] Loading weights...")
     model = model_class(num_classes=NUM_CLASSES)
     sd = torch.load(weight_path, map_location='cpu')
@@ -208,7 +209,10 @@ def evaluate_optic(model_class, weight_path, engine, test_loader, device,
 
     print_alignment_detail(model, "Original FP32")
     print(f"\n  [2/3] Converting to optical (int8 act + int8 weight, stem=electronic)...")
-    print(f"  [Note] osimulator uses native 8a8w — QAT int4 weights quantized to int8 (lossless)")
+    if is_int8:
+        print(f"  [Note] v3 int8 weights → osimulator native 8a8w (训练推理配置对齐, 应接近训练精度)")
+    else:
+        print(f"  [Note] osimulator uses native 8a8w — QAT int4 weights quantized to int8 (网格不对齐, ~-6%)")
     build_optical_model(model, engine, pad_to_8=True, input_bit=8, weight_bit=8,
                         keep_first_conv_electronic=True)
     print_alignment_detail(model, "Optical")
@@ -221,20 +225,34 @@ def evaluate_optic(model_class, weight_path, engine, test_loader, device,
                             quick_batches, "optic", print_interval)
     t = time.time() - t0
     print(f"  Optical Accuracy: {result['accuracy']:.2%}  Time: {t:.1f}s")
-    return {"name": "Model 3 KD INT4", "optic_acc": result["accuracy"], "optic_time": t}
+    return {"name": f"Model 3 KD {w_label}", "optic_acc": result["accuracy"], "optic_time": t}
 
 
 def main():
     use_qat = "--qat" in sys.argv
     mops_only = "--mops-only" in sys.argv
     quick_batches = None; batch_size = DEFAULT_BATCH
+    weight_path = None
     for i, a in enumerate(sys.argv):
         if a == "--quick": quick_batches = int(sys.argv[i+1]) if i+1 < len(sys.argv) else 5
         if a == "--batch": batch_size = int(sys.argv[i+1]) if i+1 < len(sys.argv) else DEFAULT_BATCH
+        if a == "--weight": weight_path = sys.argv[i+1] if i+1 < len(sys.argv) else None
 
-    weight_path = "spacenet_v2_phase4_v2_ste.pth"
-    print(f"{'='*60}\n  Optic-SpaceNet KD+INT4: In-Container Optical Inference")
-    print(f"  Model 3 KD Phase4 v2 (int4, 91.50%)  |  Weight: {weight_path}")
+    # 默认: v3 int8 (osimulator 兼容) → 回退 v2 int4
+    if weight_path is None:
+        if os.path.exists("spacenet_v2_phase4_v3_int8.pth"):
+            weight_path = "spacenet_v2_phase4_v3_int8.pth"
+        else:
+            weight_path = "spacenet_v2_phase4_v2_ste.pth"
+
+    # 根据权重文件名推断配置
+    is_v3 = "v3" in weight_path
+    is_int8 = "int8" in weight_path
+    w_label = "int8+KD" if is_int8 else "int4+KD"
+    train_acc = "TBD" if is_v3 else "91.50%"
+
+    print(f"{'='*60}\n  Optic-SpaceNet KD: In-Container Optical Inference")
+    print(f"  Model 3 KD Phase4 {'v3' if is_v3 else 'v2'} ({w_label}, {train_acc})  |  Weight: {weight_path}")
     print(f"  Mode: {'MOPs-only' if mops_only else 'QAT' if use_qat else 'Optic (default)'}")
     print(f"{'='*60}")
 
@@ -253,18 +271,21 @@ def main():
         engine = OpticalEngine(use_real=True, verbose=is_quick)
         engine.reset_stats()
         r_optic = evaluate_optic(OpticSpaceNetStudent, weight_path, engine, test_loader, DEVICE,
-                                 quick_batches, is_quick)
+                                 quick_batches, is_quick, is_int8=is_int8)
         print("\n--- Optical Engine Statistics ---"); engine.print_stats()
         r = None
 
     print(f"\n{'='*100}")
-    print(f"  Model 3 KD+INT4 — Container Verification Report")
+    print(f"  Model 3 KD — Container Verification Report")
     print(f"{'='*100}")
     if r:
         print(f"  QAT float32: {r['fp32_acc']:.2%}  |  QAT int4: {r['int_acc']:.2%}  |  Quant Loss: {r['quant_loss']:+.2%}")
     if r_optic:
         print(f"  Optic osimulator: {r_optic['optic_acc']:.2%}  |  Time: {r_optic['optic_time']:.0f}s")
-    print(f"  Training ref: 91.50% int4 (KD from ResNet-18 97.83%)")
+    if is_v3:
+        print(f"  Training ref: v3 int8+KD (stem FP32, Gazelle noise, first_conv_fp32=True)")
+    else:
+        print(f"  Training ref: 91.50% int4 (KD from ResNet-18 97.83%)")
     print_mops_report(layers, summary)
     print(f"{'='*100}")
 

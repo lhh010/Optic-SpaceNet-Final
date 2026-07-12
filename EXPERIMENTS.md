@@ -645,18 +645,18 @@ python optic_inference_mixed_model1.py --quick 5   # Optic 硬件抽样 (~10min)
 
 ### 容器代码
 
-| 文件 | 用途 |
-|---|---|
-| `optic_inference.py` | FP32 基准模型容器 |
-| `noise_robustness.py` | FP32 噪声鲁棒性 |
-| `noise_robustness_v2.py` | int4 噪声鲁棒性 |
-| **`optic_inference_phase4.py`** | **Phase4 模型容器 (QAT + Optic 双模式)** |
-| **`optic_inference_mixed.py`** | **Mixed 模型容器 (QAT + Optic 双模式)** |
-| **`optic_inference_int8.py`** | **INT8 模型容器 (已验证 93.28%)** |
-| **`optic_inference_int4.py`** | **INT4 模型容器 (~90% quick)** |
-| **`optic_inference_lsq.py`** | **LSQ+ 模型容器 (LSQ 专用路径, 96.00% quick)** |
-| **`optic_inference_kd.py`** | **KD+INT4 模型容器 (83.5% 旧版, per-channel 修复后待重测)** |
-| **`optic_inference_mixed_model1.py`** | **Model 1 Mixed 容器 (⚠️ ~150s/张, 仅抽检)** |
+| 文件                                    | 用途                                              |
+| ------------------------------------- | ----------------------------------------------- |
+| `optic_inference.py`                  | FP32 基准模型容器                                     |
+| `noise_robustness.py`                 | FP32 噪声鲁棒性                                      |
+| `noise_robustness_v2.py`              | int4 噪声鲁棒性                                      |
+| **`optic_inference_phase4.py`**       | **Phase4 模型容器 (QAT + Optic 双模式)**               |
+| **`optic_inference_mixed.py`**        | **Mixed 模型容器 (QAT + Optic 双模式)**                |
+| **`optic_inference_int8.py`**         | **INT8 模型容器 (已验证 93.28%)**                      |
+| **`optic_inference_int4.py`**         | **INT4 模型容器 (~90% quick)**                      |
+| **`optic_inference_lsq.py`**          | **LSQ+ 模型容器 (LSQ 专用路径, 96.00% quick)**          |
+| **`optic_inference_kd.py`**           | **KD+INT4 模型容器 (83.5% 旧版, per-channel 修复后待重测)** |
+| **`optic_inference_mixed_model1.py`** | **Model 1 Mixed 容器 (⚠️ ~150s/张, 仅抽检)**          |
 
 ### 文档
 

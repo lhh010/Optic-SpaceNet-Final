@@ -4075,3 +4075,300 @@ input_mapping_factor:  1
   [Note] 详见 EXPERIMENTS.md §16
 ```
 
+---
+## 7-12
+
+```powershell
+PS E:\LT-Simulator\train-test> python model3_spacenet_v2_phase4_v3.py
+设备: cpu
+
+============================================================
+  Model 3 Phase4 v3: KD + int8 + Gazelle 噪声
+  stem FP32 (匹配 osimulator) + Conv/Linear int8 QAT
+============================================================
+训练: 21600, 验证: 5400
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+
+[Step 0] 加载教师 (ResNet-18)
+  教师权重加载成功 (97.83%)
+  学生参数量: 267,944
+  架构: 4×Conv + 2×Linear, bias=False, BN 保留
+
+[Step 1] 转换学生: stem FP32, 其余 Conv+Linear→int8 QAT
+  噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-4)
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8
+  QAT Conv: 3 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015)
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+  int8 QAT Conv: 3, int8 QAT Linear: 2, BN: 4 (float32), stem: FP32
+
+  [Student (stem FP32 + int8)] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w8
+  [QATConv2d_v4 QAT  ] stage1.0                     8   2×2        32        32  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage2.0                    16   2×2        64        64  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage3.0                    32   1×1        32        32  100.0%  w8
+  综合硬件对齐率: 99.6% (展平总长度 1411 → 补零后 1416)
+
+[Step 2] KD+Phase4 v3 训练 (100 epochs, T=4.0, α=0.7)
+  教师: ResNet-18 (fp32, 97.83%)
+  学生: stem FP32 + Conv/Linear int8 + Gazelle 噪声
+  int8 权重 (硬件原生精度, 匹配 osimulator)
+---------------------------------------------------------------------------
+  Epoch |    KD Loss Train Acc |  Val Loss  Val Acc |     Best |       LR |    Time
+  -------------------------------------------------------------------------
+      1  |     9.5193   62.10% |    1.4417  73.11% |  73.11% | 0.00020 |  388.4s
+      5  |     6.0730   77.40% |    1.1680  80.72% |  81.46% | 0.00100 |   86.2s
+     10  |     5.3751   80.74% |    1.2319  81.50% |  84.31% | 0.00099 |   82.4s
+     15  |     4.7842   83.70% |    1.0655  86.96% |  86.96% | 0.00097 |   84.0s
+     20  |     4.4285   85.53% |    1.0396  87.02% |  87.98% | 0.00094 |   85.4s
+     25  |     4.1779   86.53% |    0.9802  87.98% |  89.39% | 0.00090 |   57.6s
+     30  |     3.9716   87.69% |    0.9482  88.59% |  89.39% | 0.00084 |   58.3s
+     35  |     3.8605   88.39% |    0.9344  89.72% |  90.04% | 0.00078 |   58.6s
+     40  |     3.6864   88.89% |    0.9666  90.11% |  90.33% | 0.00070 |   56.9s
+     45  |     3.5438   89.57% |    0.8900  90.98% |  90.98% | 0.00063 |   52.7s
+     50  |     3.5252   89.68% |    0.9486  90.22% |  91.31% | 0.00055 |   52.7s
+     55  |     3.4183   90.14% |    0.8615  91.50% |  91.56% | 0.00046 |   52.0s
+     60  |     3.3933   90.31% |    0.8752  91.35% |  91.76% | 0.00038 |   51.8s
+     65  |     3.2659   90.86% |    0.8621  91.78% |  91.81% | 0.00031 |   52.4s
+     70  |     3.1905   90.99% |    0.8681  91.74% |  91.96% | 0.00023 |   52.1s
+     75  |     3.1148   91.42% |    0.8541  91.93% |  92.06% | 0.00017 |   52.0s
+     80  |     3.0738   91.81% |    0.8542  91.81% |  92.17% | 0.00011 |   51.2s
+     85  |     3.0551   91.67% |    0.8618  91.96% |  92.17% | 0.00007 |   52.9s
+     90  |     3.0546   91.44% |    0.8599  91.98% |  92.17% | 0.00004 |   52.2s
+     95  |     3.0331   91.93% |    0.8621  92.11% |  92.17% | 0.00002 |   51.2s
+    100  |     3.0227   91.84% |    0.8538  92.35% |  92.35% | 0.00001 |   50.9s
+
+[Step 3] 最终评估
+[enable_qat] Enabled QAT on 6 layers
+  Int8 模式 (光计算模拟) 准确率: 92.35%
+[disable_qat] Disabled QAT on 6 layers
+  Float32 模式准确率:              92.31%
+  Int8 量化损失:             -0.04%
+
+  模型已保存: spacenet_v2_phase4_v3_int8.pth
+
+============================================================
+  训练完成 — 结果汇总
+============================================================
+  学生模型:          OpticSpaceNet (bias=False)
+  教师模型:          ResNet-18 (fp32, 97.83%)
+  参数量:            267,944
+  权重量化:          int8 (匹配 osimulator 原生 8-bit)
+  噪声模型:          Gazelle (DAC 7.5 + TIA)
+  首层:              FP32 (对齐率 37.5%, 匹配 osimulator)
+  蒸馏:              T=4.0, α=0.7
+  训练总耗时:        6589.2s (109.8min)
+  硬件对齐率:        99.6%
+  Int8 最佳准确率: 92.35%
+  Float32 准确率:    92.31%
+  FP32 KD 基准:      91.44% (全 fp32 KD)
+  osimulator 预期:   ~92.4%% (训练推理配置对齐, 应接近训练精度)
+```
+
+```powershell
+PS E:\LT-Simulator\train-test> docker start LT-Simulator-container
+LT-Simulator-container
+PS E:\LT-Simulator\train-test> docker exec -it -w /workspace LT-Simulator-container /bin/bash
+(moca_llm) root@a39a38d1a33b:/workspace# cd train-test
+bash: cd: train-test: No such file or directory
+(moca_llm) root@a39a38d1a33b:/workspace# cd share/train-test
+(moca_llm) root@a39a38d1a33b:/workspace/share/train-test# python optic_inference_kd.py
+Device: cpu
+============================================================
+  Optic-SpaceNet KD+INT4: In-Container Optical Inference
+  Model 3 KD Phase4 v2 (int4, 91.50%)  |  Weight: spacenet_v2_phase4_v2_ste.pth
+  Mode: Optic (default)
+============================================================
+
+--- Loading Test Set ---
+Full: 27000 | Test: 5400 imgs | Test/Val overlap: 0
+[optic_layers] [OK] Real optical simulator loaded (osimulator)
+wght_mapping_factor:  64
+input_mapping_factor:  85
+wght_mapping_factor:  64
+input_mapping_factor:  64
+wght_mapping_factor:  16
+input_mapping_factor:  17
+wght_mapping_factor:  16
+input_mapping_factor:  16
+wght_mapping_factor:  1
+input_mapping_factor:  1
+wght_mapping_factor:  1
+input_mapping_factor:  1
+[OpticalEngine] Using real optical simulator
+
+============================================================
+  Model 3 KD+INT4  [Optic mode: osimulator]
+============================================================
+
+  [1/3] Loading weights...
+  Params: 267,944
+
+  Original FP32 层名                          C_in   K      展平长度  补零后  对齐率
+  ------------------------------------------------------------------------
+  [Conv2d]      stem.0                       3   1×1          3          8   37.5%
+  [Conv2d]      stage1.0                     8   2×2         32         32   100.0%
+  [Conv2d]      stage2.0                    16   2×2         64         64   100.0%
+  [Conv2d]      stage3.0                    32   1×1         32         32   100.0%
+  [Linear]      classifier.1               —     —           1024       1024   100.0%
+  [Linear]      classifier.4               —     —            256        256   100.0%
+  综合硬件对齐率: 99.6% (总展平 1411 → 补零后 1416)
+
+  [2/3] Converting to optical (int8 act + int8 weight, stem=electronic)...
+  [Note] osimulator uses native 8a8w — QAT int4 weights quantized to int8 (lossless)
+
+  Optical 层名                          C_in   K      展平长度  补零后  对齐率
+  ------------------------------------------------------------------------
+  [Conv2d]      stem.0                       3   1×1          3          8   37.5%
+  [OpticConv2d] stage1.0                     8   2×2         32         32   100.0%
+  [OpticConv2d] stage2.0                    16   2×2         64         64   100.0%
+  [OpticConv2d] stage3.0                    32   1×1         32         32   100.0%
+  [OpticLinear] classifier.1               —     —           1024       1024   100.0%
+  [OpticLinear] classifier.4               —     —            256        256   100.0%
+  综合硬件对齐率: 99.6% (总展平 1411 → 补零后 1416)
+
+  [3/3] Evaluating via osimulator...
+  [optic] 5400 batches, report every 540 batch(es)
+  [optic]  540/5400 ( 10.0%) acc=84.81%  elapsed=1471s  ETA=13241s
+  [optic] 1080/5400 ( 20.0%) acc=84.54%  elapsed=3208s  ETA=12830s
+  [optic] 1620/5400 ( 30.0%) acc=84.57%  elapsed=5079s  ETA=11852s
+  [optic] 2160/5400 ( 40.0%) acc=84.35%  elapsed=7460s  ETA=11190s
+  [optic] 2700/5400 ( 50.0%) acc=83.78%  elapsed=9845s  ETA=9845s
+  [optic] 3240/5400 ( 60.0%) acc=84.17%  elapsed=11647s  ETA=7765s
+  [optic] 3780/5400 ( 70.0%) acc=84.23%  elapsed=13272s  ETA=5688s
+  [optic] 4320/5400 ( 80.0%) acc=84.19%  elapsed=15287s  ETA=3822s
+  [optic] 4860/5400 ( 90.0%) acc=84.18%  elapsed=17279s  ETA=1920s
+  [optic] 5400/5400 (100.0%) acc=84.33%  elapsed=19173s  ETA=0s
+  [optic] DONE — 5400 batches, acc=84.33%, total=19173s
+  Optical Accuracy: 84.33%  Time: 19173.0s
+
+--- Optical Engine Statistics ---
+  [OpticalEngine 统计] 调用: 27000, 总耗时: 19018.597s, 总运算量: 5.15e+09 MACs
+
+====================================================================================================
+  Model 3 KD+INT4 — Container Verification Report
+====================================================================================================
+  Optic osimulator: 84.33%  |  Time: 19173s
+  Training ref: 91.50% int4 (KD from ResNet-18 97.83%)
+
+==============================================================================================================
+  KD+INT4 模型光计算 MOPs 统计 — Model 3 SpaceNet V2 KD Phase4 v2
+  Gazelle 硬件: 8x2 tile, act=int8, weight=int4, stem 电计算
+==============================================================================================================
+  stem.conv        Conv       3     8    1x1      64x64      64x64   None      3      8  37.5%    0.0983M    0.0000M    0.0983M [Electronic]
+  stage1.conv      Conv       8    16    2x2      64x64      32x32 Max2x2     32     32 100.0%    0.5243M    0.5243M    0.0000M [Optical]
+  stage2.conv      Conv      16    32    2x2      16x16        8x8   None     64     64 100.0%    0.1311M    0.1311M    0.0000M [Optical]
+  stage3.conv      Conv      32    16    1x1        8x8        8x8   None     32     32 100.0%    0.0328M    0.0328M    0.0000M [Optical]
+  fc1              Linear  1024   256      -          -          -   None   1024   1024 100.0%    0.2621M    0.2621M    0.0000M [Optical]
+  fc2              Linear   256    10      -          -          -   None    256    256 100.0%    0.0026M    0.0026M    0.0000M [Optical]
+  [MOPs] 光计算占比: 90.65%  |  总 MOPs: 1.0511 M
+  [Note] KD 训练用 ResNet-18 (97.83%) 做教师, 推理时不需要教师模型
+```
+
+```powershell
+PS E:\LT-Simulator\train-test> docker exec -it -w /workspace LT-Simulator-container /bin/bash
+(moca_llm) root@a39a38d1a33b:/workspace# cd share/train-test
+(moca_llm) root@a39a38d1a33b:/workspace/share/train-test# python optic_inference_kd.py --weight spacenet_v2_phase4_v3_int8.pth
+Device: cpu
+============================================================
+  Optic-SpaceNet KD+INT4: In-Container Optical Inference
+  Model 3 KD Phase4 v2 (int4, 91.50%)  |  Weight: spacenet_v2_phase4_v2_ste.pth
+  Mode: Optic (default)
+============================================================
+
+--- Loading Test Set ---
+Full: 27000 | Test: 5400 imgs | Test/Val overlap: 0
+[optic_layers] [OK] Real optical simulator loaded (osimulator)
+wght_mapping_factor:  64
+input_mapping_factor:  85
+wght_mapping_factor:  64
+input_mapping_factor:  64
+wght_mapping_factor:  16
+input_mapping_factor:  17
+wght_mapping_factor:  16
+input_mapping_factor:  16
+wght_mapping_factor:  1
+input_mapping_factor:  1
+wght_mapping_factor:  1
+input_mapping_factor:  1
+[OpticalEngine] Using real optical simulator
+
+============================================================
+  Model 3 KD+INT4  [Optic mode: osimulator]
+============================================================
+
+  [1/3] Loading weights...
+  Params: 267,944
+
+  Original FP32 层名                          C_in   K      展平长度  补零后  对齐率
+  ------------------------------------------------------------------------
+  [Conv2d]      stem.0                       3   1×1          3          8   37.5%
+  [Conv2d]      stage1.0                     8   2×2         32         32   100.0%
+  [Conv2d]      stage2.0                    16   2×2         64         64   100.0%
+  [Conv2d]      stage3.0                    32   1×1         32         32   100.0%
+  [Linear]      classifier.1               —     —           1024       1024   100.0%
+  [Linear]      classifier.4               —     —            256        256   100.0%
+  综合硬件对齐率: 99.6% (总展平 1411 → 补零后 1416)
+
+  [2/3] Converting to optical (int8 act + int8 weight, stem=electronic)...
+  [Note] osimulator uses native 8a8w — QAT int4 weights quantized to int8 (lossless)
+
+  Optical 层名                          C_in   K      展平长度  补零后  对齐率
+  ------------------------------------------------------------------------
+  [Conv2d]      stem.0                       3   1×1          3          8   37.5%
+  [OpticConv2d] stage1.0                     8   2×2         32         32   100.0%
+  [OpticConv2d] stage2.0                    16   2×2         64         64   100.0%
+  [OpticConv2d] stage3.0                    32   1×1         32         32   100.0%
+  [OpticLinear] classifier.1               —     —           1024       1024   100.0%
+  [OpticLinear] classifier.4               —     —            256        256   100.0%
+  综合硬件对齐率: 99.6% (总展平 1411 → 补零后 1416)
+
+  [3/3] Evaluating via osimulator...
+  [optic] 5400 batches, report every 540 batch(es)
+  [optic]  540/5400 ( 10.0%) acc=84.81%  elapsed=2020s  ETA=18176s
+  [optic] 1080/5400 ( 20.0%) acc=85.28%  elapsed=4010s  ETA=16040s
+  [optic] 1620/5400 ( 30.0%) acc=85.43%  elapsed=5902s  ETA=13772s
+```
+
+```powershell
+# python optic_inference_kd.py --weight spacenet_v2_phase4_v3_int8.pth --quick 50
+
+[optic]   49/50 ( 98.0%) acc=95.92%  elapsed=144s  ETA=3s
+    [osimulator] (1x1024x32) @ (32x16) input=uint8 ... done (0.7s)
+    [osimulator] (1x64x64) @ (64x32) input=uint8 ... done (0.6s)
+    [osimulator] (1x64x32) @ (32x16) input=uint8 ... done (0.1s)
+    [osimulator] (1x1x1024) @ (1024x256) input=uint8 ... done (1.4s)
+    [osimulator] (1x1x256) @ (256x10) input=uint8 ... done (0.0s)
+  [optic]   50/50 (100.0%) acc=96.00%  elapsed=147s  ETA=0s
+  [optic] DONE — 50 batches, acc=96.00%, total=147s
+  Optical Accuracy: 96.00%  Time: 146.6s
+
+--- Optical Engine Statistics ---
+  [OpticalEngine 统计] 调用: 250, 总耗时: 146.049s, 总运算量: 4.76e+07 MACs
+
+====================================================================================================
+  Model 3 KD — Container Verification Report
+====================================================================================================
+  Optic osimulator: 96.00%  |  Time: 147s
+  Training ref: v3 int8+KD (stem FP32, Gazelle noise, first_conv_fp32=True)
+
+==============================================================================================================
+  KD+INT4 模型光计算 MOPs 统计 — Model 3 SpaceNet V2 KD Phase4 v2
+  Gazelle 硬件: 8x2 tile, act=int8, weight=int4, stem 电计算
+==============================================================================================================
+  stem.conv        Conv       3     8    1x1      64x64      64x64   None      3      8  37.5%    0.0983M    0.0000M    0.0983M [Electronic]
+  stage1.conv      Conv       8    16    2x2      64x64      32x32 Max2x2     32     32 100.0%    0.5243M    0.5243M    0.0000M [Optical]
+  stage2.conv      Conv      16    32    2x2      16x16        8x8   None     64     64 100.0%    0.1311M    0.1311M    0.0000M [Optical]
+  stage3.conv      Conv      32    16    1x1        8x8        8x8   None     32     32 100.0%    0.0328M    0.0328M    0.0000M [Optical]
+  fc1              Linear  1024   256      -          -          -   None   1024   1024 100.0%    0.2621M    0.2621M    0.0000M [Optical]
+  fc2              Linear   256    10      -          -          -   None    256    256 100.0%    0.0026M    0.0026M    0.0000M [Optical]
+  [MOPs] 光计算占比: 90.65%  |  总 MOPs: 1.0511 M
+  [Note] KD 训练用 ResNet-18 (97.83%) 做教师, 推理时不需要教师模型
+```
+
+```powershell
+
+```
+
