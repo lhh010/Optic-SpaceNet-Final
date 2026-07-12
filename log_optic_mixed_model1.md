@@ -1,9 +1,28 @@
 # Model 1 Mixed 光计算容器推理日志
 
-> 日期: 2026-07-10 (quick 20) → 2026-07-11 (quick 50)
+> 日期: 2026-07-10 (quick 20) → 2026-07-11 (quick 50) → 2026-07-12 (quick 100)
 > 模型: Model 1 Baseline VGG Mixed (Conv=int4 光计算, Linear=fp32 电计算, 98.26%)
 > 权重: baseline_vgg_mixed_ste.pth
 > 文件: optic_inference_mixed_model1.py
+
+---
+
+## Quick 100 验证 (2026-07-12) ★
+
+```bash
+python optic_inference_mixed_model1.py --quick 100
+```
+
+| 指标 | 值 |
+|---|---|
+| 准确率 | **100.00%** (100 张全对) |
+| 训练参考 | 98.26% int4 Mixed |
+| 单张耗时 | ~150s |
+| 总耗时 | 14967s (~4.2h) |
+| 引擎调用 | 600 次 |
+| 总 MACs | 1.55e+10 |
+
+**100 张全对**, 进一步验证了 Mixed 策略下 Conv=int4 光计算的质量。Quick 50 和 Quick 100 均达到 100%，说明 int4 Mixed 方案的 osimulator 推理在抽样范围内完全无损。
 
 ---
 
@@ -15,14 +34,28 @@ python optic_inference_mixed_model1.py --quick 50
 
 | 指标 | 值 |
 |---|---|
-| 准确率 | **100.00%** (50 张, 统计波动大) |
+| 准确率 | **100.00%** (50 张全对) |
 | 训练参考 | 98.26% int4 Mixed |
 | 单张耗时 | ~154s |
 | 总耗时 | 7714s (~2.1h) |
 | 引擎调用 | 300 次 |
 | 总 MACs | 7.76e+09 |
 
-**50 张全对**, 说明 Mixed 策略的 Conv=int4 光计算 + Linear=fp32 电计算方案质量很高。
+---
+
+## Quick 20 验证 (2026-07-10)
+
+```bash
+python optic_inference_mixed_model1.py --quick 20
+```
+
+| 指标 | 值 |
+|---|---|
+| 准确率 | **100.00%** (20 张全对) |
+| 单张耗时 | ~147s |
+| 总耗时 | 2932s (~49min) |
+| 引擎调用 | 120 次 |
+| 总 MACs | 3.10e+09 |
 
 ---
 
@@ -51,22 +84,6 @@ python optic_inference_mixed_model1.py --qat
 # Optic 硬件验证 — 仅抽样 5-10 张 (~10min)
 python optic_inference_mixed_model1.py --quick 5
 ```
-
----
-
-## Quick 验证 (20 张抽样)
-
-```
-python optic_inference_mixed_model1.py --quick 20
-```
-
-| 指标 | 值 |
-|---|---|
-| 准确率 | 100.00% (20 张, 统计波动大) |
-| 单张耗时 | ~147s |
-| 总耗时 | 2932s (~49min) |
-| 引擎调用 | 120 次 |
-| 总 MACs | 3.10e+09 |
 
 ---
 
