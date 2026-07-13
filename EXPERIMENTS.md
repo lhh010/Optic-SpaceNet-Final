@@ -605,6 +605,25 @@ python optic_inference_int8_model1.py --variant B --qat --batch 256
 
 ---
 
+### 11.12 Model 2/3 在修复后 split 上的重训 (2026-07-13)
+
+> Bug #11 split 修复 (`eurosat_split.py` 三分) 后, Model 2/3 重训。train 从 21600 缩到 16200
+> (留出 5400 作 held-out test)。日志: `log_model2_spacenet_v1_phase4_v3.md` / `log_model3_spacenet_v2_phase4_v3.md`。
+
+| 模型 | Int8 (val) | Float32 (val) | 量化损失 | vs FP32 基准 | 旧版 val (21600 train) | 训练耗时 |
+|---|---|---|---|---|---|---|
+| Model 2 (SpaceNet V1) | **92.06%** | 91.76% | -0.30% | +1.91% (90.15%) | 93.11% | 72.8min |
+| Model 3 (SpaceNet V2 +KD) | **91.83%** | 91.65% | -0.19% | +0.39% (91.44%) | 92.35% | 90.4min |
+
+**说明:**
+- val 比 21600-train 旧版低 ~0.5-1% (M2 -1.05%, M3 -0.52%), **纯粹训练集缩小 25% 所致**, 非回归。两模型仍超各自 FP32 基准, int8+Gazelle 配方有效。
+- 这些是 **val 集 (model-selection 指标)**, 干净 (未参与梯度训练)。
+- **held-out test 集 int8 数 + osimulator 真机数仍待跑**: `optic_inference_int8.py --qat` / `optic_inference_kd.py --qat` (秒级) 与容器内 osimulator 全量 (docker, ~4-6h)。
+
+**待办**: test int8 交叉验证 + osimulator 复测后, 用干净数替换 §13 中标注作废的 Model 2/3 osimulator 数 (旧 93.28% / 93.26%)。
+
+---
+
 ## 12. 关键 Bug 记录
 
 ### Bug #1: QAT eval 模式未施加量化
@@ -698,6 +717,7 @@ python optic_inference_int8_model1.py --variant B --qat --batch 256
 | 5 | Mixed | Conv=int4, Linear=fp32 | 91.26% | +1.11% | ★ |
 | **6 v2** | **Phase4 修复** | **int4, QAT 全开** | **91.06%** | **+0.91%** | ★ |
 | **6 v3** | **Gazelle 匹配** | **int8, 首层 FP32** | **93.11%** | **+2.96%** | ★★ |
+| **6 v3 (clean 重训)** | **Gazelle + 三分 split** | **int8, stem FP32** | **92.06% (val)** | **+1.91%** | ★ (干净 val, test 待跑) |
 | **容器 osimulator** | **真实光计算硬件仿真** | **int8, stem 电计算** | **93.28%** | **+3.13%** | ★★ |
 
 **Model 2 结论**: v3 int8 (93.11%) 训练最佳; 容器 osimulator 真实硬件仿真 **93.28%** (独立测试集), 略超训练精度。从旧版 74.35% 到 93.28%，提升 **+18.93%**。
@@ -712,6 +732,7 @@ python optic_inference_int8_model1.py --variant B --qat --batch 256
 | 5 | KD+Mixed | Conv=int4, Linear=fp32 | 91.13% | -0.31% | ★ |
 | 6 v2 | KD+Phase4 修复 | int4, QAT 全开 | 91.50% | +0.06% | ★ |
 | **6 v3** | **KD+Gazelle 匹配** | **int8, stem FP32** | **92.35%** | **+0.91%** | ★★ |
+| **6 v3 (clean 重训)** | **KD+Gazelle + 三分 split** | **int8, stem FP32** | **91.83% (val)** | **+0.39%** | ★ (干净 val, test 待跑) |
 | **容器 osimulator** | **真实光计算硬件仿真** | **int8, stem 电计算** | **93.26%** | **+1.82%** | ★★ |
 
 **Model 3 结论**: v3 int8+KD (92.35%) 训练最佳 + osimulator 推理 **93.26%** (独立测试集)。

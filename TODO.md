@@ -9,6 +9,20 @@
 
 ---
 
+## 进度 (2026-07-13 晚)
+
+| 任务 | 状态 |
+|---|---|
+| Model 2 重训 (干净 split) | [x] 完成 — Int8 val **92.06%** (日志 `log_model2_spacenet_v1_phase4_v3.md`) |
+| Model 3 重训 (干净 split) | [x] 完成 — Int8 val **91.83%** (日志 `log_model3_spacenet_v2_phase4_v3.md`) |
+| Model 2/3 QAT 交叉验证 (held-out test) | [ ] 待跑 (秒级) |
+| Model 1 重训 A/B | [ ] 待跑 (~12h CPU) |
+| osimulator 真机 (docker) | [ ] 明天 (容器内) |
+
+> 重训 val 比 21600-train 旧版略低 (M2 92.06 vs 93.11, M3 91.83 vs 92.35), 纯粹训练集缩小所致, 正常。
+
+---
+
 ## 第一优先 — Model 1 拿干净 test 数 (~12h CPU)
 
 - [ ] 重训变体 A (~6h, 现在 train=16200 / val=5400 / 留出 test 5400)
@@ -48,20 +62,22 @@
 
 ---
 
-## 第三优先 — Model 2/3 清一遍 (它们的 osimulator 数同样被污染)
+## 第三优先 — Model 2/3 清一遍 (重训已完成, test/osimulator 待跑)
 
-> Model 2 的 93.28%、Model 3 的 93.26% 都是污染 test 上的, 要干净数同样流程。
-> 它们模型小, 训练快 (~1.8h), osimulator 全量可行 (~4-6h)。
+> Model 2/3 重训已完成 (2026-07-13, 干净 split train 16200)。日志:
+> `log_model2_spacenet_v1_phase4_v3.md` / `log_model3_spacenet_v2_phase4_v3.md`
 
-- [ ] Model 2 重训 + osimulator 全量
+- [x] Model 2 重训: Int8 val **92.06%** (Float32 91.76%, 量化损失 -0.30%)
+- [x] Model 3 重训: Int8 val **91.83%** (Float32 91.65%, 量化损失 -0.19%)
+- [ ] Model 2/3 QAT 交叉验证 (秒级, held-out test 干净数) — test int8 应 ≈ val, 不再虚高
   ```bash
-  python model2_spacenet_v1_phase4_v3.py          # 重训 ~1.8h
-  python optic_inference_int8.py                  # 容器内 osimulator 全量 ~4-6h
+  python optic_inference_int8.py --qat --batch 256     # Model 2
+  python optic_inference_kd.py --qat --batch 256       # Model 3
   ```
-- [ ] Model 3 重训 + osimulator 全量
+- [ ] Model 2/3 osimulator 全量 (容器/docker, ~4-6h 每个) — 明天做
   ```bash
-  python model3_spacenet_v2_phase4_v3.py          # 重训 ~1.8h
-  python optic_inference_kd.py                    # 容器内 osimulator 全量 ~4-6h
+  python optic_inference_int8.py          # Model 2
+  python optic_inference_kd.py            # Model 3
   ```
 
 ---
