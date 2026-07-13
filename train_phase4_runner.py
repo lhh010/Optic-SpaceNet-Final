@@ -270,7 +270,12 @@ def load_eurosat_data(data_dir="data/EuroSAT_RGB", batch_size=64,
     rng = np.random.RandomState(seed)
     rng.shuffle(indices)
 
-    train_dataset = torch.utils.data.Subset(train_full, indices[val_size:])
+    # 三分划分 (与各推理脚本 load_test_data 对齐, seed=42):
+    #   val   = indices[:val_size]              (模型选择)
+    #   test  = indices[val_size : val_size*2]  (推理独立测试集 — 必须从训练集剔除!)
+    #   train = indices[val_size*2 :]           (梯度更新)
+    # 旧 bug: train=indices[val_size:] 把 test 段喂了梯度 → test⊂train 泄漏 (Bug #11)
+    train_dataset = torch.utils.data.Subset(train_full, indices[val_size * 2:])
     val_dataset = torch.utils.data.Subset(val_full, indices[:val_size])
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size,
@@ -278,7 +283,7 @@ def load_eurosat_data(data_dir="data/EuroSAT_RGB", batch_size=64,
     val_loader = DataLoader(val_dataset, batch_size=batch_size,
                             shuffle=False, num_workers=0)
 
-    print(f"训练: {len(train_dataset)}, 验证: {len(val_dataset)}")
+    print(f"训练: {len(train_dataset)}, 验证: {len(val_dataset)}, 留出测试: {val_size} (见 load_test_data)")
     print(f"类别: {train_full.classes}")
     return train_loader, val_loader
 

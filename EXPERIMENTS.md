@@ -572,6 +572,39 @@ python optic_inference_mixed_model1.py --quick 5   # Optic 硬件抽样 (~10min)
 
 ---
 
+### 11.11 Model 1 Phase4 v3 int8 — 训练与 QAT 交叉验证 (2026-07-13) ⚠️
+
+> ⚠️ 本节及全文「独立 test 集 / osimulator」数字受 **Bug #11 (test⊂train 泄漏)** 污染, 已作废;
+> 下列精度均为 **val 集 (模型选择指标, 5400 张, 未参与梯度训练)**, 是当前唯一有效的泛化数字。
+
+**训练 (CPU, 各 ~6h):**
+```bash
+python model1_baseline_phase4_v3.py --variant A   # conv1_1 电计算, 光计算占比 97.7%
+python model1_baseline_phase4_v3.py --variant B   # conv1_1 + conv3_2 电计算, 光计算占比 73.6%
+```
+
+| 变体 | 电计算层 (FP32) | Int8 QAT (val) | Float32 (val) | 量化损失 | 光计算 MOPs 占比 | 权重 |
+|---|---|---|---|---|---|---|
+| A | conv1_1 | **98.15%** | 98.13% | **−0.02%** | 97.74% (153.09M / 156.63M) | `baseline_vgg_phase4_v3_int8.pth` |
+| B | conv1_1 + conv3_2 | **98.02%** | 98.07% | **+0.06%** | 73.64% (115.35M / 156.63M) | `baseline_vgg_phase4_v3_int8_vB.pth` |
+
+**关键结论:**
+- **int8 量化无损**: 量化损失 ±0.06% (A −0.02% / B +0.06%), 优于 int4 STE (96.46%) 且超过 FP32 基准 97.17%。验证 int8 权重 + Gazelle 噪声配方的精度优势。
+- **A vs B 几乎打平** (98.15% vs 98.02%, Δ=0.13%): conv3_2 回退电计算几乎不付精度代价 (5400 张 val 上 ±0.2% 波动内不显著), 却换 osimulator 提速 ~24%。
+
+**QAT 交叉验证 (秒级):**
+```bash
+python optic_inference_int8_model1.py --variant A --qat --batch 256
+python optic_inference_int8_model1.py --variant B --qat --batch 256
+```
+- 验证通过 ✓: 权重加载、int8 量化无损、变体 B 的 conv3_2 正确还原电计算 (ElecMOPs 3.54M→41.29M)、MOPs 占比达标 (>50%)。
+- ⚠️ **test 集 99.96% 作废**: 100% 落在训练集内 (Bug #11), 测的是记忆。真实泛化以 val 98.15%/98.02% 为准。
+- 备注: 推理 `--qat` 路径 `noise=False` (干净伪量化上界), Gazelle 噪声在 `model.eval()` 下不触发, 故噪声不是 val/test 差值的来源 —— 差值完全来自数据泄漏。
+
+**osimulator 真机**: Model 1 MACs 是 Model 2 的 ~150x (156.6M vs 1.05M/张), 全量 5400 张 ~9 天不可行; 待 Bug #11 修复重训后用 `--quick 50` 抽样。
+
+---
+
 ## 12. 关键 Bug 记录
 
 ### Bug #1: QAT eval 模式未施加量化
@@ -629,6 +662,13 @@ python optic_inference_mixed_model1.py --quick 5   # Optic 硬件抽样 (~10min)
 - **修复**: Monkey-patch LSQ 层, 保留 `lsq_quantize` + 学到的 scale/zp, 量化后送 osimulator
 - LSQ 量化后的粗粒度网格使 `_matmul_real` 再量化基本无损 → 96.00%
 
+### Bug #11: 独立测试集泄漏进训练集 (test ⊂ train) (2026-07-13) ⚠️⚠️
+- **现象**: Model 1 int8 v3 QAT 交叉验证在「独立 test 集」得 **99.96%**, 远高于训练 val **98.15%**, 且 ≈ 训练集准确率 99.81% —— 典型训练样本记忆特征。
+- **根因**: `load_test_data` (7 个推理脚本通用, seed=42) 取 `test = indices[val_size : val_size*2]`; 而 `load_eurosat_data` 训练用 `train = indices[val_size:]` → **test 整段落在 train 内, 实测 100% 重叠**。`load_test_data` 只断言 `test∩val==0`, 漏查 `test∩train`。`optic_inference_int8.py:138` 注释甚至写明「test 来自训练集」, 作者误以为「未用于验证」即安全, 忽略了它**用于了梯度更新**。
+- **影响 (全模型)**: 三个训练脚本 (Model 1/2/3) 共用 `load_eurosat_data`, 故**所有「独立测试集」数字均被污染**: Model 1 test 99.96%、Model 2 osimulator 93.28%、Model 3 osimulator 93.26%、LSQ+ 92.76%、INT4 87.94% 等。val 集 (`indices[:val_size]`) 未参与训练, 数字有效: Model 1 int8 v3 98.15%、Model 2 v3 93.11%、Model 3 v3 92.35%。
+- **修复 (keystone, 已应用 2026-07-13)**: `train_phase4_runner.py:load_eurosat_data` 改 `train = indices[val_size*2:]` → 三分 **val(5400) / test(5400) / train(16200)**, 三者严格不相交 (已 empirical 验证: test∩train=test∩val=train∩val=0)。推理侧 `load_test_data` 无需改 (本就取 `indices[sz:2*sz]`, 修复后自动 disjoint)。
+- **待办**: 现有权重均见过 test 图, 要拿干净 test 数必须用修复后的 split 重训。历史 osimulator「独立测试集」数字需重训后复测。
+
 ---
 
 ## 13. 精度演进总表
@@ -642,8 +682,11 @@ python optic_inference_mixed_model1.py --quick 5   # Optic 硬件抽样 (~10min)
 | 3 | LSQ+ (旧版, bug) | int4 | 61.72% | -35.45% | ✗ (后修复至 92.80%) |
 | 4 | STE (修复) | int4 | **96.46%** | -0.71% | ✓ |
 | 5 | **Mixed** | Conv=int4, Linear=fp32 | **98.26%** | **+1.09%** | ★★ |
+| 7 v3 | **Gazelle int8 (变体 A)** | int8, conv1_1 FP32 | **98.15%** (val) | +0.98% | ★ (8a8w 对齐 osimulator) |
+| 7 v3 | Gazelle int8 (变体 B) | int8, conv1_1+conv3_2 FP32 | 98.02% (val) | +0.85% | ★ (提速 ~24%) |
 
-**Model 1 结论**: Mixed 策略最佳 (98.26%), 已达成目标。
+**Model 1 结论**: Mixed (98.26%) val 精度最高; **int8 v3 变体 A (val 98.15%)** 是硬件原生 8-bit 路径, 量化无损且与 osimulator 8a8w 天然对齐; 变体 B (val 98.02%) 牺牲精度 0.13% 换 osimulator 提速 ~24%。
+⚠️ 上表均为 **val 集** (模型选择指标); 历史所有「独立 test 集」数字因 Bug #11 作废。详见 §11.11 / §12。
 
 ### Model 2 (SpaceNet V1, ~268K params, FP32=90.15%)
 
@@ -687,6 +730,8 @@ Quick 50 = 96.00%。从 v2 int4 osimulator 84.33% 到 v3 int8 osimulator 93.26%�
 | **Model 3** | **Phase4 v3 int8+KD + Gazelle** | **92.35%** ★ | 91.44% | **+0.91%** |
 | **Model 3** | **容器 osimulator 全量** | **93.26%** ★ | 91.44% | **+1.82%** |
 | **Model 3** | **容器 osimulator (Quick 50)** | **96.00%** | 91.44% | **+4.56%** |
+
+⚠️ **上表所有「独立测试集 / osimulator」行 (Model 1 Quick 100、Model 2 93.28%、Model 3 93.26%/96.00%、Quick 抽样等) 均受 Bug #11 污染 (test⊂train), 数值偏高, 待 split 修复 + 重训后复测。** val 集数字不受影响: Model 1 int8 v3 98.15%、Model 2 v3 93.11%、Model 3 v3 92.35%。
 
 ---
 
@@ -768,9 +813,10 @@ Quick 50 = 96.00%。从 v2 int4 osimulator 84.33% 到 v3 int8 osimulator 93.26%�
 
 ### 15.1 短期 (本周)
 
-1. ~~**Model 3 int8+KD 训练**~~ ✅ **已完成** (2026-07-12): 训练 92.35%, osimulator Quick 50 = 96.00%, 全量 5400 = **93.26%**
-2. **Model 1 int8 训练**: Phase4 v3 方案移植到 Model 1, 预期 97-98%
-3. ~~**Model 3 v3 全量 osimulator 完成**~~ ✅ **已完成** (2026-07-12): 全量 5400 = **93.26%** (~6.0h), 与训练 92.35% 一致
+1. ~~**Model 3 int8+KD 训练**~~ ✅ **已完成** (2026-07-12): 训练 92.35% (val), osimulator Quick 50/全量数字因 Bug #11 待复测
+2. ~~**Model 1 int8 训练**~~ ✅ **已完成** (2026-07-13): 变体 A val **98.15%** / B val **98.02%**, 量化无损 (±0.06%)。详见 §11.11
+3. ~~**Model 3 v3 全量 osimulator 完成**~~ ✅ **已完成** (2026-07-12): 数字因 Bug #11 待复测
+4. ⚠️ **修复 test 泄漏后重训** (Bug #11): split 已修 (§12), 需用三分划分重训 Model 1/2/3 以获得干净的独立 test 数, 复测历史 osimulator 精度
 
 ### 15.2 中期 (容器部署)
 
