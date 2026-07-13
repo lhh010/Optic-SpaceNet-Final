@@ -287,7 +287,7 @@ def main():
         teacher.load_state_dict(torch.load("teacher_resnet18.pth", map_location='cpu'))
         print(f"  教师权重加载成功")
     except FileNotFoundError:
-        print(f"  ⚠ 教师权重未找到, 请先运行 model3_spacenet_v2.py")
+        print(f"  [!] 教师权重未找到, 请先运行 model3_spacenet_v2.py")
         return None
     teacher.to(DEVICE)
 

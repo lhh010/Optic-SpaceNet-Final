@@ -9,7 +9,7 @@
  技术要点:
    - 教师: ResNet-18 (ImageNet 预训练) → EuroSAT 微调 → 准确率 ~96%+
    - 学生: OpticSpaceNet (硬件完美对齐)
-   - 蒸馏损失: L = α·KL(softmax(teacher/T) || softmax(student/T))·T²
+   - 蒸馏损失: L = α·KL(softmax(teacher/T) || softmax(student/T))·T^2
                   + (1-α)·CrossEntropy(student, hard_label)
    - 温度 T=4.0, α=0.5
 
@@ -280,7 +280,7 @@ def train_teacher(teacher, train_loader, val_loader):
 # ============================================================
 def distillation_loss(student_logits, teacher_logits, labels, T, alpha):
     """
-    知识蒸馏损失 = α·KL(softmax(teacher/T) || softmax(student/T))·T²
+    知识蒸馏损失 = α·KL(softmax(teacher/T) || softmax(student/T))·T^2
                    + (1-α)·CrossEntropy(student, labels)
 
     参考: Hinton et al., "Distilling the Knowledge in a Neural Network"
@@ -290,7 +290,7 @@ def distillation_loss(student_logits, teacher_logits, labels, T, alpha):
         F.log_softmax(student_logits / T, dim=1),
         F.softmax(teacher_logits / T, dim=1),
         reduction='batchmean'
-    ) * (T * T)  # 乘以 T² 保持梯度尺度
+    ) * (T * T)  # 乘以 T^2 保持梯度尺度
 
     # 硬损失: 标准交叉熵
     hard_loss = F.cross_entropy(student_logits, labels)
@@ -418,7 +418,7 @@ def main():
     print(f"  光模拟推理预估:  极速 (无补零浪费) + 高精度")
 
     # 计算相比独立训练的精度提升 (此处仅为示意)
-    print(f"\n  📊 与独立训练对比 (预期):")
+    print(f"\n  [chart] 与独立训练对比 (预期):")
     print(f"     独立训练 OpticSpaceNet: ~75-82%")
     print(f"     蒸馏后 OpticSpaceNet:   ~{student_acc:.1%}")
     print(f"     精度提升:              +{student_acc - 0.78:.1%} (约)")

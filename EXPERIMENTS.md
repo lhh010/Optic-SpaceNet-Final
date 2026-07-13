@@ -665,7 +665,7 @@ python optic_inference_int8_model1.py --variant B --qat --batch 256
 ### Bug #11: 独立测试集泄漏进训练集 (test ⊂ train) (2026-07-13) ⚠️⚠️
 - **现象**: Model 1 int8 v3 QAT 交叉验证在「独立 test 集」得 **99.96%**, 远高于训练 val **98.15%**, 且 ≈ 训练集准确率 99.81% —— 典型训练样本记忆特征。
 - **根因**: `load_test_data` (7 个推理脚本通用, seed=42) 取 `test = indices[val_size : val_size*2]`; 而 `load_eurosat_data` 训练用 `train = indices[val_size:]` → **test 整段落在 train 内, 实测 100% 重叠**。`load_test_data` 只断言 `test∩val==0`, 漏查 `test∩train`。`optic_inference_int8.py:138` 注释甚至写明「test 来自训练集」, 作者误以为「未用于验证」即安全, 忽略了它**用于了梯度更新**。
-- **影响 (全模型)**: 三个训练脚本 (Model 1/2/3) 共用 `load_eurosat_data`, 故**所有「独立测试集」数字均被污染**: Model 1 test 99.96%、Model 2 osimulator 93.28%、Model 3 osimulator 93.26%、LSQ+ 92.76%、INT4 87.94% 等。val 集 (`indices[:val_size]`) 未参与训练, 数字有效: Model 1 int8 v3 98.15%、Model 2 v3 93.11%、Model 3 v3 92.35%。
+- **影响 (全模型)**: 三个训练脚本 (Model 1/2/3) 共用 `load_eurosat_data`, 故使用污染 test 段的推理脚本 (int4/int4_v2/int8/int8_model1/kd/lsq) 报的「独立测试集」数字均作废: Model 1 test 99.96%、Model 2 osimulator 93.28%、Model 3 osimulator 93.26%/Quick 96.00%、LSQ+ 92.76%、INT4 87.94%。**例外**: `optic_inference_mixed_model1.py` 用 val 段 (`indices[:sz]`) 评估, 不受影响 (Model 1 Mixed Quick 100=100% 为 val 基)。val 集 (`indices[:val_size]`) 未参与训练, 一律有效: Model 1 int8 v3 98.15%、Model 2 v3 93.11%、Model 3 v3 92.35%。
 - **修复 (keystone, 已应用 2026-07-13)**: `train_phase4_runner.py:load_eurosat_data` 改 `train = indices[val_size*2:]` → 三分 **val(5400) / test(5400) / train(16200)**, 三者严格不相交 (已 empirical 验证: test∩train=test∩val=train∩val=0)。推理侧 `load_test_data` 无需改 (本就取 `indices[sz:2*sz]`, 修复后自动 disjoint)。
 - **待办**: 现有权重均见过 test 图, 要拿干净 test 数必须用修复后的 split 重训。历史 osimulator「独立测试集」数字需重训后复测。
 
@@ -731,7 +731,7 @@ Quick 50 = 96.00%。从 v2 int4 osimulator 84.33% 到 v3 int8 osimulator 93.26%�
 | **Model 3** | **容器 osimulator 全量** | **93.26%** ★ | 91.44% | **+1.82%** |
 | **Model 3** | **容器 osimulator (Quick 50)** | **96.00%** | 91.44% | **+4.56%** |
 
-⚠️ **上表所有「独立测试集 / osimulator」行 (Model 1 Quick 100、Model 2 93.28%、Model 3 93.26%/96.00%、Quick 抽样等) 均受 Bug #11 污染 (test⊂train), 数值偏高, 待 split 修复 + 重训后复测。** val 集数字不受影响: Model 1 int8 v3 98.15%、Model 2 v3 93.11%、Model 3 v3 92.35%。
+⚠️ **Bug #11 (test⊂train) 影响范围 (已审计全推理脚本)**: 使用污染 test 段 (`indices[sz:2*sz]`⊂旧 train) 的脚本 = int4 / int4_v2 / int8 / int8_model1 / kd / lsq —— 对应数字作废: Model 2 osimulator **93.28%**、Model 3 osimulator **93.26%** / Quick **96.00%**、LSQ+ **92.76%**、INT4 **87.94%**、Model 1 int8 v3 test **99.96%**。**例外: `optic_inference_mixed_model1.py` 用 val 段评估, 不受影响** (Model 1 Mixed Quick 100 = 100% 为 val 基, 仅含 model-selection peek)。val 集数字一律有效: Model 1 int8 v3 98.15%、Model 2 v3 93.11%、Model 3 v3 92.35%。split 已修复 (`eurosat_split.py` 单一数据源), 待重训后复测 osimulator 数。
 
 ---
 

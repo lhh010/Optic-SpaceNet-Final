@@ -625,10 +625,10 @@ def main():
             model.load_state_dict(filtered_state, strict=False)
             missing = sum(1 for k in model_state if k not in filtered_state)
             if missing > 0:
-                print(f"  ⚠ {missing} keys missing (QAT params), using random init")
+                print(f"  [!] {missing} keys missing (QAT params), using random init")
             print(f"  权重加载: {cfg['path']}")
         except FileNotFoundError:
-            print(f"  ⚠ 权重文件未找到: {cfg['path']}")
+            print(f"  [!] 权重文件未找到: {cfg['path']}")
             print(f"  将使用随机初始化 (仅供测试噪声框架)")
             print(f"  请先运行训练脚本生成权重文件")
 

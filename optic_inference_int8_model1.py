@@ -13,11 +13,11 @@
    --variant A (默认): 仅 conv1_1 电计算 → 光计算占比 97.7%
    --variant B:        conv1_1 + conv3_2 电计算 → 光计算占比 73.7%, osimulator 快 ~24%
 
- 训练↔推理参数对齐 (§16.8 checklist):
-   - conv1_1:        训练 first_conv_fp32=True ↔ 推理 keep_first_conv_electronic=True
-   - 变体 B conv3_2: 训练 _keep_fp32=True      ↔ 推理 OpticConv2d→Conv2d 还原
-   - 其余层:          训练 int8 QAT             ↔ 推理 OpticConv2d/OpticLinear (8a8w)
-   - 噪声:           训练 GazelleNoise         ↔ 推理 osimulator 物理噪声
+ 训练<->推理参数对齐 (§16.8 checklist):
+   - conv1_1:        训练 first_conv_fp32=True <-> 推理 keep_first_conv_electronic=True
+   - 变体 B conv3_2: 训练 _keep_fp32=True      <-> 推理 OpticConv2d→Conv2d 还原
+   - 其余层:          训练 int8 QAT             <-> 推理 OpticConv2d/OpticLinear (8a8w)
+   - 噪声:           训练 GazelleNoise         <-> 推理 osimulator 物理噪声
 
  评估模式 (容器内运行, 需要 osimulator):
    - Optic 模式 (默认): build_optical_model + OpticalEngine(use_real=True)
@@ -25,7 +25,7 @@
    - QAT 模式 (--qat): PyTorch 伪量化交叉验证
    - MOPs 统计 (--mops-only): 仅打印各层 MOPs 与光计算占比
 
- ⚠️ Model 1 MACs 是 Model 2 的 ~150 倍 (156.6M vs 1.05M/张),
+ [!] Model 1 MACs 是 Model 2 的 ~150 倍 (156.6M vs 1.05M/张),
     全量 5400 张 ~9 天 — 仅用 --quick 抽样验证。
 
  用法 (在光计算 Docker 容器内):
@@ -124,35 +124,21 @@ ELECTRONIC_LAYERS = {
 # ============================================================
 
 def load_test_data(batch_size=DEFAULT_BATCH, test_ratio=0.2):
-    """
-    独立测试集 (与 optic_inference_int8.py 相同逻辑, seed=42):
-      val  = indices[:test_size]            (训练时用于模型选择)
-      train= indices[test_size:]            (训练时用于梯度更新)
-      test = indices[test_size:test_size*2] (取自 train 段, 与 val 零重叠)
-    """
+    """独立测试集 (单一数据源 eurosat_split, 与训练 train/val 严格互斥, 见 Bug #11)。"""
     test_transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225]),
     ])
     full_dataset = datasets.ImageFolder(DATA_DIR, transform=test_transform)
-    n = len(full_dataset)
-    test_size = int(n * test_ratio)
-
-    indices = list(range(n))
-    rng = np.random.RandomState(SEED_TRAIN)
-    rng.shuffle(indices)
-
-    test_indices = indices[test_size:test_size * 2]
-    val_indices_set = set(indices[:test_size])
-    overlap = len(val_indices_set & set(test_indices))
-    assert overlap == 0, f"BUG: test/val overlap={overlap}!"
-
+    from eurosat_split import split_indices
+    # 单一数据源: test 段与训练 train/val 严格互斥 (Bug #11)
+    _, _, test_indices = split_indices(len(full_dataset), seed=SEED_TRAIN,
+                                       val_ratio=test_ratio, test_ratio=test_ratio)
     test_dataset = torch.utils.data.Subset(full_dataset, test_indices)
     test_loader = DataLoader(test_dataset, batch_size=batch_size,
                              shuffle=False, num_workers=0)
-    print(f"Full: {n} | Train(used): {n-test_size} | Val(used): {test_size} "
-          f"| Test(now): {len(test_dataset)} | Test/Val overlap: {overlap}")
+    print(f"Full: {len(full_dataset)} | Test(now): {len(test_dataset)} | split=eurosat_split (test∩train=0)")
     return test_loader
 
 
@@ -310,7 +296,7 @@ def print_mops_report(layers, summary, variant):
     print(f"  总有效 MOPs:           {summary['total_effective_mops']:.4f} M")
     print(f"  -------------------------------------")
     print(f"  ** 光计算占比:         {summary['optical_ratio']:.2%}  "
-          f"({'✓ 达标 (≥50%)' if summary['optical_ratio'] >= 0.50 else '✗ 低于 50%!'})")
+          f"({'[OK] 达标 (≥50%)' if summary['optical_ratio'] >= 0.50 else '[X] 低于 50%!'})")
     if summary['optical_waste'] > 0:
         print(f"  光计算补零浪费:        {summary['optical_waste']:.4f} M (conv1_1 展平=27→32)")
     else:
@@ -488,11 +474,11 @@ def main():
     if not use_qat:
         if quick_batches:
             est = quick_batches * (150 if variant == "A" else 115) / 60
-            print(f"  ⚠️ Model 1 是 Model 2 的 ~150x 重 (156.6M vs 1.05M MACs/张)")
+            print(f"  [!] Model 1 是 Model 2 的 ~150x 重 (156.6M vs 1.05M MACs/张)")
             print(f"  估计 {quick_batches} 张耗时: ~{est:.0f} min (变体 {variant})")
             print(f"  全量 5400 张 ~9 天 — 仅用 --quick 抽样")
         else:
-            print(f"  ⚠️ 全量 5400 张 ~9 天! 建议: --quick 50")
+            print(f"  [!] 全量 5400 张 ~9 天! 建议: --quick 50")
 
     print("\n--- Loading Independent Test Set ---")
     test_loader = load_test_data(batch_size=batch_size)

@@ -810,7 +810,7 @@ def compare_qat_vs_float(qat_model: nn.Module,
 
     gap = float_result['accuracy'] - qat_result['accuracy']
     print(f"  Accuracy gap:         {gap:.2%} "
-          f"({'✓ QAT successful' if gap < 0.02 else '⚠ Needs more QAT training'})")
+          f"({'[OK] QAT successful' if gap < 0.02 else '[!] Needs more QAT training'})")
 
     return {
         "qat_mode": qat_result,

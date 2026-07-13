@@ -199,7 +199,7 @@ def load_data():
 # ============================================================
 def distillation_loss(student_logits, teacher_logits, labels, T, alpha):
     """
-    知识蒸馏损失 = α·KL(softmax(teacher/T) || softmax(student/T))·T²
+    知识蒸馏损失 = α·KL(softmax(teacher/T) || softmax(student/T))·T^2
                    + (1-α)·CrossEntropy(student, labels)
     """
     soft_loss = F.kl_div(
@@ -433,7 +433,7 @@ def main():
     print(f"    原生 float32:     {result_fp32['accuracy']:.1%}")
     print(f"    PTQ (直接 int4):  ~{result_fp32['accuracy'] - 0.12:.1f} (大幅下降)")
     print(f"    QAT (微调后 int4): {best_acc:.1f} (接近 float32)")
-    print(f"\n  💡 提示: 如需更好的精度，使用 KD+QAT 联合微调:")
+    print(f"\n  [tip] 提示: 如需更好的精度，使用 KD+QAT 联合微调:")
     print(f"     python model3_spacenet_v2_qat.py --use_kd")
 
     return best_acc, alignment, total_train_time

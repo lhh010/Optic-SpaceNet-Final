@@ -61,7 +61,7 @@ class OpticSpaceNetV1(nn.Module):
         )
 
         # Stage 1: 8→16, 2×2 stride=2, 64→32
-        # patch = 8×2×2 = 32 → 完美被 8 整除 ✓
+        # patch = 8×2×2 = 32 → 完美被 8 整除 [OK]
         self.stage1 = nn.Sequential(
             nn.Conv2d(8, 16, kernel_size=2, stride=2, bias=False),
             nn.BatchNorm2d(16),
@@ -70,7 +70,7 @@ class OpticSpaceNetV1(nn.Module):
         )
 
         # Stage 2: 16→32, 2×2 stride=2, 16→8
-        # patch = 16×2×2 = 64 → 完美被 8 整除 ✓
+        # patch = 16×2×2 = 64 → 完美被 8 整除 [OK]
         self.stage2 = nn.Sequential(
             nn.Conv2d(16, 32, kernel_size=2, stride=2, bias=False),
             nn.BatchNorm2d(32),
@@ -78,7 +78,7 @@ class OpticSpaceNetV1(nn.Module):
         )
 
         # Stage 3: 32→16, 1×1 保持分辨率
-        # patch = 32×1×1 = 32 → 完美被 8 整除 ✓
+        # patch = 32×1×1 = 32 → 完美被 8 整除 [OK]
         self.stage3 = nn.Sequential(
             nn.Conv2d(32, 16, kernel_size=1, bias=False),
             nn.BatchNorm2d(16),
@@ -86,7 +86,7 @@ class OpticSpaceNetV1(nn.Module):
         )
 
         # 分类头: 16×8×8 = 1024 → 256 → 10
-        # 1024 / 8 = 128, 256 / 8 = 32 → 完美对齐 ✓
+        # 1024 / 8 = 128, 256 / 8 = 32 → 完美对齐 [OK]
         self.classifier = nn.Sequential(
             nn.Flatten(),
             nn.Linear(16 * 8 * 8, 256),

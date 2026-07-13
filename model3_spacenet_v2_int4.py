@@ -13,7 +13,7 @@
  训练策略:
    - 教师: ResNet-18 (已预训练, 固定不更新)
    - 学生: OpticSpaceNet (随机初始化, 268K params)
-   - 损失: α·KL(teacher/T, student/T)·T² + (1-α)·CE(student, label)
+   - 损失: α·KL(teacher/T, student/T)·T^2 + (1-α)·CE(student, label)
    - QAT: 从 epoch 1 开始施加伪 int4 量化
    - BN: 保留不融合，稳定训练
 
@@ -194,7 +194,7 @@ def load_data():
 # ============================================================
 def distillation_loss(student_logits, teacher_logits, labels, T, alpha):
     """
-    KD Loss = α·KL(σ(teacher/T) || σ(student/T))·T² + (1-α)·CE(student, labels)
+    KD Loss = α·KL(σ(teacher/T) || σ(student/T))·T^2 + (1-α)·CE(student, labels)
     """
     soft_loss = F.kl_div(
         F.log_softmax(student_logits / T, dim=1),

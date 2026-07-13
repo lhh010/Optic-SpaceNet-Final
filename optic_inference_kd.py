@@ -63,14 +63,13 @@ def load_test_data(batch_size=DEFAULT_BATCH, test_ratio=0.2):
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
     full_dataset = datasets.ImageFolder(DATA_DIR, transform=test_transform)
-    n = len(full_dataset); test_size = int(n * test_ratio)
-    indices = list(range(n))
-    np.random.RandomState(SEED_TRAIN).shuffle(indices)
-    test_indices = indices[test_size:test_size * 2]
-    assert len(set(indices[:test_size]) & set(test_indices)) == 0
+    from eurosat_split import split_indices
+    # 单一数据源: test 段与训练 train/val 严格互斥 (Bug #11)
+    _, _, test_indices = split_indices(len(full_dataset), seed=SEED_TRAIN,
+                                       val_ratio=test_ratio, test_ratio=test_ratio)
     test_loader = DataLoader(torch.utils.data.Subset(full_dataset, test_indices),
                              batch_size=batch_size, shuffle=False, num_workers=0)
-    print(f"Full: {n} | Test: {len(test_indices)} imgs | Test/Val overlap: 0")
+    print(f"Full: {len(full_dataset)} | Test: {len(test_indices)} imgs | split=eurosat_split (test∩train=0)")
     return test_loader
 
 

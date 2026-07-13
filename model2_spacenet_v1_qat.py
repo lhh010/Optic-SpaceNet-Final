@@ -253,7 +253,7 @@ def main():
 
     # ---- 打印硬件对齐率 ----
     alignment = print_alignment_detail(model, "OpticSpaceNetV1 (QAT)")
-    print(f"\n  ⚠ 注意: stem 层 patch_len=3, padded=8, 对齐率仅 37.5%")
+    print(f"\n  [!] 注意: stem 层 patch_len=3, padded=8, 对齐率仅 37.5%")
     print(f"    这是唯一未对齐的层，但 ops 极少 (3×1×1=3)")
 
     # ---- 校准 ----

@@ -239,7 +239,7 @@ def main():
 
     # ---- 硬件对齐率 ----
     alignment = print_alignment_detail(model, "OpticSpaceNetV1 (Int4)")
-    print(f"  ⚠ stem 层对齐率仅 37.5% (patch=3→8)，但 ops 极少")
+    print(f"  [!] stem 层对齐率仅 37.5% (patch=3→8)，但 ops 极少")
 
     # ---- 训练 ----
     print(f"\n[Step 3] 开始混合精度 int4 QAT 训练 ({EPOCHS} epochs, lr={LEARNING_RATE})")

@@ -9,10 +9,10 @@
    - flat + BN + bias=False 架构 (匹配光计算硬件, 稳定 QAT)
 
  这是 Model 2/3 v3 int8 配方向 Model 1 的移植。
- 训练↔推理参数对齐 checklist (§16.8):
-   - conv1_1: 训练 first_conv_fp32=True ↔ 推理 keep_first_conv_electronic=True
-   - 其余层: 训练 int8 QAT ↔ 推理 OpticConv2d/OpticLinear (8a8w)
-   - 噪声: 训练 GazelleNoise ↔ 推理 osimulator 物理噪声
+ 训练<->推理参数对齐 checklist (§16.8):
+   - conv1_1: 训练 first_conv_fp32=True <-> 推理 keep_first_conv_electronic=True
+   - 其余层: 训练 int8 QAT <-> 推理 OpticConv2d/OpticLinear (8a8w)
+   - 噪声: 训练 GazelleNoise <-> 推理 osimulator 物理噪声
 
  变体 (光计算占比 vs 速度/精度 消融):
    --variant A (默认): 仅 conv1_1 电计算 → 光计算占比 97.7%

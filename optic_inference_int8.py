@@ -126,57 +126,22 @@ class OpticSpaceNetV1_INT8(nn.Module):
 #  数据加载
 # ============================================================
 def load_test_data(batch_size=DEFAULT_BATCH, test_ratio=0.2):
-    """
-    加载独立测试集。
-
-    训练时的 split (seed=42):
-      train = indices[val_size:]  (21600 张, 用于梯度更新)
-      val   = indices[:val_size]  (5400 张, 用于模型选择)
-
-    为避免模型选择偏差 (model selection bias), 测试集取训练集末尾
-    一段未用于验证的数据:
-      test  = indices[val_size : val_size*2]  (5400 张, 来自训练集但未用于验证)
-
-    这保证测试集:
-      - 与验证集零重叠 (不会被 model selection 污染)
-      - 来自训练时见过的数据分布 (公平评估)
-    """
+    """加载独立测试集 (单一数据源 eurosat_split, 与训练 train/val 严格互斥, 见 Bug #11)。"""
     test_transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225]),
     ])
     full_dataset = datasets.ImageFolder(DATA_DIR, transform=test_transform)
-    n = len(full_dataset)
-    test_size = int(n * test_ratio)
-
-    # 使用与训练相同的 shuffle (seed=42), 取训练集内的数据
-    indices = list(range(n))
-    rng = np.random.RandomState(SEED_TRAIN)  # 与训练相同 seed
-    rng.shuffle(indices)
-
-    # val = indices[:test_size]            (训练时用于模型选择)
-    # train = indices[test_size:]          (训练时用于梯度更新)
-    # test = indices[test_size:test_size*2] (取自 train 段, 与 val 零重叠)
-    test_start = test_size
-    test_end = test_size * 2
-    test_indices = indices[test_start:test_end]
-
-    # 验证零重叠
-    val_indices_set = set(indices[:test_size])
-    test_indices_set = set(test_indices)
-    overlap = len(val_indices_set & test_indices_set)
-    assert overlap == 0, f"BUG: test/val overlap={overlap}!"
-
+    from eurosat_split import split_indices
+    # 单一数据源: test 段与训练 train/val 严格互斥 (Bug #11)
+    _, _, test_indices = split_indices(len(full_dataset), seed=SEED_TRAIN,
+                                       val_ratio=test_ratio, test_ratio=test_ratio)
     test_dataset = torch.utils.data.Subset(full_dataset, test_indices)
     test_loader = DataLoader(test_dataset, batch_size=batch_size,
                              shuffle=False, num_workers=0)
-
-    print(f"Full dataset: {n} imgs")
-    print(f"Train (used): {n - test_size} imgs  |  "
-          f"Val (used): {test_size} imgs  |  "
-          f"Test (now): {len(test_dataset)} imgs")
-    print(f"Test/Val overlap: {overlap} (zero = truly independent)")
+    print(f"Full dataset: {len(full_dataset)} imgs")
+    print(f"Test (now): {len(test_dataset)} imgs | split=eurosat_split (test∩train=0)")
     print(f"Classes: {full_dataset.classes}")
     return test_loader
 

@@ -618,7 +618,7 @@ def compare_qat_vs_float(model, dataloader, device, criterion=None):
     print(f"  Float mode (float32): Accuracy = {float_result['accuracy']:.2%}")
 
     gap = float_result['accuracy'] - qat_result['accuracy']
-    status = '✓ QAT successful' if abs(gap) < 0.03 else '⚠ Needs more training'
+    status = '[OK] QAT successful' if abs(gap) < 0.03 else '[!] Needs more training'
     print(f"  Accuracy gap:         {gap:.2%} ({status})")
 
     return {"qat_mode": qat_result, "float_mode": float_result, "accuracy_gap": gap}

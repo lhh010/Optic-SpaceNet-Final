@@ -11,7 +11,7 @@
    - 物理 tile: 8×2 (k=8, n=2)
    - 原生精度: 8-bit activation, 8-bit weight, 12-bit output
    - DAC ENOB: 7.5 bits
-   - TIA noise MSE: 2.85×10⁻⁷
+   - TIA noise MSE: 2.85×10^-^7
    - ADC LSB: 0.00147
    - 线性度: ~99.4% (硬件几乎理想)
 
@@ -40,7 +40,7 @@ class GazelleNoiseInjector:
 
     参数 (from calibration_params.json):
       dac_enob: 7.5        — DAC 有效位数
-      tia_noise_std: ~5.3×10⁻⁴  — TIA 噪声标准差 (sqrt(MSE))
+      tia_noise_std: ~5.3×10^-^4  — TIA 噪声标准差 (sqrt(MSE))
       adc_lsb: 0.00147     — ADC 量化步长
     """
 

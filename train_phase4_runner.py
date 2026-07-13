@@ -264,26 +264,21 @@ def load_eurosat_data(data_dir="data/EuroSAT_RGB", batch_size=64,
     train_full = datasets.ImageFolder(data_dir, transform=train_transform)
     val_full = datasets.ImageFolder(data_dir, transform=val_transform)
 
+    # 三分划分 — 单一数据源 eurosat_split (与所有推理 load_test_data 完全一致)。
+    # test 段剔除不参与训练, 杜绝 test<train 泄漏 (Bug #11)。
+    from eurosat_split import split_indices
     n = len(train_full)
-    val_size = int(n * val_split)
-    indices = list(range(n))
-    rng = np.random.RandomState(seed)
-    rng.shuffle(indices)
-
-    # 三分划分 (与各推理脚本 load_test_data 对齐, seed=42):
-    #   val   = indices[:val_size]              (模型选择)
-    #   test  = indices[val_size : val_size*2]  (推理独立测试集 — 必须从训练集剔除!)
-    #   train = indices[val_size*2 :]           (梯度更新)
-    # 旧 bug: train=indices[val_size:] 把 test 段喂了梯度 → test⊂train 泄漏 (Bug #11)
-    train_dataset = torch.utils.data.Subset(train_full, indices[val_size * 2:])
-    val_dataset = torch.utils.data.Subset(val_full, indices[:val_size])
+    train_idx, val_idx, _ = split_indices(n, seed=seed,
+                                          val_ratio=val_split, test_ratio=val_split)
+    train_dataset = torch.utils.data.Subset(train_full, train_idx)
+    val_dataset = torch.utils.data.Subset(val_full, val_idx)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size,
                               shuffle=True, num_workers=0)
     val_loader = DataLoader(val_dataset, batch_size=batch_size,
                             shuffle=False, num_workers=0)
 
-    print(f"训练: {len(train_dataset)}, 验证: {len(val_dataset)}, 留出测试: {val_size} (见 load_test_data)")
+    print(f"训练: {len(train_dataset)}, 验证: {len(val_dataset)}, 留出测试: {len(val_dataset)} (见 eurosat_split)")
     print(f"类别: {train_full.classes}")
     return train_loader, val_loader
 
