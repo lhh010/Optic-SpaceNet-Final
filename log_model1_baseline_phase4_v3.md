@@ -253,3 +253,38 @@ Full: 27000 | Test(now): 5400 | split=eurosat_split (test∩train=0)
   [MOPs] 光计算占比 (变体 B): 73.64%  (光计算 115.3459M / 总 156.6336M,
         电计算 conv1_1 + conv3_2 41.2877M) [OK ≥50%]
 ```
+
+## osimulator 真机抽样 (quick 50, 干净 test, 2026-07-15)
+
+`python -u optic_inference_int8_model1.py --variant {A,B} --quick 50 2>&1 | tee osim_{A,B}.log`
+
+干净 test 集前 50 张 (split=eurosat_split, test∩train=0); 默认 OPTIC 模式 = 真硬件 osimulator 8a8w 路径。
+
+| 变体 | osim int8 (quick 50) | 正确/总数 | 耗时 | engine calls | 光计算占比 |
+|---|---|---|---|---|---|
+| A | **98.00%** | 49/50 | 11614s (~3.2h) | 350 | 97.74% |
+| B | **100.00%** | 50/50 | 9853s (~2.7h) | 300 | 73.64% |
+
+**结论**: 真硬件 8a8w 路径与 QAT/val 一致 (A osim 98.00% vs QAT test 97.89% / val 97.87%; B 50/50), **无损 ✓**。
+- 变体 B engine calls 少 (300 vs 350): conv3_2 回退电计算, 光计算层 6 个 (A 是 7 个)。
+- quick 50 样本小、波动大 (B 100% ≠ 总体 100%); 全量 5400 ~9 天不可行 (Model 1 MACs 156.6M, 是 Model 2 的 ~150x), 仅抽样。
+
+### 变体 A — 报告
+
+```
+Optical Accuracy: 98.00%  Time: 11613.8s
+[OpticalEngine 统计] 调用: 350, 总耗时: 11611.233s, 总运算量: 7.65e+09 MACs
+Model 1 INT8 (变体 A) — Container Verification Report
+Optic osimulator: 98.00%  |  Time: 11614s
+光计算占比: 97.74% (光计算 153.0947M / 总 156.6336M, 电计算 conv1_1 3.5389M) [OK ≥50%]
+```
+
+### 变体 B — 报告
+
+```
+Optical Accuracy: 100.00%  Time: 9852.6s
+[OpticalEngine 统计] 调用: 300, 总耗时: 9849.502s, 总运算量: 5.77e+09 MACs
+Model 1 INT8 (变体 B) — Container Verification Report
+Optic osimulator: 100.00%  |  Time: 9853s
+光计算占比: 73.64% (光计算 115.3459M / 总 156.6336M, 电计算 conv1_1 + conv3_2 41.2877M) [OK ≥50%]
+```

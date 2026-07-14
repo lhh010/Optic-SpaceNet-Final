@@ -5425,6 +5425,124 @@ Full: 27000 | Test: 5400 imgs | split=eurosat_split (test∩train=0)
   [Note] KD 训练用 ResNet-18 (97.83%) 做教师, 推理时不需要教师模型
 ```
 
+```powershell
+  [Model 1 Phase4 v3 INT8 (变体 B) optic]   48/50 ( 96.0%) acc=100.00%  elapsed=9396s  ETA=391s
+    [osimulator] (1x4096x288) @ (288x32) input=uint8 ... done (71.1s)
+    [osimulator] (1x1024x288) @ (288x64) input=uint8 ... done (30.9s)
+    [osimulator] (1x1024x576) @ (576x64) input=uint8 ... done (75.8s)
+    [osimulator] (1x256x576) @ (576x128) input=uint8 ... done (42.5s)
+    [osimulator] (1x1x8192) @ (8192x256) input=uint8 ... done (12.0s)
+    [osimulator] (1x1x256) @ (256x10) input=uint8 ... done (0.1s)
+  [Model 1 Phase4 v3 INT8 (变体 B) optic]   49/50 ( 98.0%) acc=100.00%  elapsed=9628s  ETA=196s
+    [osimulator] (1x4096x288) @ (288x32) input=uint8 ... done (71.9s)
+    [osimulator] (1x1024x288) @ (288x64) input=uint8 ... done (33.6s)
+    [osimulator] (1x1024x576) @ (576x64) input=uint8 ... done (75.5s)
+    [osimulator] (1x256x576) @ (576x128) input=uint8 ... done (32.4s)
+    [osimulator] (1x1x8192) @ (8192x256) input=uint8 ... done (10.6s)
+    [osimulator] (1x1x256) @ (256x10) input=uint8 ... done (0.1s)
+  [Model 1 Phase4 v3 INT8 (变体 B) optic]   50/50 (100.0%) acc=100.00%  elapsed=9853s  ETA=0s
+  [Model 1 Phase4 v3 INT8 (变体 B) optic] DONE — 50 batches, acc=100.00%, total=9853s
+  Optical Accuracy: 100.00%  Time: 9852.6s
 
+--- Optical Engine Statistics ---
+  [OpticalEngine 统计] 调用: 300, 总耗时: 9849.502s, 总运算量: 5.77e+09 MACs
+
+====================================================================================================
+  Model 1 INT8 (变体 B) — Container Verification Report
+====================================================================================================
+  Optic osimulator: 100.00%  |  Time: 9853s
+  参考: FP32 基准 97.17% | int4 Mixed 98.26% | int4 STE 96.46%
+
+
+==============================================================================================================
+  Model 1 INT8 光计算 MOPs 统计 — Baseline VGG Phase4 v3 (变体 B)
+  Gazelle 硬件: 8×2 tile, 8a8w12o | 电计算层 (FP32): ['conv1_1', 'conv3_2']
+==============================================================================================================
+
+  Layer      Type    C_in C_out Kernel      Input    ConvOut   Pool  Patch Padded   Align    RawMOPs    OptMOPs   ElecMOPs      Compute
+  ------------------------------------------------------------------------------------------------------------------------
+  conv1_1    Conv       3    32    3x3      64x64      64x64   None     27     32  84.4%    3.5389M    0.0000M    3.5389M [Electronic]
+  conv1_2    Conv      32    32    3x3      64x64      64x64 Max2x2    288    288 100.0%   37.7487M   37.7487M    0.0000M [Optical]
+  conv2_1    Conv      32    64    3x3      32x32      32x32   None    288    288 100.0%   18.8744M   18.8744M    0.0000M [Optical]
+  conv2_2    Conv      64    64    3x3      32x32      32x32 Max2x2    576    576 100.0%   37.7487M   37.7487M    0.0000M [Optical]
+  conv3_1    Conv      64   128    3x3      16x16      16x16   None    576    576 100.0%   18.8744M   18.8744M    0.0000M [Optical]
+  conv3_2    Conv     128   128    3x3      16x16      16x16 Max2x2   1152   1152 100.0%   37.7487M    0.0000M   37.7487M [Electronic]
+  fc1        Linear  8192   256      -          -          -   None   8192   8192 100.0%    2.0972M    2.0972M    0.0000M [Optical]
+  fc2        Linear   256    10      -          -          -   None    256    256 100.0%    0.0026M    0.0026M    0.0000M [Optical]
+  ------------------------------------------------------------------------------------------------------------------------
+  Total                                                                                    156.6336M  115.3459M   41.2877M
+
+  ------------------------------------------------------------
+  [MOPs] 光计算占比汇总 (变体 B)
+  ------------------------------------------------------------
+  总原始 MOPs:           156.6336 M
+  光计算 MOPs (有效):    115.3459 M
+  电子计算 MOPs:         41.2877 M
+  总有效 MOPs:           156.6336 M
+  -------------------------------------
+  ** 光计算占比:         73.64%  ([OK] 达标 (≥50%))
+  光计算补零浪费:        0 (光计算层均对齐 8 的倍数) [OK]
+```
+
+```powershell
+ [Model 1 Phase4 v3 INT8 (变体 A) optic]   48/50 ( 96.0%) acc=97.92%  elapsed=11243s  ETA=468s
+    [osimulator] (1x4096x288) @ (288x32) input=uint8 ... done (49.2s)
+    [osimulator] (1x1024x288) @ (288x64) input=uint8 ... done (16.7s)
+    [osimulator] (1x1024x576) @ (576x64) input=uint8 ... done (50.0s)
+    [osimulator] (1x256x576) @ (576x128) input=uint8 ... done (18.8s)
+    [osimulator] (1x256x1152) @ (1152x128) input=uint8 ... done (35.7s)
+    [osimulator] (1x1x8192) @ (8192x256) input=uint8 ... done (7.5s)
+    [osimulator] (1x1x256) @ (256x10) input=uint8 ... done (0.1s)
+  [Model 1 Phase4 v3 INT8 (变体 A) optic]   49/50 ( 98.0%) acc=97.96%  elapsed=11421s  ETA=233s
+    [osimulator] (1x4096x288) @ (288x32) input=uint8 ... done (50.4s)
+    [osimulator] (1x1024x288) @ (288x64) input=uint8 ... done (16.7s)
+    [osimulator] (1x1024x576) @ (576x64) input=uint8 ... done (55.5s)
+    [osimulator] (1x256x576) @ (576x128) input=uint8 ... done (21.5s)
+    [osimulator] (1x256x1152) @ (1152x128) input=uint8 ... done (42.5s)
+    [osimulator] (1x1x8192) @ (8192x256) input=uint8 ... done (6.1s)
+    [osimulator] (1x1x256) @ (256x10) input=uint8 ... done (0.1s)
+  [Model 1 Phase4 v3 INT8 (变体 A) optic]   50/50 (100.0%) acc=98.00%  elapsed=11614s  ETA=0s
+  [Model 1 Phase4 v3 INT8 (变体 A) optic] DONE — 50 batches, acc=98.00%, total=11614s
+  Optical Accuracy: 98.00%  Time: 11613.8s
+
+--- Optical Engine Statistics ---
+  [OpticalEngine 统计] 调用: 350, 总耗时: 11611.233s, 总运算量: 7.65e+09 MACs
+
+====================================================================================================
+  Model 1 INT8 (变体 A) — Container Verification Report
+====================================================================================================
+  Optic osimulator: 98.00%  |  Time: 11614s
+  参考: FP32 基准 97.17% | int4 Mixed 98.26% | int4 STE 96.46%
+
+
+==============================================================================================================
+  Model 1 INT8 光计算 MOPs 统计 — Baseline VGG Phase4 v3 (变体 A)
+  Gazelle 硬件: 8×2 tile, 8a8w12o | 电计算层 (FP32): ['conv1_1']
+==============================================================================================================
+
+  Layer      Type    C_in C_out Kernel      Input    ConvOut   Pool  Patch Padded   Align    RawMOPs    OptMOPs   ElecMOPs      Compute
+  ------------------------------------------------------------------------------------------------------------------------
+  conv1_1    Conv       3    32    3x3      64x64      64x64   None     27     32  84.4%    3.5389M    0.0000M    3.5389M [Electronic]
+  conv1_2    Conv      32    32    3x3      64x64      64x64 Max2x2    288    288 100.0%   37.7487M   37.7487M    0.0000M [Optical]
+  conv2_1    Conv      32    64    3x3      32x32      32x32   None    288    288 100.0%   18.8744M   18.8744M    0.0000M [Optical]
+  conv2_2    Conv      64    64    3x3      32x32      32x32 Max2x2    576    576 100.0%   37.7487M   37.7487M    0.0000M [Optical]
+  conv3_1    Conv      64   128    3x3      16x16      16x16   None    576    576 100.0%   18.8744M   18.8744M    0.0000M [Optical]
+  conv3_2    Conv     128   128    3x3      16x16      16x16 Max2x2   1152   1152 100.0%   37.7487M   37.7487M    0.0000M [Optical]
+  fc1        Linear  8192   256      -          -          -   None   8192   8192 100.0%    2.0972M    2.0972M    0.0000M [Optical]
+  fc2        Linear   256    10      -          -          -   None    256    256 100.0%    0.0026M    0.0026M    0.0000M [Optical]
+  ------------------------------------------------------------------------------------------------------------------------
+  Total                                                                                    156.6336M  153.0947M    3.5389M
+
+  ------------------------------------------------------------
+  [MOPs] 光计算占比汇总 (变体 A)
+  ------------------------------------------------------------
+  总原始 MOPs:           156.6336 M
+  光计算 MOPs (有效):    153.0947 M
+  电子计算 MOPs:         3.5389 M
+  总有效 MOPs:           156.6336 M
+  -------------------------------------
+  ** 光计算占比:         97.74%  ([OK] 达标 (≥50%))
+  光计算补零浪费:        0 (光计算层均对齐 8 的倍数) [OK]
+```
 
 

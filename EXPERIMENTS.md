@@ -609,7 +609,15 @@ python optic_inference_int8_model1.py --variant B --qat --batch 256
 - 机制验证 (架构级): 权重加载、int8 量化无损、变体 B 的 conv3_2 正确还原电计算 (ElecMOPs 3.54M→41.29M)、MOPs 占比达标 (A 97.74% / B 73.64%)。
 - 备注: 推理 `--qat` 路径 `noise=False` (干净伪量化上界), Gazelle 噪声在 `model.eval()` 下不触发。
 
-**osimulator 真机**: Model 1 MACs 是 Model 2 的 ~150x (156.6M vs 1.05M/张), 全量 5400 张 ~9 天不可行; 待用 `--quick 50` 抽样。
+**osimulator 真机抽样 (quick 50, 干净 test, 2026-07-15):**
+`python optic_inference_int8_model1.py --variant {A,B} --quick 50`
+
+| 变体 | osim int8 (quick 50) | 正确/总数 | 耗时 | 光计算占比 |
+|---|---|---|---|---|
+| A | **98.00%** | 49/50 | 11614s (~3.2h) | 97.74% (350 engine calls) |
+| B | **100.00%** | 50/50 | 9853s (~2.7h) | 73.64% (300 engine calls) |
+
+真硬件 8a8w 路径与 QAT/val 一致 (A osim 98.00% vs QAT test 97.89%; B 50/50), 无损 ✓。全量 5400 张 ~9 天不可行 (Model 1 MACs 是 Model 2 的 ~150x, 156.6M vs 1.05M/张), 仅抽样; quick 50 样本小、波动大 (B 100% ≠ 总体 100%)。
 
 ---
 
@@ -723,6 +731,7 @@ python optic_inference_int8_model1.py --variant B --qat --batch 256
 | 7 v3 | Gazelle int8 (变体 B) | int8, conv1_1+conv3_2 FP32 | **98.02%** (val) | +0.85% | ★ (提速 ~24%, 性价比更高) |
 
 **Model 1 结论**: Mixed (98.26%) val 精度最高; **int8 v3 变体 A (val 97.87%)** 与 **变体 B (val 98.02%)** 统计上打平 (Δ=−0.15%), 均为硬件原生 8-bit 路径, 量化无损且与 osimulator 8a8w 天然对齐。变体 B 多回退 conv3_2 到电计算、精度不降反微升, 且 osimulator 提速 ~24%, 性价比更高。
+**osimulator 真机抽样 (quick 50, 干净 test, 2026-07-15)**: 变体 A **98.00%** (49/50, 11614s) / 变体 B **100.00%** (50/50, 9853s) → 真硬件 8a8w 路径与 QAT/val 一致, 无损 ✓ (全量 5400 ~9 天不可行, 仅抽样)。
 ⚠️ 上表均为干净 **val 集** (Bug #11 三分 split 重训, model-selection 指标); 历史所有「独立 test 集」数字因 Bug #11 作废。详见 §11.11 / §12。
 
 ### Model 2 (SpaceNet V1, ~268K params, FP32=90.15%)
@@ -1049,4 +1058,4 @@ int4→int8 网格转换并非无损 (max/7 → max/127), 必须在训练时就�
 
 ---
 
-*文档版本: v2.8 | 最后更新: 2026-07-14 | Model 2/3 干净 test QAT: M2 int8 test **92.20%**≈val (无泄漏); M3 `--qat` 为 int4 (84.59%, 非 int8), int8 test 待 osimulator。详见 §11.12*
+*文档版本: v2.9 | 最后更新: 2026-07-15 | Model 1 osimulator quick-50 (干净 test): 变体 A **98.00%** / B **100.00%**, 真硬件 8a8w 无损。详见 §11.11*

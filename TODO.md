@@ -22,7 +22,7 @@
 | Model 3 重训 (干净 split) | [x] 完成 — val **91.83%** (日志 `log_model3_spacenet_v2_phase4_v3.md`) |
 | Model 3 QAT 交叉验证 (held-out test) | [x] 完成 — 但 `--qat` 是 **int4** (84.59%), 非 int8; fp32 test 92.13%≈val (无泄漏) |
 | Model 3 int8 test 数 | [ ] 待跑 (须 osimulator, 无秒级 int8 QAT 路径) |
-| osimulator 真机 (三模型) | [ ] 待跑 (容器内) |
+| osimulator 真机 (三模型) | M1 A/B ✓ quick 50 (A 98.00% / B 100%), M2/M3 待跑 |
 
 > **Bug #11 修复判据已验证 (M1/M2)**: 干净 test int8 ≈ val (M1 97.89/97.96 vs 97.87/98.02; M2 92.20 vs 92.06), 不再是旧 leaky 虚高 (99.96% / 93.28%) → 修复生效。
 
@@ -33,11 +33,11 @@
 > 用户计划: 对 Model 1 var A/B、Model 2、Model 3 在 osimulator 上做小量数据集验证。
 > Model 1 全量 ~9 天不可行, 用 `--quick N` 抽样; Model 2/3 可全量 (~4-6h) 或抽样。
 
-- [ ] Model 1 变体 A osimulator 抽样 (~2h, quick 50)
+- [x] Model 1 变体 A osimulator 抽样 — **98.00%** (49/50, 11614s)
   ```bash
   python optic_inference_int8_model1.py --variant A --quick 50
   ```
-- [ ] Model 1 变体 B osimulator 抽样 (~2h)
+- [x] Model 1 变体 B osimulator 抽样 — **100.00%** (50/50, 9853s)
   ```bash
   python optic_inference_int8_model1.py --variant B --quick 50
   ```
@@ -62,8 +62,8 @@
 
 | 模型 | Int8 val | Int8 test (QAT) | osim test | 备注 |
 |---|---|---|---|---|
-| Model 1 变体 A | 97.87% | 97.89% | (待跑) | conv1_1 FP32, 光计算 97.74% |
-| Model 1 变体 B | 98.02% | 97.96% | (待跑) | conv1_1+conv3_2 FP32, 光计算 73.64% |
+| Model 1 变体 A | 97.87% | 97.89% | 98.00% (q50) | conv1_1 FP32, 光计算 97.74% |
+| Model 1 变体 B | 98.02% | 97.96% | 100.00% (q50) | conv1_1+conv3_2 FP32, 光计算 73.64% |
 | Model 2 | 92.06% | 92.20% | (待跑) | 光计算 90.65% |
 | Model 3 | 91.83% | — (int4 --qat=84.59%) | (待跑) | int8 test 须 osim; fp32 test 92.13% |
 
