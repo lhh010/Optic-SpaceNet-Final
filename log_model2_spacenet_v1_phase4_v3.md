@@ -83,3 +83,22 @@ PS E:\LT-Simulator\train-test> python model2_spacenet_v1_phase4_v3.py
   旧版 int4 参考:    74.35% (Phase4, Conv QAT 全关)
   FP32 基准:         90.15%
 ```
+
+## QAT test 交叉验证 — 干净独立 test 集 (2026-07-14)
+
+`python -u optic_inference_int8.py --qat --batch 256 2>&1 | tee qat_model2_v2.log`
+
+独立 test 集 5400 张 (split=eurosat_split, **test∩train=0**); 路径 optic_qat_v4 (int8 权重 + int8 激活, stem FP32)。
+
+| 指标 | 值 |
+|---|---|
+| Int8 QAT (test) | **92.20%** |
+| Float32 (test) | 92.20% |
+| 量化损失 (test) | +0.00% |
+| Int8 (val, 干净重训) | 92.06% |
+| test vs val (Int8) | +0.14% |
+| 光计算占比 | 90.65% (0.9528M / 1.0511M) |
+
+**test≈val** (Δ +0.14%) → Bug #11 修复后无泄漏, 干净泛化数 ✓。对比旧 leaky osim 93.28% (作废)。
+
+> 注: 脚本打印的"训练参考 93.11%/93.02%"是旧 leaky-run 硬编码值; 干净重训 val 实为 92.06%/91.76%。

@@ -91,3 +91,24 @@ PS E:\LT-Simulator\train-test>  python model3_spacenet_v2_phase4_v3.py
   FP32 KD 基准:      91.44% (全 fp32 KD)
   osimulator 预期:   ~91.8%% (训练推理配置对齐, 应接近训练精度)
 ```
+
+## QAT test 交叉验证 — 干净独立 test 集 (2026-07-14)
+
+`python -u optic_inference_kd.py --qat --batch 256 2>&1 | tee qat_model3_v2.log`
+
+独立 test 集 5400 张 (split=eurosat_split, **test∩train=0**)。
+
+> ⚠️ **此 `--qat` 路径是 int4 (optic_qat_v3), 不是 int8!** 84.59% 是把 int8 训练权重再降到 int4 的退化
+> (与 §16 int4 困境一致), **非 Model 3 的 int8 test 数**。int8 test 数须走 osimulator (OPTIC 模式)。
+
+| 指标 | 值 | 说明 |
+|---|---|---|
+| Int4 QAT (test) | 84.59% | int4 退化 (optic_qat_v3, w4/a8), 非 int8 |
+| Float32 (test) | 92.13% | QAT 关闭, ≈ val fp32 91.65% → fp32 无泄漏 |
+| 量化损失 | +7.54% | int4 vs fp32 |
+| Int8 (val, 干净重训) | 91.83% | int8 训练精度 |
+| 光计算占比 | 90.65% | — |
+
+**结论**: float32 test 92.13% ≈ val fp32 91.65% → Bug #11 修复后 fp32 层无泄漏 ✓。
+int4 84.59% 符合 §16 预期 (int8 权重→int4 网格不对齐)。
+**int8 test 数待 osimulator** (`optic_inference_kd.py` 默认 OPTIC 模式, "v3 int8 → 8a8w, 应接近训练精度 91.83%")。
