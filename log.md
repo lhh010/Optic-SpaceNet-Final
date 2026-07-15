@@ -6120,3 +6120,7 @@ Classes: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial
   首层 stem:          FP32 电计算 (展平=3, 对齐率 37.5%, 电计算更高效)
   推荐部署策略:       stem 在 CPU/GPU, 其余 5 层在 Gazelle 光计算
 ```
+
+![[compute_vs_accuracy_final-GPT.png]]
+
+![[compute_vs_accuracy_final.png]]
