@@ -111,4 +111,28 @@ PS E:\LT-Simulator\train-test>  python model3_spacenet_v2_phase4_v3.py
 
 **结论**: float32 test 92.13% ≈ val fp32 91.65% → Bug #11 修复后 fp32 层无泄漏 ✓。
 int4 84.59% 符合 §16 预期 (int8 权重→int4 网格不对齐)。
-**int8 test 数待 osimulator** (`optic_inference_kd.py` 默认 OPTIC 模式, "v3 int8 → 8a8w, 应接近训练精度 91.83%")。
+**int8 test 数见下** (`optic_inference_kd.py` 默认 OPTIC 模式 → osimulator 真实硬件 8a8w)。
+
+---
+
+## osimulator 真机抽样 — Model 3 int8 test 数 (2026-07-15) ★
+
+`python optic_inference_kd.py --quick 500 2>&1 | tee osim_model3_q500.log`
+
+走真实 osimulator 硬件路径 (COMPASS `8a8w12o`, DAC ENOB 7.5, 输出 σ=5.31); stem 电计算, 其余 5 层光计算 int8。
+**这是 Model 3 的 int8 test 数** (上一节 `--qat` 走 int4, 无法给 int8 数)。
+
+| 指标 | 值 | 说明 |
+|---|---|---|
+| **osim int8 (test, quick 500)** | **90.80%** | 454/500, 2500 engine calls, 2027s |
+| osim int8 (quick 50, 早跑) | 88.00% | 44/50 — 小样本 + osim `seed=None` 随机噪声的偏背抽样 |
+| Int8 (val, 干净重训) | 91.83% | 训练精度 |
+| Float32 (test) | 92.13% | 干净 fp32 上界 |
+| **Δ osim vs val** | **−1.03%** | 真实硬件噪声 gap ~1 点 |
+| 光计算占比 | 90.65% | 0.9528M / 1.0511M |
+
+**关键结论:**
+- **真实硬件 gap 仅 ~1 点** (osim 90.80% vs val 91.83%, Δ −1.03%; vs fp32 test 92.13%, Δ −1.33%)。训练时的 Gazelle 噪声配方 (DAC ENOB 7.5) 与 osim 硬件模型吻合, 真机精度基本保住。
+- **osim ≈ val** (Δ −1.03%, 在 500 张 ±1.3% CI 内) → 干净泛化, 无泄漏 ✓。对比旧 leaky osim **93.26% (作废)**。
+- **88% (quick 50) 是假象**: 50 张抽样 + osim 每跑随机的噪声实现的一次偏背结果, 非真值。前半段跑到 ~92%、后半段回落到 90.8% 是不同批次图像难度的采样波动 (运行均值收敛), 非模型退化。**500 张的 90.80% 才是可信数。**
+- 光计算占比 90.65% 满足部署阈值 (≥90%)。

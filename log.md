@@ -5545,4 +5545,497 @@ Full: 27000 | Test: 5400 imgs | split=eurosat_split (test∩train=0)
   光计算补零浪费:        0 (光计算层均对齐 8 的倍数) [OK]
 ```
 
+## 7-15
+```powershell
+ [Model 2 Phase4 v3 INT8 optic]   48/50 ( 96.0%) acc=89.58%  elapsed=225s  ETA=9s
+    [osimulator] (1x1024x32) @ (32x16) input=uint8 ... done (1.0s)
+    [osimulator] (1x64x64) @ (64x32) input=uint8 ... done (0.9s)
+    [osimulator] (1x64x32) @ (32x16) input=uint8 ... done (0.3s)
+    [osimulator] (1x1x1024) @ (1024x256) input=uint8 ... done (2.5s)
+    [osimulator] (1x1x256) @ (256x10) input=uint8 ... done (0.1s)
+  [Model 2 Phase4 v3 INT8 optic]   49/50 ( 98.0%) acc=89.80%  elapsed=230s  ETA=5s
+    [osimulator] (1x1024x32) @ (32x16) input=uint8 ... done (1.0s)
+    [osimulator] (1x64x64) @ (64x32) input=uint8 ... done (0.9s)
+    [osimulator] (1x64x32) @ (32x16) input=uint8 ... done (0.3s)
+    [osimulator] (1x1x1024) @ (1024x256) input=uint8 ... done (2.6s)
+    [osimulator] (1x1x256) @ (256x10) input=uint8 ... done (0.1s)
+  [Model 2 Phase4 v3 INT8 optic]   50/50 (100.0%) acc=88.00%  elapsed=234s  ETA=0s
+  [Model 2 Phase4 v3 INT8 optic] DONE — 50 batches, acc=88.00%, total=234s
+  Optical Accuracy: 88.00%
+  Optical Time:     234.48s
 
+--- Optical Engine Statistics ---
+  [OpticalEngine 统计] 调用: 250, 总耗时: 233.707s, 总运算量: 4.76e+07 MACs
+
+
+
+==============================================================================================================
+  OPTIC-SPACENET INT8: Optical Computing Inference & MOPs Report
+  Model 2 SpaceNet V1 Phase4 v3 — 当前最佳 INT8 模型
+==============================================================================================================
+
+  ------------------------------------------------------------
+  [Accuracy] Optic osimulator Hardware Simulation (独立测试集)
+  ------------------------------------------------------------
+  模型:               Model 2 Phase4 v3 INT8
+  光计算准确率:       88.00%
+  osimulator 耗时:    234.5s
+
+
+==============================================================================================================
+  INT8 模型光计算 MOPs 统计 — Model 2 SpaceNet V1 Phase4 v3
+  Gazelle 硬件: 8×2 tile, 8a8w12o, 首层 stem FP32 (电计算)
+==============================================================================================================
+
+  Layer            Type    C_in C_out Kernel      Input    ConvOut   Pool  Patch Padded   Align    RawMOPs    OptMOPs   ElecMOPs      Compute
+  ------------------------------------------------------------------------------------------------------------------------
+  stem.conv        Conv       3     8    1x1      64x64      64x64   None      3      8  37.5%    0.0983M    0.0000M    0.0983M [Electronic]
+  stage1.conv      Conv       8    16    2x2      64x64      32x32 Max2x2     32     32 100.0%    0.5243M    0.5243M    0.0000M [Optical]
+  stage2.conv      Conv      16    32    2x2      16x16        8x8   None     64     64 100.0%    0.1311M    0.1311M    0.0000M [Optical]
+  stage3.conv      Conv      32    16    1x1        8x8        8x8   None     32     32 100.0%    0.0328M    0.0328M    0.0000M [Optical]
+  fc1              Linear  1024   256      -          -          -   None   1024   1024 100.0%    0.2621M    0.2621M    0.0000M [Optical]
+  fc2              Linear   256    10      -          -          -   None    256    256 100.0%    0.0026M    0.0026M    0.0000M [Optical]
+  ------------------------------------------------------------------------------------------------------------------------
+  Total                                                                                            1.0511M    0.9528M    0.0983M
+
+  ------------------------------------------------------------
+  [MOPs] 光计算占比汇总
+  ------------------------------------------------------------
+  总原始 MOPs:           1.0511 M
+  光计算 MOPs (有效):    0.9528 M
+  电子计算 MOPs:         0.0983 M
+  总有效 MOPs:           1.0511 M
+  -------------------------------------
+  ** 光计算占比:         90.65%  (**)
+  光计算补零浪费:        0 (所有光计算层完美对齐 8 的倍数) [OK]
+  ------------------------------------------------------------
+
+  [Note] 说明:
+    - stem.conv (3->8, 1x1): 展平长度=3, 对齐率仅 37.5%, 保留电计算 (FP32)
+    - 其余 Conv/Linear 展平长度均为 8 的倍数, 完美对齐 Gazelle 8×2 tile
+    - 光计算占比 = 光计算有效MOPs / (光计算MOPs + 电计算MOPs)
+    - 光计算有效MOPs 已包含补零对齐的硬件开销
+==============================================================================================================
+
+  ------------------------------------------------------------
+  [Verdict] 部署评估结论
+  ------------------------------------------------------------
+  光计算占比:         90.65%
+  判定:               [OK] 高度适合光计算部署
+  硬件对齐率:         99.6% (除 stem 外所有层完美对齐 8×2 tile)
+  首层 stem:          FP32 电计算 (展平=3, 对齐率 37.5%, 电计算更高效)
+  推荐部署策略:       stem 在 CPU/GPU, 其余 5 层在 Gazelle 光计算
+```
+
+```powershell
+ [optic]   48/50 ( 96.0%) acc=89.58%  elapsed=221s  ETA=9s
+    [osimulator] (1x1024x32) @ (32x16) input=uint8 ... done (1.0s)
+    [osimulator] (1x64x64) @ (64x32) input=uint8 ... done (0.7s)
+    [osimulator] (1x64x32) @ (32x16) input=uint8 ... done (0.2s)
+    [osimulator] (1x1x1024) @ (1024x256) input=uint8 ... done (1.9s)
+    [osimulator] (1x1x256) @ (256x10) input=uint8 ... done (0.1s)
+  [optic]   49/50 ( 98.0%) acc=89.80%  elapsed=225s  ETA=5s
+    [osimulator] (1x1024x32) @ (32x16) input=uint8 ... done (1.0s)
+    [osimulator] (1x64x64) @ (64x32) input=uint8 ... done (0.8s)
+    [osimulator] (1x64x32) @ (32x16) input=uint8 ... done (0.2s)
+    [osimulator] (1x1x1024) @ (1024x256) input=uint8 ... done (2.2s)
+    [osimulator] (1x1x256) @ (256x10) input=uint8 ... done (0.1s)
+  [optic]   50/50 (100.0%) acc=88.00%  elapsed=229s  ETA=0s
+  [optic] DONE — 50 batches, acc=88.00%, total=229s
+  Optical Accuracy: 88.00%  Time: 229.2s
+
+--- Optical Engine Statistics ---
+  [OpticalEngine 统计] 调用: 250, 总耗时: 228.576s, 总运算量: 4.76e+07 MACs
+
+====================================================================================================
+  Model 3 KD — Container Verification Report
+====================================================================================================
+  Optic osimulator: 88.00%  |  Time: 229s
+  Training ref: v3 int8+KD (stem FP32, Gazelle noise, first_conv_fp32=True)
+
+==============================================================================================================
+  KD+INT4 模型光计算 MOPs 统计 — Model 3 SpaceNet V2 KD Phase4 v2
+  Gazelle 硬件: 8x2 tile, act=int8, weight=int4, stem 电计算
+==============================================================================================================
+  stem.conv        Conv       3     8    1x1      64x64      64x64   None      3      8  37.5%    0.0983M    0.0000M    0.0983M [Electronic]
+  stage1.conv      Conv       8    16    2x2      64x64      32x32 Max2x2     32     32 100.0%    0.5243M    0.5243M    0.0000M [Optical]
+  stage2.conv      Conv      16    32    2x2      16x16        8x8   None     64     64 100.0%    0.1311M    0.1311M    0.0000M [Optical]
+  stage3.conv      Conv      32    16    1x1        8x8        8x8   None     32     32 100.0%    0.0328M    0.0328M    0.0000M [Optical]
+  fc1              Linear  1024   256      -          -          -   None   1024   1024 100.0%    0.2621M    0.2621M    0.0000M [Optical]
+  fc2              Linear   256    10      -          -          -   None    256    256 100.0%    0.0026M    0.0026M    0.0000M [Optical]
+  [MOPs] 光计算占比: 90.65%  |  总 MOPs: 1.0511 M
+  [Note] KD 训练用 ResNet-18 (97.83%) 做教师, 推理时不需要教师模型
+```
+
+```powershell
+PS E:\LT-Simulator\train-test> python optic_inference_int8.py --qat --quick 50
+Device: cpu
+============================================================
+  Optic-SpaceNet INT8: In-Container Optical Inference
+  Model:  SpaceNet V1 Phase4 v3 (INT8, Gazelle-optimized)
+  Weight: spacenet_v1_phase4_v3_int8.pth
+  Mode:   QAT (PyTorch pseudo-quant, cross-validation)
+  Batch:  1, quick=50
+============================================================
+
+--- Loading Independent Test Set ---
+Full dataset: 27000 imgs
+Test (now): 5400 imgs | split=eurosat_split (test∩train=0)
+Classes: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+
+[Mode: QAT] Running PyTorch pseudo-quantization for cross-validation...
+
+============================================================
+  Model 2 Phase4 v3 INT8  [QAT mode: int8]
+  Architecture: SpaceNet V1 (seq+BN, bias=False)
+============================================================
+
+  [1/3] Creating standard model...
+  Params: 267,944
+
+  [2/3] Converting to QAT v4 (int8 weight + int8 act, stem FP32)...
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8
+  QAT Conv: 3 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [3/3] Loading INT8 QAT weights...
+  Weights loaded from: spacenet_v1_phase4_v3_int8.pth
+
+  --- Native float32 evaluation (QAT disabled) ---
+[disable_qat] Disabled QAT on 6 layers
+  [Model 2 Phase4 v3 INT8 float32] 50 batches — acc=94.00%
+  Float32 Accuracy: 94.00%
+  Float32 Loss:     0.2484
+  Float32 Time:     0.21s
+
+  --- int8 QAT (optical computing simulation) evaluation ---
+[enable_qat] Enabled QAT on 6 layers
+  [Model 2 Phase4 v3 INT8 int8-QAT] 50 batches — acc=94.00%
+  Int8 QAT Accuracy: 94.00%
+  Int8 QAT Loss:     0.2550
+  Int8 QAT Time:     0.21s
+  Quantization Loss: +0.00% ([OK] tiny)
+
+
+
+==============================================================================================================
+  OPTIC-SPACENET INT8: Optical Computing Inference & MOPs Report
+  Model 2 SpaceNet V1 Phase4 v3 — 当前最佳 INT8 模型
+==============================================================================================================
+
+  ------------------------------------------------------------
+  [Accuracy] QAT int8 Pseudo-Quantization (独立测试集)
+  ------------------------------------------------------------
+  模型:               Model 2 Phase4 v3 INT8
+  参数量:             267,944
+  Float32 准确率:     94.00%
+  Int8 QAT 准确率:    94.00%
+  量化损失:           +0.00%
+  Float32 耗时:       0.2s
+  Int8 QAT 耗时:      0.2s
+
+  训练参考 (训练时 val split, seed=42):
+    训练 Int8 最佳:   93.11% (Phase4 v3, 100 epochs)
+    训练 Float32:     93.02%
+    FP32 基准:        90.15%
+    旧版 int4 (bug):  74.35%
+
+
+==============================================================================================================
+  INT8 模型光计算 MOPs 统计 — Model 2 SpaceNet V1 Phase4 v3
+  Gazelle 硬件: 8×2 tile, 8a8w12o, 首层 stem FP32 (电计算)
+==============================================================================================================
+
+  Layer            Type    C_in C_out Kernel      Input    ConvOut   Pool  Patch Padded   Align    RawMOPs    OptMOPs   ElecMOPs      Compute
+  ------------------------------------------------------------------------------------------------------------------------
+  stem.conv        Conv       3     8    1x1      64x64      64x64   None      3      8  37.5%    0.0983M    0.0000M    0.0983M [Electronic]
+  stage1.conv      Conv       8    16    2x2      64x64      32x32 Max2x2     32     32 100.0%    0.5243M    0.5243M    0.0000M [Optical]
+  stage2.conv      Conv      16    32    2x2      16x16        8x8   None     64     64 100.0%    0.1311M    0.1311M    0.0000M [Optical]
+  stage3.conv      Conv      32    16    1x1        8x8        8x8   None     32     32 100.0%    0.0328M    0.0328M    0.0000M [Optical]
+  fc1              Linear  1024   256      -          -          -   None   1024   1024 100.0%    0.2621M    0.2621M    0.0000M [Optical]
+  fc2              Linear   256    10      -          -          -   None    256    256 100.0%    0.0026M    0.0026M    0.0000M [Optical]
+  ------------------------------------------------------------------------------------------------------------------------
+  Total                                                                                            1.0511M    0.9528M    0.0983M
+
+  ------------------------------------------------------------
+  [MOPs] 光计算占比汇总
+  ------------------------------------------------------------
+  总原始 MOPs:           1.0511 M
+  光计算 MOPs (有效):    0.9528 M
+  电子计算 MOPs:         0.0983 M
+  总有效 MOPs:           1.0511 M
+  -------------------------------------
+  ** 光计算占比:         90.65%  (**)
+  光计算补零浪费:        0 (所有光计算层完美对齐 8 的倍数) [OK]
+  ------------------------------------------------------------
+
+  [Note] 说明:
+    - stem.conv (3->8, 1x1): 展平长度=3, 对齐率仅 37.5%, 保留电计算 (FP32)
+    - 其余 Conv/Linear 展平长度均为 8 的倍数, 完美对齐 Gazelle 8×2 tile
+    - 光计算占比 = 光计算有效MOPs / (光计算MOPs + 电计算MOPs)
+    - 光计算有效MOPs 已包含补零对齐的硬件开销
+==============================================================================================================
+
+  ------------------------------------------------------------
+  [Verdict] 部署评估结论
+  ------------------------------------------------------------
+  光计算占比:         90.65%
+  判定:               [OK] 高度适合光计算部署
+  硬件对齐率:         99.6% (除 stem 外所有层完美对齐 8×2 tile)
+  首层 stem:          FP32 电计算 (展平=3, 对齐率 37.5%, 电计算更高效)
+  推荐部署策略:       stem 在 CPU/GPU, 其余 5 层在 Gazelle 光计算
+```
+
+```powershell
+PS E:\LT-Simulator\train-test> python optic_inference_kd.py  --qat --quick 50
+Device: cpu
+============================================================
+  Optic-SpaceNet KD: In-Container Optical Inference
+  Model 3 KD Phase4 v3 (int8+KD, TBD)  |  Weight: spacenet_v2_phase4_v3_int8.pth
+  Mode: QAT
+============================================================
+
+--- Loading Test Set ---
+Full: 27000 | Test: 5400 imgs | split=eurosat_split (test∩train=0)
+
+============================================================
+  Model 3 KD+INT4  [QAT mode]
+============================================================
+
+  [1/3] Creating model...
+  Params: 267,944
+
+  [2/3] Converting to QAT v3 (int4, KD student)...
+[prepare_model_v3] 量化策略: Conv=int4 QAT, Linear=fp32 (电计算)
+  QATConv2d_v3: 4 (4 enabled)  ← 光计算 int4
+  QATLinear_v3: 2  ← 光计算 int4
+  BN (float32): 4, mode=ste, w4/a8
+
+  [3/3] Loading weights: spacenet_v2_phase4_v3_int8.pth
+[disable_qat] Disabled QAT on 6 layers
+  [fp32] 50 batches — acc=92.00%
+  Float32: 92.00% (0.1s)
+[enable_qat] Enabled QAT on 6 layers
+  [int4-QAT] 50 batches — acc=84.00%
+  Int4 QAT: 84.00% (0.2s)
+  Quant Loss: +8.00%
+
+====================================================================================================
+  Model 3 KD — Container Verification Report
+====================================================================================================
+  QAT float32: 92.00%  |  QAT int4: 84.00%  |  Quant Loss: +8.00%
+  Training ref: v3 int8+KD (stem FP32, Gazelle noise, first_conv_fp32=True)
+
+==============================================================================================================
+  KD+INT4 模型光计算 MOPs 统计 — Model 3 SpaceNet V2 KD Phase4 v2
+  Gazelle 硬件: 8x2 tile, act=int8, weight=int4, stem 电计算
+==============================================================================================================
+  stem.conv        Conv       3     8    1x1      64x64      64x64   None      3      8  37.5%    0.0983M    0.0000M    0.0983M [Electronic]
+  stage1.conv      Conv       8    16    2x2      64x64      32x32 Max2x2     32     32 100.0%    0.5243M    0.5243M    0.0000M [Optical]
+  stage2.conv      Conv      16    32    2x2      16x16        8x8   None     64     64 100.0%    0.1311M    0.1311M    0.0000M [Optical]
+  stage3.conv      Conv      32    16    1x1        8x8        8x8   None     32     32 100.0%    0.0328M    0.0328M    0.0000M [Optical]
+  fc1              Linear  1024   256      -          -          -   None   1024   1024 100.0%    0.2621M    0.2621M    0.0000M [Optical]
+  fc2              Linear   256    10      -          -          -   None    256    256 100.0%    0.0026M    0.0026M    0.0000M [Optical]
+  [MOPs] 光计算占比: 90.65%  |  总 MOPs: 1.0511 M
+  [Note] KD 训练用 ResNet-18 (97.83%) 做教师, 推理时不需要教师模型
+```
+
+```powershell
+(moca_llm) root@a39a38d1a33b:/workspace/share/train-test# python optic_inference_phase4.py --quick 500
+Device: cpu
+============================================================
+  Optic-SpaceNet Phase 4: Optical Inference Migration
+  Mode: QAT (pseudo-quant)
+  Batch=1, quick=500
+============================================================
+
+--- Loading Data ---
+Train: 21600 imgs, Val: 5400 imgs
+Classes: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+
+============================================================
+  Model 1 Phase4 STE (VGG+BN)  [QAT mode: v3]
+  Architecture: flat+BN
+============================================================
+
+  [1/3] Creating standard model...
+  Params: 2,387,680
+
+  [2/3] Converting to QAT (v3)...
+[prepare_model_v3] 量化策略: Conv=int4 QAT, Linear=fp32 (电计算)
+  QATConv2d_v3: 6 (6 enabled)  ← 光计算 int4
+  QATLinear_v3: 2  ← 光计算 int4
+  BN (float32): 6, mode=ste, w4/a8
+
+  [3/3] Loading QAT weights...
+  Weights loaded from: baseline_vgg_phase4_ste.pth
+
+  --- Native float32 evaluation ---
+[disable_qat] Disabled QAT on 8 layers
+  [Model 1 Phase4 STE (VGG+BN) float32] 500 batches — acc=98.60%
+  Float32 Accuracy: 98.60%
+  Float32 Loss:     0.0537
+  Float32 Time:     1.23s
+
+  --- int4 QAT (optical computing simulation) evaluation ---
+[enable_qat] Enabled QAT on 8 layers
+  [Model 1 Phase4 STE (VGG+BN) int4-QAT] 500 batches — acc=96.80%
+  Int4 QAT Accuracy: 96.80%
+  Int4 QAT Loss:     0.1418
+  Int4 QAT Time:     25.50s
+
+============================================================
+  Model 2 Phase4 STE (SpaceNet V1)  [QAT mode: v3]
+  Architecture: seq+BN
+============================================================
+
+  [1/3] Creating standard model...
+  Params: 267,944
+
+  [2/3] Converting to QAT (v3)...
+[prepare_model_v3] 量化策略: Conv=int4 QAT, Linear=fp32 (电计算)
+  QATConv2d_v3: 4 (4 enabled)  ← 光计算 int4
+  QATLinear_v3: 2  ← 光计算 int4
+  BN (float32): 4, mode=ste, w4/a8
+
+  [3/3] Loading QAT weights...
+  Weights loaded from: spacenet_v1_phase4_ste.pth
+
+  --- Native float32 evaluation ---
+[disable_qat] Disabled QAT on 6 layers
+  [Model 2 Phase4 STE (SpaceNet V1) float32] 500 batches — acc=93.00%
+  Float32 Accuracy: 93.00%
+  Float32 Loss:     0.2017
+  Float32 Time:     4.23s
+
+  --- int4 QAT (optical computing simulation) evaluation ---
+[enable_qat] Enabled QAT on 6 layers
+  [Model 2 Phase4 STE (SpaceNet V1) int4-QAT] 500 batches — acc=77.40%
+  Int4 QAT Accuracy: 77.40%
+  Int4 QAT Loss:     0.9329
+  Int4 QAT Time:     6.67s
+
+============================================================
+  Model 3 Phase4 STE (KD+SpaceNet)  [QAT mode: v3]
+  Architecture: seq+BN
+============================================================
+
+  [1/3] Creating standard model...
+  Params: 267,944
+
+  [2/3] Converting to QAT (v3)...
+[prepare_model_v3] 量化策略: Conv=int4 QAT, Linear=fp32 (电计算)
+  QATConv2d_v3: 4 (4 enabled)  ← 光计算 int4
+  QATLinear_v3: 2  ← 光计算 int4
+  BN (float32): 4, mode=ste, w4/a8
+
+  [3/3] Loading QAT weights...
+  Weights loaded from: spacenet_v2_phase4_ste.pth
+
+  --- Native float32 evaluation ---
+[disable_qat] Disabled QAT on 6 layers
+  [Model 3 Phase4 STE (KD+SpaceNet) float32] 500 batches — acc=95.00%
+  Float32 Accuracy: 95.00%
+  Float32 Loss:     0.1981
+  Float32 Time:     12.34s
+
+  --- int4 QAT (optical computing simulation) evaluation ---
+[enable_qat] Enabled QAT on 6 layers
+  [Model 3 Phase4 STE (KD+SpaceNet) int4-QAT] 500 batches — acc=79.60%
+  Int4 QAT Accuracy: 79.60%
+  Int4 QAT Loss:     0.8035
+  Int4 QAT Time:     0.02s
+
+============================================================
+  Model 1 Phase4 LSQ+ (VGG)  [QAT mode: v2]
+  Architecture: seq
+============================================================
+
+  [1/3] Creating standard model...
+  Params: 2,386,272
+
+  [2/3] Converting to QAT (v2)...
+[prepare_model_phase4] Converted 8 layers to QAT v2 (mode=lsqplus, noise=False, bias=False)
+
+  [3/3] Loading QAT weights...
+  Weights loaded from: baseline_vgg_phase4_lsqplus.pth
+
+  --- Native float32 evaluation ---
+  [Model 1 Phase4 LSQ+ (VGG) float32] 500 batches — acc=19.60%
+  Float32 Accuracy: 19.60%
+  Float32 Loss:     1832.5376
+  Float32 Time:     6.53s
+
+  --- int4 QAT (optical computing simulation) evaluation ---
+  [Model 1 Phase4 LSQ+ (VGG) int4-QAT] 500 batches — acc=51.00%
+  Int4 QAT Accuracy: 51.00%
+  Int4 QAT Loss:     1.2403
+  Int4 QAT Time:     17.23s
+
+
+
+====================================================================================================
+  OPTIC-SPACENET PHASE 4: Optical Computing Inference Report
+====================================================================================================
+
+  [QAT Mode] int4 pseudo-quantization (matches training)
+  Model                            Params  FP32 Acc  Int4 Acc Quant Loss
+  ------------------------------------------------------------------------
+  Model 1 Phase4 STE (VGG+BN)    2,387,680   98.60%   96.80%    1.80%
+  Model 2 Phase4 STE (SpaceNet V1)  267,944   93.00%   77.40%   15.60%
+  Model 3 Phase4 STE (KD+SpaceNet)  267,944   95.00%   79.60%   15.40%
+  Model 1 Phase4 LSQ+ (VGG)      2,388,596   19.60%   51.00%  -31.40%
+
+  Reference (training logs — final enable_qat eval):
+    Model 1 STE:  96.46% int4  (baseline_vgg_phase4_ste.pth)
+    Model 2 STE:  74.35% int4  (spacenet_v1_phase4_ste.pth)
+    Model 3 STE:  78.26% int4  (spacenet_v2_phase4_ste.pth)
+    Model 1 LSQ+: 61.72% int4  (baseline_vgg_phase4_lsqplus.pth)
+```
+
+```powershell
+[optic]  497/500 ( 99.4%) acc=90.95%  elapsed=2015s  ETA=12s
+    [osimulator] (1x1024x32) @ (32x16) input=uint8 ... done (1.0s)
+    [osimulator] (1x64x64) @ (64x32) input=uint8 ... done (7.4s)
+    [osimulator] (1x64x32) @ (32x16) input=uint8 ... done (0.2s)
+    [osimulator] (1x1x1024) @ (1024x256) input=uint8 ... done (2.0s)
+    [osimulator] (1x1x256) @ (256x10) input=uint8 ... done (0.1s)
+  [optic]  498/500 ( 99.6%) acc=90.76%  elapsed=2026s  ETA=8s
+    [osimulator] (1x1024x32) @ (32x16) input=uint8 ... done (-6.0s)
+    [osimulator] (1x64x64) @ (64x32) input=uint8 ... done (0.7s)
+    [osimulator] (1x64x32) @ (32x16) input=uint8 ... done (0.2s)
+    [osimulator] (1x1x1024) @ (1024x256) input=uint8 ... done (2.1s)
+    [osimulator] (1x1x256) @ (256x10) input=uint8 ... done (0.1s)
+  [optic]  499/500 ( 99.8%) acc=90.78%  elapsed=2023s  ETA=4s
+    [osimulator] (1x1024x32) @ (32x16) input=uint8 ... done (1.1s)
+    [osimulator] (1x64x64) @ (64x32) input=uint8 ... done (0.8s)
+    [osimulator] (1x64x32) @ (32x16) input=uint8 ... done (0.2s)
+    [osimulator] (1x1x1024) @ (1024x256) input=uint8 ... done (1.8s)
+    [osimulator] (1x1x256) @ (256x10) input=uint8 ... done (0.1s)
+  [optic]  500/500 (100.0%) acc=90.80%  elapsed=2027s  ETA=0s
+  [optic] DONE — 500 batches, acc=90.80%, total=2027s
+  Optical Accuracy: 90.80%  Time: 2026.9s
+
+--- Optical Engine Statistics ---
+  [OpticalEngine 统计] 调用: 2500, 总耗时: 2028.176s, 总运算量: 4.76e+08 MACs
+
+====================================================================================================
+  Model 3 KD — Container Verification Report
+====================================================================================================
+  Optic osimulator: 90.80%  |  Time: 2027s
+  Training ref: v3 int8+KD (stem FP32, Gazelle noise, first_conv_fp32=True)
+
+==============================================================================================================
+  KD+INT4 模型光计算 MOPs 统计 — Model 3 SpaceNet V2 KD Phase4 v2
+  Gazelle 硬件: 8x2 tile, act=int8, weight=int4, stem 电计算
+==============================================================================================================
+  stem.conv        Conv       3     8    1x1      64x64      64x64   None      3      8  37.5%    0.0983M    0.0000M    0.0983M [Electronic]
+  stage1.conv      Conv       8    16    2x2      64x64      32x32 Max2x2     32     32 100.0%    0.5243M    0.5243M    0.0000M [Optical]
+  stage2.conv      Conv      16    32    2x2      16x16        8x8   None     64     64 100.0%    0.1311M    0.1311M    0.0000M [Optical]
+  stage3.conv      Conv      32    16    1x1        8x8        8x8   None     32     32 100.0%    0.0328M    0.0328M    0.0000M [Optical]
+  fc1              Linear  1024   256      -          -          -   None   1024   1024 100.0%    0.2621M    0.2621M    0.0000M [Optical]
+  fc2              Linear   256    10      -          -          -   None    256    256 100.0%    0.0026M    0.0026M    0.0000M [Optical]
+  [MOPs] 光计算占比: 90.65%  |  总 MOPs: 1.0511 M
+  [Note] KD 训练用 ResNet-18 (97.83%) 做教师, 推理时不需要教师模型
+```
