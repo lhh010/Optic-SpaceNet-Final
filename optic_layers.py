@@ -471,7 +471,7 @@ class OpticalEngine:
             result_int = raw_result.float()
         else:
             result_int = torch.from_numpy(raw_result).float()
-
+        result_int = result_int.to(w_scale.device)
         # y = in_scale * w_scale[j] * result_int[:,:,j] + in_zp * w_scale[j] * col_sum_w[j]
         col_sum_w = weight_int.float().sum(dim=0)  # (n,) sum over k
         w_scale_v = w_scale.view(1, 1, -1)         # (1, 1, n)
