@@ -382,6 +382,8 @@ python optic_inference_int8.py --qat              # QAT 伪量化 (容器外可�
 
 ### 11.5 INT8 容器 osimulator 真实硬件仿真 (2026-07-10)
 
+> ⚠️ 本节的 **93.28%** 跑在 Bug #11 发现前的 leaky test 集 (test⊂train), **已作废**。Bug #11 修复 + 干净重训后, 同模型 (`spacenet_v1_phase4_v3_int8.pth`) 全量真值 = **90.43%** (见 §11.13)。本节保留作容器开发过程 (Bug #6/7/8 修复) 的历史记录。
+
 **背景**: Phase 6 训练的 Model 2 v3 INT8 (93.11%) 需要在容器内通过真实 osimulator 验证。
 
 **开发过程**:
@@ -434,7 +436,11 @@ python optic_inference_int8.py   # 5400 张独立测试集 (与训练 val 零重
 | **`optic_inference_kd.py`**       | **Model 3 v3 INT8+KD** | **92.35%** | **96.00%** (quick 50) | **93.26%** (全量 5400) | 90.65% | ★ 训练推理配置对齐             |
 | `optic_inference_mixed_model1.py` | Model 1 Mixed          | 98.26%     | 100% (quick 50/100)   | 不可行 (⚠️ ~9天)         | 98.67% | ✅ 抽样全对 (100/100)       |
 
+> ⚠️ **上表「全量 osimulator」列为 Bug #11 发现前 (leaky test 集) 的数字, 一律作废**: INT4 87.94%、LSQ+ 92.76%、Model 3 v2 INT4 84.33%、Model 3 v3 INT8+KD 93.26% (见 §12 Bug #11)。**干净重训后的全量真值见 §11.13** (Model 2 int8 90.43% / Model 3 int8+KD 90.28%); LSQ+/INT4 等旧权重的干净复测未再跑 (作废, 不再用)。
+
 ### 11.7 Model 3 v3 int8+KD — 训练与 osimulator 验证 (2026-07-12) ★
+
+> ⚠️ 本节的 osim **93.26%** (全量) / Quick **96.00%** 跑在 Bug #11 发现前的 leaky test 集, **已作废**。Bug #11 修复 + 干净重训后, 同模型 (`spacenet_v2_phase4_v3_int8.pth`) 全量真值 = **90.28%** (见 §11.13)。本节保留作训练流程与配置对齐说明的历史记录。
 
 **训练:**
 ```bash
@@ -646,7 +652,52 @@ python optic_inference_int8_model1.py --variant B --qat --batch 256
 - **Model 3 ⚠️**: `optic_inference_kd.py --qat` 走 **int4 (optic_qat_v3)** 路径, 84.59% 是 int8 权重再降到 int4 的退化 (与 §16 int4 困境一致), **非 int8 test 数**。其 float32 test 92.13% ≈ val fp32 91.65% → fp32 层无泄漏。日志 `log_model3_spacenet_v2_phase4_v3.md`。
 - **Model 3 int8 test 已得 (2026-07-15)**: `optic_inference_kd.py --quick 500` 真实 osimulator 路径 = **90.80%** (454/500) ≈ val 91.83% (Δ −1.03%), 真实硬件 gap ~1 点, 干净无泄漏 ✓。详见 `log_model3_spacenet_v2_phase4_v3.md`。(注: `--qat` 是 int4 路径给不了 int8 数; int8 数只能走 OPTIC/osim 模式。)
 
-**进度 (2026-07-15)**: M2/M3 int8 osim 真值均已取得 (q500: **M2 89.00% / M3 90.80%**) → 已回写 §13。M2 真实硬件 gap ~3 点 (vs val 92.06%, 显著), 略大于 M3 (~1 点, 不显著)。旧 leaky osim 93.28% / 93.26% 作废。
+**进度 (2026-07-15)**: M2/M3 int8 osim 抽样数取得 (q500: **M2 89.00% / M3 90.80%**) → 已回写 §13。**全量 5400 已于 2026-07-16 跑完 (见 §11.13), 钉死硬件 gap; q500 为抽样参考**。旧 leaky osim 93.28% / 93.26% 作废。
+
+---
+
+### 11.13 Model 2/3 osimulator 全量 (5400) — 真值钉死 (2026-07-16) ★
+
+> §11.12 的 q500 (M2 89.00% / M3 90.80%) 是 n=500 抽样; 本节为**全量 5400 张独立 test 真值**, 钉死真实硬件 gap。
+> 日志: `log_optic_int8_new.md` (Model 2) / `log_optic_kd_new.md` (Model 3)。
+
+```bash
+python optic_inference_int8.py 2>&1 | tee log_optic_int8_new.md   # Model 2 全量 5400
+python optic_inference_kd.py   2>&1 | tee log_optic_kd_new.md     # Model 3 全量 5400
+```
+
+真实 osimulator (COMPASS `8a8w12o`, DAC ENOB 7.5, 输出 σ=5.31); stem 电计算, 其余 5 层光计算 int8。独立 test 5400 张 (test∩train=0)。
+
+| 模型 | 权重 | osim int8 (**全量 5400**) | q500 (抽样) | Int8 val | Int8 QAT (test) | FP32 基准 | Δ vs val | Δ vs FP32 基准 | 耗时 |
+|---|---|---|---|---|---|---|---|---|---|
+| Model 2 | `spacenet_v1_phase4_v3_int8.pth` | **90.43%** | 89.00% | 92.06% | 92.20% | 90.15% | **−1.63%** | **+0.28%** | 13357s (~3.7h) |
+| Model 3 | `spacenet_v2_phase4_v3_int8.pth` | **90.28%** | 90.80% | 91.83% | 84.59% (int4) | 91.44% | **−1.55%** | **−1.16%** | 13370s (~3.7h) |
+
+两模型引擎均调用 **27000 次** (5 光计算层 × 5400), 总运算量 **5.15e+09 MACs**, 光计算占比 **90.65%**, 硬件对齐率 99.6%。
+
+**Model 2 全量进度曲线** (acc 单调收敛):
+```
+ 540/5400 (10%) 89.07%   3240/5400 (60%) 90.43%
+1080/5400 (20%) 89.81%   3780/5400 (70%) 90.69%
+1620/5400 (30%) 90.25%   4320/5400 (80%) 90.56%
+2160/5400 (40%) 90.14%   4860/5400 (90%) 90.31%
+2700/5400 (50%) 90.30%   5400/5400(100%) 90.43%
+```
+**Model 3 全量进度曲线**:
+```
+ 540/5400 (10%) 90.19%   3240/5400 (60%) 90.22%
+1080/5400 (20%) 89.07%   3780/5400 (70%) 90.48%
+1620/5400 (30%) 89.75%   4320/5400 (80%) 90.35%
+2160/5400 (40%) 89.77%   4860/5400 (90%) 90.23%
+2700/5400 (50%) 90.19%   5400/5400(100%) 90.28%
+```
+
+**关键结论:**
+- **两模型真机 gap 基本相等 (~1.6 点)**: M2 Δ vs val −1.63% / M3 −1.55%, 几乎相同。对比 §11.12 q500 时 M2 (−3.06%) 看似远大于 M3 (−1.03%), **全量证明那是抽样噪声**: q500 的 M2 89.00% 恰落在 ~1 SE 低处 (n=500 SE≈1.4%), 全量回升到 90.43%。**"KD 提升光计算噪声鲁棒性" 假设不被全量数据支持** (M2-vs-M3 直接差 0.15%, n=5400×2 z≈0.27, 远不显著)。
+- **Model 2 真机反超 FP32 基准**: osim 90.43% vs FP32 基准 90.15% = **+0.28%** → 干净光计算硬件上仍超原 FP32 模型 (M3 略低其 KD 基准 91.44% = −1.16%, 因 KD 基准更高)。
+- **两模型真机精度打平** (90.43% vs 90.28%, Δ 0.15%, z≈0.27 不显著): 同架构同 int8 配方, KD 未带来真机增益。
+- **硬件 gap 来源**: 同 test 集上 M2 int8 QAT 92.20% → osim 90.43% = **−1.77%**, 即 osim 物理噪声 (DAC ENOB 7.5 + TIA σ=5.31) 相对干净伪量化的纯硬件损失; M3 同口径约 −1.6-1.8% (int8 QAT test 缺, 以 fp32 test 92.13% 推)。训练时 Gazelle 噪声配方已吸收大部分, 残留 ~1.6 点。
+- 全量数取代 §13 / §11.12 中的 q500 抽样数; q500 仍保留作抽样参考。光计算占比 90.65% 满足部署阈值 (≥90%)。
 
 ---
 
@@ -746,9 +797,10 @@ python optic_inference_int8_model1.py --variant B --qat --batch 256
 | **6 v3** | **Gazelle 匹配** | **int8, 首层 FP32** | **93.11%** | **+2.96%** | ★★ |
 | **6 v3 (clean 重训)** | **Gazelle + 三分 split** | **int8, stem FP32** | **92.06% (val) / 92.20% (test)** | **+1.91%** | ★ (val+test int8 QAT, 无泄漏) |
 | **容器 osimulator (旧 leaky)** | **真实光计算硬件仿真** | **int8, stem 电计算** | **93.28%** | **+3.13%** | ⚠️ 作废 (Bug #11) |
-| **容器 osimulator (clean)** | **真实光计算硬件仿真 (quick 500)** | **int8, stem 电计算** | **89.00%** | **−1.15%** | ★ 干净 (2026-07-15), vs val 92.06% (Δ −3.06%) |
+| **容器 osimulator (clean)** | **真实光计算硬件仿真 (全量 5400)** | **int8, stem 电计算** | **90.43%** | **+0.28%** | ★ 干净 (2026-07-16), vs val 92.06% (Δ −1.63%); q500 抽样 89.00% |
+| 容器 osimulator (clean, q500 抽样) | 真实光计算硬件仿真 (quick 500) | int8, stem 电计算 | 89.00% | −1.15% | 抽样参考, 已被全量取代 (2026-07-15) |
 
-**Model 2 结论**: v3 int8 干净重训 val **92.06%** / int8 test QAT **92.20%** (Δ +0.14%, 无泄漏)。容器 osimulator 真机 (clean quick 500, 2026-07-15) **89.00%** (445/500, Δ vs val −3.06%, z≈2.1 显著; 但 vs FP32 基准 90.15% 仅 −1.15%)。真实硬件 gap ~3 点 (略大于 Model 3 的 ~1 点; M2-vs-M3 直接差在 n=500 未显著 → "KD 提升噪声鲁棒性" 为待验证假设)。旧 leaky osim 93.28% 作废 (Bug #11)。
+**Model 2 结论**: v3 int8 干净重训 val **92.06%** / int8 test QAT **92.20%** (Δ +0.14%, 无泄漏)。容器 osimulator 真机**全量 5400** (2026-07-16) **90.43%** (Δ vs val −1.63%; **vs FP32 基准 90.15% +0.28% 反超**)。真实硬件 gap ~1.6 点, **与 Model 3 基本相等** (q500 的 89.00% 是抽样噪声, 已被全量取代)。旧 leaky osim 93.28% 作废 (Bug #11)。详见 §11.13。
 
 ### Model 3 (SpaceNet V2 KD, ~268K params, FP32=91.44%)
 
@@ -762,10 +814,11 @@ python optic_inference_int8_model1.py --variant B --qat --batch 256
 | **6 v3** | **KD+Gazelle 匹配** | **int8, stem FP32** | **92.35%** | **+0.91%** | ★★ |
 | **6 v3 (clean 重训)** | **KD+Gazelle + 三分 split** | **int8, stem FP32** | **91.83% (val) / fp32 test 92.13%** | **+0.39%** | ★ (干净 val; int8 osim q500=90.80%, --qat 为 int4) |
 | **容器 osimulator (旧 leaky)** | **真实光计算硬件仿真** | **int8, stem 电计算** | **93.26%** | **+1.82%** | ⚠️ 作废 (Bug #11) |
-| **容器 osimulator (clean)** | **真实光计算硬件仿真 (quick 500)** | **int8, stem 电计算** | **90.80%** | **−0.64%** | ★ 干净 (2026-07-15), ≈ val 91.83% (Δ −1.03%) |
+| **容器 osimulator (clean)** | **真实光计算硬件仿真 (全量 5400)** | **int8, stem 电计算** | **90.28%** | **−1.16%** | ★ 干净 (2026-07-16), vs val 91.83% (Δ −1.55%); q500 抽样 90.80% |
+| 容器 osimulator (clean, q500 抽样) | 真实光计算硬件仿真 (quick 500) | int8, stem 电计算 | 90.80% | −0.64% | 抽样参考, 已被全量取代 (2026-07-15) |
 
-**Model 3 结论**: v3 int8+KD 干净重训 val **91.83%**; 容器 osimulator 真机 (clean quick 500, 2026-07-15) **90.80%** (Δ vs val −1.03%, 真实硬件 gap 仅 ~1 点, 干净无泄漏 ✓)。
-旧 leaky osim 93.26% / Quick 96.00% 作废 (Bug #11)。
+**Model 3 结论**: v3 int8+KD 干净重训 val **91.83%**; 容器 osimulator 真机**全量 5400** (2026-07-16) **90.28%** (Δ vs val −1.55%, 真实硬件 gap ~1.6 点, **与 Model 2 基本相等**, 干净无泄漏 ✓)。q500 抽样 90.80% 已被全量取代。
+旧 leaky osim 93.26% / Quick 96.00% 作废 (Bug #11)。详见 §11.13。
 
 ### 总体最佳精度
 
@@ -775,13 +828,13 @@ python optic_inference_int8_model1.py --variant B --qat --batch 256
 | **Model 1** | **容器 osimulator Quick 100** | **100.00%** (抽样) | 97.17% | **+2.83%** |
 | Model 2 | Phase4 v3 STE int8 + Gazelle | **93.11%** | 90.15% | +2.96% |
 | Model 2 | 容器 osimulator (旧 leaky, 作废) | ~~93.28%~~ | 90.15% | +3.13% (作废) |
-| **Model 2** | **容器 osimulator (clean quick 500)** | **89.00%** ★ | 90.15% | **−1.15%** |
+| **Model 2** | **容器 osimulator (clean 全量 5400)** | **90.43%** ★ | 90.15% | **+0.28%** |
 | Model 2 | Phase6 LSQ+ int8 (修复) | **92.80%** | 90.15% | +2.65% |
 | Model 3 | Phase4 v2 int4 + KD | 91.50% | 91.44% | +0.06% |
 | **Model 3** | **Phase4 v3 int8+KD + Gazelle** | **92.35%** ★ | 91.44% | **+0.91%** |
-| **Model 3** | **容器 osimulator (clean quick 500)** | **90.80%** ★ | 91.44% | **−0.64%** |
+| **Model 3** | **容器 osimulator (clean 全量 5400)** | **90.28%** ★ | 91.44% | **−1.16%** |
 
-⚠️ **Bug #11 (test⊂train) 影响范围 (已审计全推理脚本)**: 使用污染 test 段 (`indices[sz:2*sz]`⊂旧 train) 的脚本 = int4 / int4_v2 / int8 / int8_model1 / kd / lsq —— 对应数字作废: Model 2 osimulator **93.28%**、Model 3 osimulator **93.26%** / Quick **96.00%**、LSQ+ **92.76%**、INT4 **87.94%**、Model 1 int8 v3 test **99.96%**。**例外: `optic_inference_mixed_model1.py` 用 val 段评估, 不受影响** (Model 1 Mixed Quick 100 = 100% 为 val 基, 仅含 model-selection peek)。val 集数字一律有效 (干净重训后): Model 1 int8 v3 **97.87%/98.02%**、Model 2 v3 **92.06%**、Model 3 v3 **91.83%** (见 §11.11/§11.12)。split 已修复 (`eurosat_split.py` 单一数据源), 三模型均已重训; M1/M2 int8 test QAT 已完成 (无泄漏), **M2/M3 int8 test 均已由 osim 取得 (q500: M2 89.00% / M3 90.80%, 2026-07-15)**; 三模型 osim 真机复测完成 (Model 1 仅 q50 抽样, 全量 ~9 天不可行)。
+⚠️ **Bug #11 (test⊂train) 影响范围 (已审计全推理脚本)**: 使用污染 test 段 (`indices[sz:2*sz]`⊂旧 train) 的脚本 = int4 / int4_v2 / int8 / int8_model1 / kd / lsq —— 对应数字作废: Model 2 osimulator **93.28%**、Model 3 osimulator **93.26%** / Quick **96.00%**、LSQ+ **92.76%**、INT4 **87.94%**、Model 1 int8 v3 test **99.96%**。**例外: `optic_inference_mixed_model1.py` 用 val 段评估, 不受影响** (Model 1 Mixed Quick 100 = 100% 为 val 基, 仅含 model-selection peek)。val 集数字一律有效 (干净重训后): Model 1 int8 v3 **97.87%/98.02%**、Model 2 v3 **92.06%**、Model 3 v3 **91.83%** (见 §11.11/§11.12)。split 已修复 (`eurosat_split.py` 单一数据源), 三模型均已重训; M1/M2 int8 test QAT 已完成 (无泄漏), **M2/M3 int8 test 均已由 osim 全量取得 (全量 5400: M2 90.43% / M3 90.28%, 2026-07-16; q500 抽样 M2 89.00% / M3 90.80% 已被全量取代)**; 三模型 osim 真机复测完成 (Model 1 仅 q50 抽样, 全量 ~9 天不可行)。
 
 ---
 
@@ -857,6 +910,8 @@ python optic_inference_int8_model1.py --variant B --qat --batch 256
 | **`log_optic_int4.md`** | **INT4 容器推理日志 (2026-07-10)** |
 | **`log_optic_lsq.md`** | **LSQ+ 容器推理日志 (2026-07-10)** |
 | **`log_optic_kd.md`** | **KD+INT4 容器推理日志 (2026-07-10)** |
+| **`log_optic_int8_new.md`** | **Model 2 int8 osimulator 全量 5400 日志 (2026-07-16, 90.43%)** |
+| **`log_optic_kd_new.md`** | **Model 3 KD int8 osimulator 全量 5400 日志 (2026-07-16, 90.28%)** |
 | **`log_optic_mixed_model1.md`** | **Model 1 Mixed 容器推理日志 (2026-07-10 ~ 11)** |
 | `osimulator/GAZELLE_ARCHITECTURE.md` | Gazelle 硬件逆向报告 |
 
@@ -869,14 +924,14 @@ python optic_inference_int8_model1.py --variant B --qat --batch 256
 1. ~~**Model 3 int8+KD 训练**~~ ✅ **已完成** (2026-07-12): 训练 92.35% (val), osimulator Quick 50/全量数字因 Bug #11 待复测
 2. ~~**Model 1 int8 训练**~~ ✅ **已完成** (2026-07-14, Bug #11 修复后干净重训): 变体 A val **97.87%** / B val **98.02%**, 量化无损 (±0.06%)。详见 §11.11
 3. ~~**Model 3 v3 全量 osimulator 完成**~~ ✅ **已完成** (2026-07-12): 数字因 Bug #11 待复测
-4. ~~**修复 test 泄漏后重训** (Bug #11)~~ ✅ 三模型均已三分 split 重训 (Model 1 §11.11 / Model 2-3 §11.12)。~~Model 1 test QAT 交叉验证~~ ✅ (test≈val, 无泄漏, §11.11)。⏳ 剩余: Model 2/3 test 交叉验证 + 三模型 osimulator 全量复测, 替换 §13 中标注作废的 osimulator 数 (旧 93.28% / 93.26%)。
+4. ~~**修复 test 泄漏后重训** (Bug #11)~~ ✅ 三模型均已三分 split 重训 (Model 1 §11.11 / Model 2-3 §11.12)。~~Model 1 test QAT 交叉验证~~ ✅ (test≈val, 无泄漏, §11.11)。~~M2/3 test QAT 交叉验证 + osimulator 全量复测~~ ✅ (M2/3 int8 osim **全量 5400**: M2 **90.43%** / M3 **90.28%**, §11.13; Model 1 仅 q50 抽样, 全量 ~9 天不可行)。已替换 §13 中作废的 osim 数 (旧 93.28% / 93.26%)。
 
 ### 15.2 中期 (容器部署)
 
 1. **选取最佳模型部署**:
    - Model 1 Mixed (98.26% int4) — 精度最高, 但模型较大 (2.39M), 推理极慢 (~150s/张)
-   - **Model 2 v3 int8 (93.28% osimulator) — 推荐首选**: 精度高, 模型小 (268K), 已完整验证
-   - **Model 3 v3 int8+KD (93.26% osimulator 全量) — 强力候选**: KD 加持, 同等轻量, 已完整验证
+   - **Model 2 v3 int8 (osim 全量 90.43%, 干净 test) — 推荐首选**: 模型小 (268K), **真机反超 FP32 基准 (+0.28%)**, 已完整验证
+   - **Model 3 v3 int8+KD (osim 全量 90.28%, 干净 test) — 强力候选**: KD 加持, 同等轻量, 与 M2 真机打平, 已完整验证
 
 2. **容器内完整验证**:
    ```bash
@@ -905,8 +960,8 @@ python optic_inference_int8_model1.py --variant B --qat --batch 256
 ```
 当前最佳 → 短期目标 → 长期目标
 Model 1: 98.26% (int4 Mixed) → 98.5% (int8) → 98.5%+
-Model 2: 93.28% (osimulator)   → 93.5% (int8+KD) → 94%
-Model 3: 92.35% (int8+KD v3)   → ✅ 93.26% (osimulator 全量) → 94%
+Model 2: 90.43% (osim 全量, 干净) → 92%+ (光电混合提速 H1/H2/H3) → 93%
+Model 3: 90.28% (osim 全量, 干净) → 92%+ (光电混合提速 H1/H2/H3) → 93%
 ```
 
 ---
@@ -1060,4 +1115,4 @@ int4→int8 网格转换并非无损 (max/7 → max/127), 必须在训练时就�
 
 ---
 
-*文档版本: v2.9 | 最后更新: 2026-07-15 | Model 1 osimulator quick-50 (干净 test): 变体 A **98.00%** / B **100.00%**, 真硬件 8a8w 无损。详见 §11.11*
+*文档版本: v3.0 | 最后更新: 2026-07-16 | Model 2/3 osimulator **全量 5400** (干净 test): M2 **90.43%** (反超 FP32 基准 +0.28%) / M3 **90.28%**, 两模型真机 gap 基本相等 (~1.6 点), 钉死硬件 gap。详见 §11.13*
