@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<!-- 占位版演示页: 功能优先, 朴素无样式. 美学版另案讨论. -->
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Model 3 光计算演示 (占位版)</title>
+</head>
+<body>
+<h1>Model 3 光计算演示 <small>(占位版, 美学版另案)</small></h1>
+
+<div>
+  <button id="btn-sample">抽一张 test 图</button>
+  <label>上传图片: <input type="file" id="file" accept="image/*"></label>
+  <button id="btn-infer" disabled>推理 (FP32 + 光计算)</button>
+  <span id="health"></span>
+</div>
+
+<div id="degraded" style="display:none; border:2px solid red; padding:4px; margin:8px 0;">
+  ⚠ 远程光计算不可用, 已降级为本地 fake 引擎 (meta.degraded=true)
+</div>
+
+<div>
+  <img id="img" width="128" height="128" alt="(先抽图或上传)">
+  <div>label: <b id="label">-</b> index: <span id="index">-</span></div>
+  <div>meta.correct: <b id="correct">-</b> remote_latency: <span id="rlat">-</span>s</div>
+</div>
+
+<hr>
+<div id="paths"></div>
+
+<script>
+let current = null;  // {image_b64, label}
+
+async function j(r) { if (!r.ok) throw new Error((await r.json()).detail || r.status); return r.json(); }
+
+async function refreshHealth() {
+  try {
+    const h = await j(await fetch("/api/health"));
+    document.getElementById("health").textContent = `[local=${h.local} remote=${h.remote}]`;
+  } catch (e) { document.getElementById("health").textContent = "[health failed]"; }
+}
+
+function setImage(b64, label, index) {
+  current = { image_b64: b64, label: label ?? null };
+  document.getElementById("img").src = "data:image/jpeg;base64," + b64;
+  document.getElementById("label").textContent = label ?? "(上传图, 无 ground truth)";
+  document.getElementById("index").textContent = index ?? "-";
+  document.getElementById("btn-infer").disabled = false;
+}
+
+document.getElementById("btn-sample").onclick = async () => {
+  const s = await j(await fetch("/api/sample"));
+  setImage(s.image_b64, s.label, s.index);
+};
+
+document.getElementById("file").onchange = (ev) => {
+  const f = ev.target.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => setImage(rd.result.split(",")[1], null, null);
+  rd.readAsDataURL(f);
+};
+
+function renderPath(title, res) {
+  const probs = Object.entries(res.probs)
+    .map(([c, p]) => `<div>${c.padEnd(22)} <span style="display:inline-block;background:#69c;height:10px;width:${(p*400)|0}px"></span> ${p}</div>`)
+    .join("");
+  const rows = res.layers.map(l =>
+    `<tr><td>${l.name}</td><td>${l.where}</td><td>${l.spec}</td>
+     <td>[${l.shape.join(",")}]</td><td>${l.latency_s}</td></tr>`).join("");
+  return `<div style="display:inline-block; vertical-align:top; margin-right:24px">
+    <h2>${title} <small>(${res.engine})</small></h2>
+    <div>pred: <b>${res.pred}</b>  total: ${res.latency_total_s}s</div>
+    ${probs}
+    <table border="1" cellspacing="0" cellpadding="3">
+      <tr><th>layer</th><th>where</th><th>spec</th><th>shape</th><th>latency_s</th></tr>
+      ${rows}</table></div>`;
+}
+
+document.getElementById("btn-infer").onclick = async () => {
+  if (!current) return;
+  const body = await j(await fetch("/api/infer", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(current),
+  }));
+  document.getElementById("degraded").style.display = body.meta.degraded ? "block" : "none";
+  document.getElementById("correct").textContent = body.meta.correct === null ? "-" : body.meta.correct;
+  document.getElementById("rlat").textContent = body.meta.remote_latency_s;
+  document.getElementById("paths").innerHTML =
+    renderPath("FP32 电计算", body.fp32) + renderPath("int8 光计算", body.optical);
+};
+
+refreshHealth();
+</script>
+</body>
+</html>
