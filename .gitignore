@@ -5,6 +5,9 @@ src/__pycache__/
 src/qat/__pycache__/
 src/scripts/__pycache__/
 src/training/__pycache__/
+demo/__pycache__/
+demo/server/__pycache__/
+demo/tests/__pycache__/
 data/
 初赛文档/
 osimulator/
