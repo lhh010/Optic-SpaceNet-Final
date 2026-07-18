@@ -18,6 +18,7 @@ let current = null;        // {image_b64, label|null}
 let inferData = null;      // /api/infer 响应体
 let inferState = "idle";   // idle | running | done | error
 let timer = null;
+let inferSeq = 0;          // 单调递增请求序号: 旧请求在途时新请求生效, 旧响应一律丢弃
 const revealed = new Set();   // 已揭示 section id
 
 /* ---------- 基础 ---------- */
@@ -278,6 +279,7 @@ function resetReveal() {
 
 async function startInfer() {
   if (!current) return;
+  const seq = ++inferSeq;
   resetReveal();
   lockInputs(true);
   inferState = "running";
@@ -291,6 +293,7 @@ async function startInfer() {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(current),
     }));
+    if (seq !== inferSeq) return;   // 已被更新的请求取代, 丢弃旧响应
     inferData = body;
     inferState = "done";
     hideBanner();
@@ -301,10 +304,12 @@ async function startInfer() {
     revealVisible();
     $("infer-status").textContent = "✓ 推理完成 · 滚动查看逐 stage 对比";
   } catch (e) {
+    if (seq !== inferSeq) return;
     inferState = "error";
     showBanner("error", `推理失败: ${e.message}`);
     $("infer-status").textContent = "";
   } finally {
+    if (seq !== inferSeq) return;   // 不动新请求的锁 / 定时器
     clearInterval(timer);
     lockInputs(false);
   }
