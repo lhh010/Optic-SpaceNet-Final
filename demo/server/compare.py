@@ -84,7 +84,8 @@ def inject_comparison(fp32, optical):
         try:
             cmp = compare_acts(decode_act(opt_layer["act_b64"]),
                                decode_act(el_layer["act_b64"]))
-        except Exception:
+        except Exception as e:
+            print(f"[compare] {name}: comparison failed: {e}")
             continue
         for layer in pair:
             layer.update(cmp)

@@ -178,9 +178,22 @@ function fillStage(sec, name) {
   sec.querySelector(".stage-title").textContent = name;
   sec.querySelector(".stage-spec").textContent =
     `${ol.spec} · shape [${ol.shape.join(",")}]`;
-  sec.querySelector(".stage-fig").innerHTML =
-    `<img class="grid-img rounded border border-edge w-full" alt="${name}"
-          src="data:image/png;base64,${ol.grid_b64}">`;
+  sec.querySelector(".stage-fig").innerHTML = ol.grid_b64
+    ? `<img class="grid-img rounded border border-edge w-full" alt="${name}"
+         src="data:image/png;base64,${ol.grid_b64}">`
+    : `<div class="text-xs text-slate-500 py-8 text-center">该层 feature map 不可用</div>`;
+  if (ol.cos_sim == null || ol.rel_err_hist == null) {
+    sec.querySelector(".stage-cos").textContent = "-";
+    sec.querySelector(".stage-maxabs b").textContent = "-";
+    sec.querySelector(".stage-hist").innerHTML =
+      `<div class="text-xs text-slate-500 py-8 text-center">该层对比数据不可用</div>`;
+    sec.querySelector(".stage-theo").textContent =
+      ol.theoretical_s != null ? fmtLat(ol.theoretical_s) : "-";
+    sec.querySelector(".stage-mops").textContent =
+      ol.mops != null ? `${ol.mops} MOPs` : "-";
+    sec.querySelector(".stage-elec").textContent = fmtLat(fl.latency_s);
+    return;
+  }
   countUp(sec.querySelector(".stage-cos"), ol.cos_sim, 4);
   sec.querySelector(".stage-maxabs b").textContent = ol.max_abs_err.toFixed(4);
   const hist = sec.querySelector(".stage-hist");
