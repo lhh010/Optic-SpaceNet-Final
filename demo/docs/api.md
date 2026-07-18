@@ -22,12 +22,15 @@ Layer = {
   "shape":  [8, 64, 64],                 // 激活形状 (C,H,W); fc 层为 [256]/[10]
   "latency_s": 1.21,                     // 该层耗时 (光路径含引擎调用)
   "act_b64": "...",                      // np.savez 的 float16 激活, base64
+  "grid_b64": "...",                     // PNG: 光|电拼接共享归一化渲染, 本地后端 render.py 生成
 }
 ```
 
 - `act_b64` 解码: `np.load(io.BytesIO(base64.b64decode(s)))["act"]` → float16 数组, 形状同 `shape`。
-- 渲染规则: 同一层光/电两个激活**拼接后共享 min/max 归一化**, 再各渲染灰度/伪彩网格。
-- conv 层取前 16 通道渲染 4×4 网格; fc 层渲染为 1×N 条带。
+- `grid_b64` 渲染规则 (2026-07-17 起由本地后端 `demo/server/render.py` 负责, 前端只放图):
+  同一层光/电两个激活**拼接后共享 min/max 归一化**;
+  conv 层取前 16 通道渲 4×4 网格 (光左电右一张 PNG); fc 层渲 1×N 条带 (光上电下);
+  伪彩 LUT 深蓝→青→亮白。两条 PathResult 的 layers 就地注入后返回。
 
 ## 本地后端 (FastAPI, `:8000`)
 
