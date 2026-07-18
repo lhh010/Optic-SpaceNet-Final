@@ -28,7 +28,7 @@ ax2.barh(y, opt, color='#E69F00', label='光计算 (int8)', edgecolor='w')
 ax2.barh(y, ele, left=opt, color='#999999', label='电计算 (FP32)', edgecolor='w')
 for i, (o, e) in enumerate(zip(opt, ele)):
     tot = o + e
-    if tot > 0.04:
+    if tot > 0:  # 显示全部层（含 stage3/fc2），保证可见标签之和 = 光计算 0.953M，与甜甜圈自洽
         ax2.text(tot+0.01, i, f'{tot:.3f}M', va='center', fontsize=8.5)
 ax2.set_yticks(y); ax2.set_yticklabels(layers, fontsize=9)
 ax2.invert_yaxis()

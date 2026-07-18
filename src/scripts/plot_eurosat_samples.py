@@ -67,9 +67,9 @@ for r in range(1, 6):
 for key, cell in tbl.get_celld().items():
     cell.set_edgecolor('#CCCCCC'); cell.set_linewidth(0.8)
 
-# 汇总行（图底）
+# 汇总行（图底）— 仅保留数据集固有的总样本数（val/test 划分属于下游项目，非数据集本身属性）
 fig.text(0.5, 0.028,
-         '总样本集大小：27,000 张　　　|　　　验证 / 测试集规模：各 5,400 张',
+         '总样本集大小：27,000 张',
          ha='center', fontsize=13, fontweight='bold')
 
 out = 'docs/figures/eurosat_samples'
