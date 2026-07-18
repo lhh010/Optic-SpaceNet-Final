@@ -33,7 +33,7 @@ from PIL import Image  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from torchvision import datasets  # noqa: E402
 
-from demo.server import inference_local, remote_client  # noqa: E402
+from demo.server import inference_local, remote_client, render  # noqa: E402
 from demo.server.inference_local import CLASSES, DATA_DIR  # noqa: E402
 from demo.server.metrics import METRICS  # noqa: E402
 from demo.server.remote_client import RemoteUnavailable  # noqa: E402
@@ -127,6 +127,8 @@ def infer(req: InferRequest):
     correct = None
     if req.label is not None:
         correct = optical["pred"] == req.label
+
+    render.inject_grids(fp32, optical)
 
     return {
         "fp32": fp32,

@@ -148,3 +148,18 @@ def test_static_index_served(client):
     r = client.get("/")
     assert r.status_code == 200
     assert "<html" in r.text.lower()
+
+
+def test_infer_layers_carry_decodable_grids(client, monkeypatch, sample_image):
+    monkeypatch.setenv("OPTIC_REMOTE_URL", _dead_url())
+    r = client.post("/api/infer", json={
+        "image_b64": sample_image["image_b64"], "label": sample_image["label"]})
+    assert r.status_code == 200
+    body = r.json()
+    for path in (body["fp32"], body["optical"]):
+        assert [l["name"] for l in path["layers"]] == contract.LAYER_NAMES
+        for layer, shape in zip(path["layers"], contract.LAYER_SHAPES):
+            img = Image.open(io.BytesIO(base64.b64decode(layer["grid_b64"])))
+            assert img.format == "PNG"
+            expected = (246, 122) if len(shape) == 3 else (256, 22)
+            assert img.size == expected, layer["name"]
