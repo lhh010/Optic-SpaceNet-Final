@@ -45,3 +45,26 @@ def check_path_result(res, engine):
         assert act.dtype == np.float16
         assert list(act.shape) == layer["shape"]
     return res
+
+
+def check_comparison_fields(path):
+    """Fields injected by demo/server/compare.py at /api/infer aggregation."""
+    for layer in path["layers"]:
+        assert {"cos_sim", "max_abs_err", "rel_err_hist",
+                "mops", "theoretical_s"} <= set(layer)
+        if layer["where"] == "electronic":
+            for k in ("cos_sim", "max_abs_err", "rel_err_hist",
+                      "mops", "theoretical_s"):
+                assert layer[k] is None, f"stem.{k} must be null"
+            continue
+        assert -1.0 <= layer["cos_sim"] <= 1.0
+        assert layer["max_abs_err"] >= 0
+        hist = layer["rel_err_hist"]
+        n = 1
+        for d in layer["shape"]:
+            n *= d
+        assert sum(hist["counts"]) == n, f"{layer['name']} hist total"
+        assert len(hist["counts"]) == len(hist["edges"]) + 1
+        assert all(c >= 0 for c in hist["counts"])
+        assert layer["mops"] > 0
+        assert layer["theoretical_s"] == round(layer["mops"] / 2.6, 6)

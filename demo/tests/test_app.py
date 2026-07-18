@@ -163,3 +163,13 @@ def test_infer_layers_carry_decodable_grids(client, monkeypatch, sample_image):
             assert img.format == "PNG"
             expected = (246, 122) if len(shape) == 3 else (256, 22)
             assert img.size == expected, layer["name"]
+
+
+def test_infer_layers_carry_comparison_fields(client, monkeypatch, sample_image):
+    monkeypatch.setenv("OPTIC_REMOTE_URL", _dead_url())
+    r = client.post("/api/infer", json={
+        "image_b64": sample_image["image_b64"], "label": sample_image["label"]})
+    assert r.status_code == 200
+    body = r.json()
+    contract.check_comparison_fields(body["fp32"])
+    contract.check_comparison_fields(body["optical"])
