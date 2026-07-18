@@ -17,7 +17,6 @@ const STAGES = [
 let current = null;        // {image_b64, label|null}
 let inferData = null;      // /api/infer 响应体
 let inferState = "idle";   // idle | running | done | error
-let timer = null;
 let inferSeq = 0;          // 单调递增请求序号: 旧请求在途时新请求生效, 旧响应一律丢弃
 const revealed = new Set();   // 已揭示 section id
 
@@ -284,7 +283,7 @@ async function startInfer() {
   lockInputs(true);
   inferState = "running";
   const t0 = performance.now();
-  timer = setInterval(() => {
+  const myTimer = setInterval(() => {
     $("infer-status").textContent =
       `光计算推理中… ${((performance.now() - t0) / 1000).toFixed(1)}s`;
   }, 100);
@@ -309,8 +308,8 @@ async function startInfer() {
     showBanner("error", `推理失败: ${e.message}`);
     $("infer-status").textContent = "";
   } finally {
-    if (seq !== inferSeq) return;   // 不动新请求的锁 / 定时器
-    clearInterval(timer);
+    clearInterval(myTimer);         // 自己的定时器总能安全清除, 即使已过期
+    if (seq !== inferSeq) return;   // 不动新请求的锁
     lockInputs(false);
   }
 }
