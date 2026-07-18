@@ -22,6 +22,16 @@ function showBanner(kind, text) {
 }
 function hideBanner() { $("banner").className = "hidden"; }
 
+// 推理期间锁定输入控件, 防止在途响应把旧图的结果渲染到新图上 (陈旧结果竞态)。
+function lockInputs(lock) {
+  $("btn-infer").disabled = lock;
+  $("btn-sample").disabled = lock;
+  $("class-select").disabled = lock;
+  $("file").disabled = lock;
+  $("file").parentElement.classList.toggle("opacity-40", lock);
+  $("file").parentElement.classList.toggle("pointer-events-none", lock);
+}
+
 async function refreshHealth() {
   try {
     const h = await j(await fetch("/api/health"));
@@ -54,6 +64,13 @@ async function loadMetrics() {
     `<div class="flex justify-between border-b border-edge/60 py-0.5">
        <span class="text-slate-400">${k}</span><b class="text-slate-100">${v}</b>
      </div>`).join("");
+  $("chips").innerHTML = [
+    ["光算占比", pct(m.optic_ratio)],
+    ["算力削减", m.mops_vs_model1],
+    ["osim 全量", `${pct(m.osim_full_acc)} (n=${m.osim_full_n})`],
+    ["硬件对齐", pct(m.hw_align, 1)],
+    ["int8 val", pct(m.val_int8)],
+  ].map(([k, v]) => `<span class="chip">${k} <b class="text-photon">${v}</b></span>`).join("");
 }
 
 function setImage(b64, label, index) {
@@ -79,6 +96,7 @@ function fmtLat(s) { return s >= 0.1 ? `${s.toFixed(2)}s` : `${(s * 1000).toFixe
 
 function renderPaths(body) {
   const { fp32, optical, meta } = body;
+  refreshHealth();
   $("pred-fp32").textContent = fp32.pred;
   $("pred-opt").textContent = optical.pred;
   $("lat-fp32").textContent = `total ${fmtLat(fp32.latency_total_s)}`;
@@ -126,7 +144,7 @@ function renderPaths(body) {
 $("btn-infer").onclick = async () => {
   if (!current) return;
   const btn = $("btn-infer");
-  btn.disabled = true;
+  lockInputs(true);
   btn.classList.add("inferring");
   btn.textContent = "◌ 光计算推理中…";
   $("stopwatch").classList.remove("hidden");
@@ -152,7 +170,7 @@ $("btn-infer").onclick = async () => {
     $("stopwatch").classList.add("hidden");
     btn.classList.remove("inferring");
     btn.textContent = "▶ 开始推理";
-    btn.disabled = false;
+    lockInputs(false);
   }
 };
 

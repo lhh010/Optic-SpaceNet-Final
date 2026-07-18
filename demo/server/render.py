@@ -100,14 +100,24 @@ def render_layer_png(name, opt_act, el_act):
 
 
 def inject_grids(fp32, optical):
-    """Pair layers by name, render each pair, set grid_b64 on both PathResults."""
+    """Pair layers by name, render each pair, set grid_b64 on both PathResults.
+
+    A layer whose activations cannot be paired, decoded or rendered is
+    skipped (no grid_b64 for that layer) instead of failing the whole
+    response — the live demo must always stay displayable.
+    """
     el_by_name = {layer["name"]: layer for layer in fp32["layers"]}
     for opt_layer in optical["layers"]:
-        el_layer = el_by_name[opt_layer["name"]]
-        png = render_layer_png(
-            opt_layer["name"],
-            decode_act(opt_layer["act_b64"]),
-            decode_act(el_layer["act_b64"]))
+        el_layer = el_by_name.get(opt_layer["name"])
+        if el_layer is None:
+            continue
+        try:
+            png = render_layer_png(
+                opt_layer["name"],
+                decode_act(opt_layer["act_b64"]),
+                decode_act(el_layer["act_b64"]))
+        except Exception:
+            continue
         b64 = base64.b64encode(png).decode("ascii")
         opt_layer["grid_b64"] = b64
         el_layer["grid_b64"] = b64
