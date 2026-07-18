@@ -24,9 +24,9 @@ models = [
         'x': 1.051e6,
         'y_fp32': 90.15,
         'y_qat': 92.06,
-        'y_osim': 89.00,
+        'y_osim': 90.43,
         'param_size': 0.268,
-        'optical_ratio': 90.7,
+        'optical_ratio': 90.65,
         'bubble_size': 120
     },
     {
@@ -35,9 +35,9 @@ models = [
         'x': 1.051e6,
         'y_fp32': 91.44,
         'y_qat': 91.83,
-        'y_osim': 90.80,
+        'y_osim': 90.28,
         'param_size': 0.268,
-        'optical_ratio': 90.7,
+        'optical_ratio': 90.65,
         'bubble_size': 120
     },
     {
@@ -46,9 +46,9 @@ models = [
         'x': 1.5663e8,
         'y_fp32': 97.17,
         'y_qat': 97.87,
-        'y_osim': 98.00,
+        'y_osim': 98.15,
         'param_size': 2.39,
-        'optical_ratio': 97.7,
+        'optical_ratio': 97.74,
         'bubble_size': 400
     },
     {
@@ -57,9 +57,9 @@ models = [
         'x': 1.5663e8,
         'y_fp32': 97.17,
         'y_qat': 98.02,
-        'y_osim': 100.00,
+        'y_osim': 97.54,
         'param_size': 2.39,
-        'optical_ratio': 73.6,
+        'optical_ratio': 73.64,
         'bubble_size': 400
     }
 ]
@@ -70,7 +70,7 @@ fig, ax = plt.subplots(figsize=(10.5, 7.5), dpi=300)
 # 设置轴标尺和范围
 ax.set_xscale('log')
 ax.set_xlim(5e5, 3.5e8)
-ax.set_ylim(70, 101.5)
+ax.set_ylim(86, 101)
 
 # 为避免完全重合，引入微小的 x 轴视觉偏移（Jitter）
 jitter = {
@@ -101,26 +101,26 @@ for m in models:
 # 绘制 ≈149x 计算量对比箭头
 ax.annotate(
     '',
-    xy=(1.5e8, 85),
-    xytext=(1.1e6, 85),
+    xy=(1.5e8, 87.5),
+    xytext=(1.1e6, 87.5),
     arrowprops=dict(arrowstyle="<->", color="#333333", lw=1.5, ls='-')
 )
-ax.text(1.28e7, 86, "≈149× compute reduction", ha='center', va='bottom', fontsize=11, fontweight='bold', color='#222222')
+ax.text(1.28e7, 88.3, "≈149× compute reduction", ha='center', va='bottom', fontsize=11, fontweight='bold', color='#222222')
 
 # 聚类信息卡片式标注
 # SpaceNet 聚类
 ax.text(
-    1.051e6, 94.0,
-    "SpaceNet (native int8 optical)\n0.268M params | 90.7% opt. MOPs",
+    1.051e6, 93.0,
+    "SpaceNet (native int8 optical)\n0.268M params | 90.65% opt. MOPs",
     ha='center', va='bottom', fontsize=10.5, fontweight='bold', color='#111111',
     bbox=dict(boxstyle='round,pad=0.4', facecolor='#FDFDFD', edgecolor='#DDDDDD', alpha=0.9, lw=1)
 )
 
 # VGG 聚类
 ax.text(
-    1.5663e8, 93.5,
-    "VGG baseline\n2.39M params\n97.7% / 73.6% opt. MOPs",
-    ha='center', va='top', fontsize=10.5, fontweight='bold', color='#111111',
+    1.5663e8, 99.5,
+    "VGG baseline\n2.39M params\n97.74% / 73.64% opt. MOPs",
+    ha='center', va='bottom', fontsize=10.5, fontweight='bold', color='#111111',
     bbox=dict(boxstyle='round,pad=0.4', facecolor='#FDFDFD', edgecolor='#DDDDDD', alpha=0.9, lw=1)
 )
 
@@ -135,8 +135,8 @@ legend_elements_marker = [
 legend_elements_model = [
     Line2D([0], [0], color='#E69F00', lw=2, linestyle='--', marker='o', markersize=6, label='Model 2: SpaceNet V1 (0.268M)'),
     Line2D([0], [0], color='#009E73', lw=2, linestyle='--', marker='o', markersize=6, label='Model 3: SpaceNet V2+KD (0.268M)'),
-    Line2D([0], [0], color='#0072B2', lw=2, linestyle='--', marker='o', markersize=9, label='Model 1-A: VGG+BN (2.39M, 97.7% opt)'),
-    Line2D([0], [0], color='#56B4E9', lw=2, linestyle='--', marker='o', markersize=9, label='Model 1-B: VGG+BN (2.39M, 73.6% opt)')
+    Line2D([0], [0], color='#0072B2', lw=2, linestyle='--', marker='o', markersize=9, label='Model 1-A: VGG+BN (2.39M, 97.74% opt)'),
+    Line2D([0], [0], color='#56B4E9', lw=2, linestyle='--', marker='o', markersize=9, label='Model 1-B: VGG+BN (2.39M, 73.64% opt)')
 ]
 
 # 渲染双重图例
@@ -154,7 +154,7 @@ ax.tick_params(axis='both', which='major', labelsize=11)
 # 添加页脚小字
 plt.figtext(
     0.05, 0.01,
-    "osim = real optical-hardware simulation; Model 2/3 n=500, Model 1 n=50 (sampled). Source: EXPERIMENTS.md",
+    "osim = real optical-hardware simulation; Model 2/3 n=5400 (full test set), Model 1 n=650 (sampled). Source: EXPERIMENTS.md",
     fontsize=8.5, color='#555555', ha='left', style='italic'
 )
 
