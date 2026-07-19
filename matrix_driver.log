@@ -1,0 +1,1802 @@
+Artifacts: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model2/k3/seed42/20260719-072350
+训练: 16200, 验证: 5400, 留出测试: 5400; workers=4
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8
+  QAT Conv: 3 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015)
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [model2 kernel=3x3] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w8
+  [QATConv2d_v4 QAT  ] stage1.0                     8   3×3        72        72  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage2.0                    16   3×3       144       144  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage3.0                    32   1×1        32        32  100.0%  w8
+  综合硬件对齐率: 99.7% (展平总长度 1531 → 补零后 1536)
+==============================================================================
+Kernel ablation: model2, 3x3, seed=42
+Device: cuda; parameters: 271,144; MACs/image: 1,870,336
+Data: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/data/EuroSAT_RGB; epochs=100; batch=64
+==============================================================================
+Epoch   1/100 | train 1.2385/61.81% | val 0.9515/72.70% | best 72.70% @ 1 | 4.4s
+Epoch   2/100 | train 0.9646/73.27% | val 0.8320/78.30% | best 78.30% @ 2 | 3.5s
+Epoch   3/100 | train 0.9404/74.08% | val 0.7963/79.93% | best 79.93% @ 3 | 3.5s
+Epoch   4/100 | train 0.9181/75.65% | val 0.8046/79.30% | best 79.93% @ 3 | 3.6s
+Epoch   5/100 | train 0.8927/76.64% | val 0.8012/79.98% | best 79.98% @ 5 | 3.5s
+Epoch   6/100 | train 0.9071/75.94% | val 0.8041/79.83% | best 79.98% @ 5 | 3.6s
+Epoch   7/100 | train 0.8591/78.09% | val 0.7549/82.00% | best 82.00% @ 7 | 3.4s
+Epoch   8/100 | train 0.8480/78.54% | val 0.7330/82.96% | best 82.96% @ 8 | 3.5s
+Epoch   9/100 | train 0.8074/80.73% | val 0.8168/79.74% | best 82.96% @ 8 | 3.5s
+Epoch  10/100 | train 0.8051/80.71% | val 0.7035/84.61% | best 84.61% @ 10 | 3.4s
+Epoch  11/100 | train 0.7565/82.86% | val 0.6898/85.19% | best 85.19% @ 11 | 3.3s
+Epoch  12/100 | train 0.7592/82.85% | val 0.7203/84.00% | best 85.19% @ 11 | 3.6s
+Epoch  13/100 | train 0.7418/83.36% | val 0.7004/84.28% | best 85.19% @ 11 | 3.5s
+Epoch  14/100 | train 0.7310/83.89% | val 0.6546/86.00% | best 86.00% @ 14 | 3.5s
+Epoch  15/100 | train 0.7226/84.02% | val 0.6512/86.11% | best 86.11% @ 15 | 3.5s
+Epoch  16/100 | train 0.7055/84.59% | val 0.6866/84.26% | best 86.11% @ 15 | 3.4s
+Epoch  17/100 | train 0.6953/85.31% | val 0.6693/85.70% | best 86.11% @ 15 | 3.5s
+Epoch  18/100 | train 0.6929/85.46% | val 0.6621/85.76% | best 86.11% @ 15 | 3.3s
+Epoch  19/100 | train 0.6844/85.80% | val 0.6519/86.33% | best 86.33% @ 19 | 3.5s
+Epoch  20/100 | train 0.6693/86.53% | val 0.6695/86.02% | best 86.33% @ 19 | 3.4s
+Epoch  21/100 | train 0.6577/86.88% | val 0.6144/88.13% | best 88.13% @ 21 | 3.6s
+Epoch  22/100 | train 0.6527/87.06% | val 0.6078/88.50% | best 88.50% @ 22 | 3.4s
+Epoch  23/100 | train 0.6446/87.31% | val 0.6304/87.63% | best 88.50% @ 22 | 3.6s
+Epoch  24/100 | train 0.6520/87.16% | val 0.6187/87.96% | best 88.50% @ 22 | 3.5s
+Epoch  25/100 | train 0.6338/87.85% | val 0.6583/85.80% | best 88.50% @ 22 | 3.5s
+Epoch  26/100 | train 0.6272/88.20% | val 0.5728/90.09% | best 90.09% @ 26 | 3.6s
+Epoch  27/100 | train 0.6233/87.96% | val 0.5864/89.33% | best 90.09% @ 26 | 3.5s
+Epoch  28/100 | train 0.6099/88.70% | val 0.5912/89.19% | best 90.09% @ 26 | 3.5s
+Epoch  29/100 | train 0.6114/89.09% | val 0.5694/89.78% | best 90.09% @ 26 | 3.5s
+Epoch  30/100 | train 0.5954/89.63% | val 0.5881/89.28% | best 90.09% @ 26 | 3.6s
+Epoch  31/100 | train 0.5958/89.53% | val 0.5689/89.96% | best 90.09% @ 26 | 3.5s
+Epoch  32/100 | train 0.5952/89.54% | val 0.5828/89.15% | best 90.09% @ 26 | 3.5s
+Epoch  33/100 | train 0.5911/89.73% | val 0.5595/90.37% | best 90.37% @ 33 | 3.7s
+Epoch  34/100 | train 0.5966/89.40% | val 0.6335/87.93% | best 90.37% @ 33 | 3.7s
+Epoch  35/100 | train 0.5843/90.25% | val 0.6005/89.13% | best 90.37% @ 33 | 3.6s
+Epoch  36/100 | train 0.5822/90.11% | val 0.5650/90.41% | best 90.41% @ 36 | 3.6s
+Epoch  37/100 | train 0.5813/90.12% | val 0.5695/89.80% | best 90.41% @ 36 | 3.6s
+Epoch  38/100 | train 0.5654/90.94% | val 0.5719/90.09% | best 90.41% @ 36 | 3.6s
+Epoch  39/100 | train 0.5650/90.91% | val 0.5533/90.52% | best 90.52% @ 39 | 3.5s
+Epoch  40/100 | train 0.5728/90.68% | val 0.5497/90.83% | best 90.83% @ 40 | 3.5s
+Epoch  41/100 | train 0.5611/91.10% | val 0.5482/90.74% | best 90.83% @ 40 | 3.6s
+Epoch  42/100 | train 0.5593/91.23% | val 0.5634/90.59% | best 90.83% @ 40 | 3.6s
+Epoch  43/100 | train 0.5531/91.44% | val 0.5374/91.48% | best 91.48% @ 43 | 3.5s
+Epoch  44/100 | train 0.5523/91.54% | val 0.5407/91.20% | best 91.48% @ 43 | 3.6s
+Epoch  45/100 | train 0.5491/91.70% | val 0.5420/91.11% | best 91.48% @ 43 | 3.6s
+Epoch  46/100 | train 0.5478/91.58% | val 0.5529/90.59% | best 91.48% @ 43 | 3.5s
+Epoch  47/100 | train 0.5462/91.69% | val 0.5294/91.83% | best 91.83% @ 47 | 3.6s
+Epoch  48/100 | train 0.5383/92.00% | val 0.5522/91.02% | best 91.83% @ 47 | 3.5s
+Epoch  49/100 | train 0.5320/92.22% | val 0.5461/91.09% | best 91.83% @ 47 | 3.5s
+Epoch  50/100 | train 0.5375/92.07% | val 0.5439/91.46% | best 91.83% @ 47 | 3.4s
+Epoch  51/100 | train 0.5346/92.04% | val 0.5320/91.35% | best 91.83% @ 47 | 3.5s
+Epoch  52/100 | train 0.5266/92.58% | val 0.5479/90.76% | best 91.83% @ 47 | 3.6s
+Epoch  53/100 | train 0.5306/92.27% | val 0.5534/90.35% | best 91.83% @ 47 | 3.5s
+Epoch  54/100 | train 0.5294/92.35% | val 0.5306/91.46% | best 91.83% @ 47 | 3.5s
+Epoch  55/100 | train 0.5154/93.10% | val 0.5279/91.70% | best 91.83% @ 47 | 3.4s
+Epoch  56/100 | train 0.5126/93.12% | val 0.5304/91.67% | best 91.83% @ 47 | 3.5s
+Epoch  57/100 | train 0.5117/93.52% | val 0.5283/91.46% | best 91.83% @ 47 | 3.6s
+Epoch  58/100 | train 0.5136/93.09% | val 0.5208/91.81% | best 91.83% @ 47 | 3.5s
+Epoch  59/100 | train 0.5134/93.02% | val 0.5271/91.56% | best 91.83% @ 47 | 3.6s
+Epoch  60/100 | train 0.5187/92.90% | val 0.5501/90.76% | best 91.83% @ 47 | 3.5s
+Epoch  61/100 | train 0.5116/93.19% | val 0.5570/90.83% | best 91.83% @ 47 | 3.5s
+Epoch  62/100 | train 0.5070/93.52% | val 0.5227/91.70% | best 91.83% @ 47 | 3.5s
+Epoch  63/100 | train 0.5047/93.55% | val 0.5261/91.80% | best 91.83% @ 47 | 3.5s
+Epoch  64/100 | train 0.5059/93.57% | val 0.5324/91.50% | best 91.83% @ 47 | 3.5s
+Epoch  65/100 | train 0.4980/93.61% | val 0.5198/92.41% | best 92.41% @ 65 | 3.5s
+Epoch  66/100 | train 0.4987/93.69% | val 0.5335/91.78% | best 92.41% @ 65 | 3.5s
+Epoch  67/100 | train 0.4940/93.94% | val 0.5157/92.30% | best 92.41% @ 65 | 3.5s
+Epoch  68/100 | train 0.4910/94.12% | val 0.5305/91.43% | best 92.41% @ 65 | 3.5s
+Epoch  69/100 | train 0.4973/93.83% | val 0.5261/91.96% | best 92.41% @ 65 | 3.5s
+Epoch  70/100 | train 0.4913/94.16% | val 0.5148/92.33% | best 92.41% @ 65 | 3.6s
+Epoch  71/100 | train 0.4831/94.46% | val 0.5136/92.37% | best 92.41% @ 65 | 3.5s
+Epoch  72/100 | train 0.4864/94.43% | val 0.5181/91.80% | best 92.41% @ 65 | 3.6s
+Epoch  73/100 | train 0.4908/94.29% | val 0.5145/91.83% | best 92.41% @ 65 | 3.5s
+Epoch  74/100 | train 0.4908/94.10% | val 0.5114/92.39% | best 92.41% @ 65 | 3.5s
+Epoch  75/100 | train 0.4840/94.37% | val 0.5089/92.43% | best 92.43% @ 75 | 3.6s
+Epoch  76/100 | train 0.4803/94.67% | val 0.5061/92.48% | best 92.48% @ 76 | 3.5s
+Epoch  77/100 | train 0.4861/94.30% | val 0.5065/92.48% | best 92.48% @ 76 | 3.6s
+Epoch  78/100 | train 0.4791/94.72% | val 0.5092/92.39% | best 92.48% @ 76 | 3.5s
+Epoch  79/100 | train 0.4805/94.67% | val 0.5049/92.56% | best 92.56% @ 79 | 3.4s
+Epoch  80/100 | train 0.4757/94.80% | val 0.5059/92.26% | best 92.56% @ 79 | 3.5s
+Epoch  81/100 | train 0.4758/94.94% | val 0.5036/92.74% | best 92.74% @ 81 | 3.5s
+Epoch  82/100 | train 0.4783/94.81% | val 0.5040/92.78% | best 92.78% @ 82 | 3.6s
+Epoch  83/100 | train 0.4751/94.78% | val 0.5070/92.41% | best 92.78% @ 82 | 3.6s
+Epoch  84/100 | train 0.4730/94.91% | val 0.5037/92.74% | best 92.78% @ 82 | 3.6s
+Epoch  85/100 | train 0.4705/95.09% | val 0.5068/92.50% | best 92.78% @ 82 | 3.4s
+Epoch  86/100 | train 0.4702/94.99% | val 0.5085/92.41% | best 92.78% @ 82 | 3.4s
+Epoch  87/100 | train 0.4737/95.02% | val 0.5044/92.56% | best 92.78% @ 82 | 3.6s
+Epoch  88/100 | train 0.4698/95.14% | val 0.5058/92.31% | best 92.78% @ 82 | 3.6s
+Epoch  89/100 | train 0.4700/94.94% | val 0.5048/92.46% | best 92.78% @ 82 | 3.7s
+Epoch  90/100 | train 0.4712/95.01% | val 0.5053/92.74% | best 92.78% @ 82 | 3.7s
+Epoch  91/100 | train 0.4706/95.03% | val 0.4992/92.93% | best 92.93% @ 91 | 3.6s
+Epoch  92/100 | train 0.4716/94.91% | val 0.5013/92.85% | best 92.93% @ 91 | 3.5s
+Epoch  93/100 | train 0.4722/94.99% | val 0.5007/92.85% | best 92.93% @ 91 | 3.4s
+Epoch  94/100 | train 0.4712/94.90% | val 0.5011/92.59% | best 92.93% @ 91 | 3.5s
+Epoch  95/100 | train 0.4691/95.01% | val 0.4986/92.81% | best 92.93% @ 91 | 3.6s
+Epoch  96/100 | train 0.4704/95.10% | val 0.5016/92.54% | best 92.93% @ 91 | 3.6s
+Epoch  97/100 | train 0.4692/95.24% | val 0.5041/92.50% | best 92.93% @ 91 | 3.6s
+Epoch  98/100 | train 0.4632/95.24% | val 0.5001/92.76% | best 92.93% @ 91 | 3.5s
+Epoch  99/100 | train 0.4668/95.12% | val 0.5016/92.48% | best 92.93% @ 91 | 3.5s
+Epoch 100/100 | train 0.4688/95.12% | val 0.4991/92.76% | best 92.93% @ 91 | 3.5s
+[enable_qat] Enabled QAT on 6 layers
+[disable_qat] Disabled QAT on 6 layers
+{
+  "status": "complete",
+  "model": "model2",
+  "kernel_size": 3,
+  "padding": 1,
+  "stride": 2,
+  "seed": 42,
+  "epochs": 100,
+  "batch_size": 64,
+  "weight_bits": 8,
+  "parameter_count": 271144,
+  "macs_per_image": 1870336,
+  "feature_shape_after_stage2": [
+    1,
+    32,
+    8,
+    8
+  ],
+  "alignment_ratio": 0.9967447916666666,
+  "best_epoch": 91,
+  "best_val_accuracy_pct": 92.92592592592592,
+  "best_qat_val_accuracy_pct": 92.92592592592592,
+  "best_float_val_accuracy_pct": 92.83333333333333,
+  "duration_seconds": 355.04866099357605,
+  "completed_at": "2026-07-18T23:29:45.837202+00:00",
+  "output_dir": "/root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model2/k3/seed42/20260719-072350"
+}
+Artifacts: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model2/k2/seed42/20260719-072949
+训练: 16200, 验证: 5400, 留出测试: 5400; workers=4
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8
+  QAT Conv: 3 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015)
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [model2 kernel=2x2] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w8
+  [QATConv2d_v4 QAT  ] stage1.0                     8   2×2        32        32  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage2.0                    16   2×2        64        64  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage3.0                    32   1×1        32        32  100.0%  w8
+  综合硬件对齐率: 99.6% (展平总长度 1411 → 补零后 1416)
+==============================================================================
+Kernel ablation: model2, 2x2, seed=42
+Device: cuda; parameters: 267,944; MACs/image: 1,051,136
+Data: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/data/EuroSAT_RGB; epochs=100; batch=64
+==============================================================================
+Epoch   1/100 | train 1.2801/60.44% | val 0.9996/71.65% | best 71.65% @ 1 | 4.6s
+Epoch   2/100 | train 0.9989/72.44% | val 0.8872/77.31% | best 77.31% @ 2 | 3.6s
+Epoch   3/100 | train 0.9751/73.56% | val 0.8459/78.33% | best 78.33% @ 3 | 3.4s
+Epoch   4/100 | train 0.9499/74.37% | val 0.8141/79.22% | best 79.22% @ 4 | 3.5s
+Epoch   5/100 | train 0.9274/75.11% | val 0.7918/80.20% | best 80.20% @ 5 | 3.5s
+Epoch   6/100 | train 0.9115/75.98% | val 0.7900/80.48% | best 80.48% @ 6 | 3.5s
+Epoch   7/100 | train 0.8842/77.57% | val 0.7788/80.89% | best 80.89% @ 7 | 3.6s
+Epoch   8/100 | train 0.8567/78.43% | val 0.7219/83.52% | best 83.52% @ 8 | 3.6s
+Epoch   9/100 | train 0.8413/79.17% | val 0.7632/82.07% | best 83.52% @ 8 | 3.5s
+Epoch  10/100 | train 0.8320/79.95% | val 0.7002/84.85% | best 84.85% @ 10 | 3.7s
+Epoch  11/100 | train 0.7917/81.49% | val 0.6847/85.30% | best 85.30% @ 11 | 3.6s
+Epoch  12/100 | train 0.7956/81.33% | val 0.7017/84.39% | best 85.30% @ 11 | 3.5s
+Epoch  13/100 | train 0.7666/82.90% | val 0.6987/84.39% | best 85.30% @ 11 | 3.6s
+Epoch  14/100 | train 0.7562/82.93% | val 0.6603/86.48% | best 86.48% @ 14 | 3.6s
+Epoch  15/100 | train 0.7607/82.81% | val 0.6563/86.80% | best 86.80% @ 15 | 3.4s
+Epoch  16/100 | train 0.7381/83.99% | val 0.6416/86.91% | best 86.91% @ 16 | 3.6s
+Epoch  17/100 | train 0.7407/83.27% | val 0.6527/87.06% | best 87.06% @ 17 | 3.6s
+Epoch  18/100 | train 0.7268/83.98% | val 0.7013/85.00% | best 87.06% @ 17 | 3.6s
+Epoch  19/100 | train 0.7193/84.49% | val 0.7243/84.35% | best 87.06% @ 17 | 3.6s
+Epoch  20/100 | train 0.7107/84.78% | val 0.6920/85.00% | best 87.06% @ 17 | 3.6s
+Epoch  21/100 | train 0.6992/85.23% | val 0.6384/87.19% | best 87.19% @ 21 | 3.5s
+Epoch  22/100 | train 0.6941/85.46% | val 0.6253/88.39% | best 88.39% @ 22 | 3.5s
+Epoch  23/100 | train 0.6839/86.02% | val 0.6776/86.04% | best 88.39% @ 22 | 3.6s
+Epoch  24/100 | train 0.6851/85.94% | val 0.6234/87.50% | best 88.39% @ 22 | 3.5s
+Epoch  25/100 | train 0.6795/86.04% | val 0.6960/85.17% | best 88.39% @ 22 | 3.5s
+Epoch  26/100 | train 0.6749/86.31% | val 0.6215/88.09% | best 88.39% @ 22 | 3.6s
+Epoch  27/100 | train 0.6758/86.27% | val 0.5900/89.24% | best 89.24% @ 27 | 3.5s
+Epoch  28/100 | train 0.6572/87.15% | val 0.6034/88.56% | best 89.24% @ 27 | 3.6s
+Epoch  29/100 | train 0.6642/86.96% | val 0.6057/88.50% | best 89.24% @ 27 | 3.5s
+Epoch  30/100 | train 0.6469/87.51% | val 0.5888/89.85% | best 89.85% @ 30 | 3.6s
+Epoch  31/100 | train 0.6466/87.40% | val 0.5867/89.19% | best 89.85% @ 30 | 3.6s
+Epoch  32/100 | train 0.6400/87.64% | val 0.5972/88.87% | best 89.85% @ 30 | 3.5s
+Epoch  33/100 | train 0.6400/87.91% | val 0.5835/89.31% | best 89.85% @ 30 | 3.5s
+Epoch  34/100 | train 0.6412/87.64% | val 0.6060/88.07% | best 89.85% @ 30 | 3.5s
+Epoch  35/100 | train 0.6351/87.79% | val 0.5970/88.83% | best 89.85% @ 30 | 3.4s
+Epoch  36/100 | train 0.6311/88.16% | val 0.5884/89.44% | best 89.85% @ 30 | 3.5s
+Epoch  37/100 | train 0.6307/88.02% | val 0.5873/89.65% | best 89.85% @ 30 | 3.5s
+Epoch  38/100 | train 0.6225/88.69% | val 0.5887/89.31% | best 89.85% @ 30 | 3.5s
+Epoch  39/100 | train 0.6161/88.97% | val 0.5791/90.00% | best 90.00% @ 39 | 3.5s
+Epoch  40/100 | train 0.6207/88.65% | val 0.5740/89.78% | best 90.00% @ 39 | 3.3s
+Epoch  41/100 | train 0.6144/88.90% | val 0.5806/89.54% | best 90.00% @ 39 | 3.5s
+Epoch  42/100 | train 0.6046/89.27% | val 0.5757/90.00% | best 90.00% @ 39 | 3.3s
+Epoch  43/100 | train 0.6072/89.19% | val 0.5893/89.17% | best 90.00% @ 39 | 3.3s
+Epoch  44/100 | train 0.6111/89.24% | val 0.5844/89.80% | best 90.00% @ 39 | 3.5s
+Epoch  45/100 | train 0.5978/89.69% | val 0.5706/90.04% | best 90.04% @ 45 | 3.4s
+Epoch  46/100 | train 0.6024/89.29% | val 0.5660/90.28% | best 90.28% @ 46 | 3.4s
+Epoch  47/100 | train 0.6010/89.38% | val 0.5722/89.91% | best 90.28% @ 46 | 3.4s
+Epoch  48/100 | train 0.5977/89.56% | val 0.5749/90.02% | best 90.28% @ 46 | 3.4s
+Epoch  49/100 | train 0.5919/89.96% | val 0.5553/90.59% | best 90.59% @ 49 | 3.6s
+Epoch  50/100 | train 0.5916/89.96% | val 0.5556/90.69% | best 90.69% @ 50 | 3.7s
+Epoch  51/100 | train 0.5859/89.96% | val 0.5584/90.50% | best 90.69% @ 50 | 3.4s
+Epoch  52/100 | train 0.5813/90.23% | val 0.5558/90.28% | best 90.69% @ 50 | 3.5s
+Epoch  53/100 | train 0.5871/90.12% | val 0.5480/90.72% | best 90.72% @ 53 | 3.6s
+Epoch  54/100 | train 0.5820/90.41% | val 0.5585/90.37% | best 90.72% @ 53 | 3.6s
+Epoch  55/100 | train 0.5761/90.40% | val 0.5538/90.91% | best 90.91% @ 55 | 3.6s
+Epoch  56/100 | train 0.5708/90.95% | val 0.5617/90.54% | best 90.91% @ 55 | 3.6s
+Epoch  57/100 | train 0.5763/90.64% | val 0.5530/90.96% | best 90.96% @ 57 | 3.6s
+Epoch  58/100 | train 0.5707/90.88% | val 0.5476/90.70% | best 90.96% @ 57 | 3.6s
+Epoch  59/100 | train 0.5696/90.73% | val 0.5579/90.56% | best 90.96% @ 57 | 3.6s
+Epoch  60/100 | train 0.5702/90.51% | val 0.5792/90.07% | best 90.96% @ 57 | 3.6s
+Epoch  61/100 | train 0.5666/91.14% | val 0.5467/91.11% | best 91.11% @ 61 | 3.6s
+Epoch  62/100 | train 0.5634/91.17% | val 0.5579/91.02% | best 91.11% @ 61 | 3.7s
+Epoch  63/100 | train 0.5566/91.43% | val 0.5514/90.37% | best 91.11% @ 61 | 3.6s
+Epoch  64/100 | train 0.5648/90.85% | val 0.5424/91.06% | best 91.11% @ 61 | 3.5s
+Epoch  65/100 | train 0.5511/91.54% | val 0.5440/91.30% | best 91.30% @ 65 | 3.7s
+Epoch  66/100 | train 0.5519/91.66% | val 0.5485/91.02% | best 91.30% @ 65 | 3.5s
+Epoch  67/100 | train 0.5545/91.33% | val 0.5416/91.37% | best 91.37% @ 67 | 3.4s
+Epoch  68/100 | train 0.5477/91.80% | val 0.5410/91.31% | best 91.37% @ 67 | 3.4s
+Epoch  69/100 | train 0.5503/91.64% | val 0.5396/91.48% | best 91.48% @ 69 | 3.5s
+Epoch  70/100 | train 0.5450/91.75% | val 0.5359/91.26% | best 91.48% @ 69 | 3.4s
+Epoch  71/100 | train 0.5473/91.65% | val 0.5373/91.39% | best 91.48% @ 69 | 3.5s
+Epoch  72/100 | train 0.5461/91.73% | val 0.5412/91.30% | best 91.48% @ 69 | 3.4s
+Epoch  73/100 | train 0.5424/91.95% | val 0.5368/91.24% | best 91.48% @ 69 | 3.5s
+Epoch  74/100 | train 0.5420/91.88% | val 0.5428/91.31% | best 91.48% @ 69 | 3.5s
+Epoch  75/100 | train 0.5412/91.99% | val 0.5306/91.52% | best 91.52% @ 75 | 3.5s
+Epoch  76/100 | train 0.5387/92.34% | val 0.5340/91.46% | best 91.52% @ 75 | 3.5s
+Epoch  77/100 | train 0.5481/91.71% | val 0.5402/91.26% | best 91.52% @ 75 | 3.5s
+Epoch  78/100 | train 0.5343/92.33% | val 0.5345/91.28% | best 91.52% @ 75 | 3.6s
+Epoch  79/100 | train 0.5317/92.62% | val 0.5310/91.67% | best 91.67% @ 79 | 3.5s
+Epoch  80/100 | train 0.5376/92.24% | val 0.5466/90.98% | best 91.67% @ 79 | 3.4s
+Epoch  81/100 | train 0.5341/92.48% | val 0.5368/91.46% | best 91.67% @ 79 | 3.5s
+Epoch  82/100 | train 0.5340/92.38% | val 0.5385/91.44% | best 91.67% @ 79 | 3.6s
+Epoch  83/100 | train 0.5369/91.95% | val 0.5344/91.74% | best 91.74% @ 83 | 3.7s
+Epoch  84/100 | train 0.5307/92.50% | val 0.5315/91.67% | best 91.74% @ 83 | 3.6s
+Epoch  85/100 | train 0.5260/92.59% | val 0.5378/91.39% | best 91.74% @ 83 | 3.5s
+Epoch  86/100 | train 0.5217/92.87% | val 0.5423/91.31% | best 91.74% @ 83 | 3.6s
+Epoch  87/100 | train 0.5290/92.49% | val 0.5308/91.72% | best 91.74% @ 83 | 3.6s
+Epoch  88/100 | train 0.5314/92.30% | val 0.5282/91.85% | best 91.85% @ 88 | 3.7s
+Epoch  89/100 | train 0.5256/92.53% | val 0.5360/91.52% | best 91.85% @ 88 | 3.6s
+Epoch  90/100 | train 0.5293/92.34% | val 0.5305/91.74% | best 91.85% @ 88 | 3.6s
+Epoch  91/100 | train 0.5260/92.75% | val 0.5297/91.78% | best 91.85% @ 88 | 3.5s
+Epoch  92/100 | train 0.5279/92.57% | val 0.5294/91.72% | best 91.85% @ 88 | 3.5s
+Epoch  93/100 | train 0.5299/92.49% | val 0.5308/91.76% | best 91.85% @ 88 | 3.6s
+Epoch  94/100 | train 0.5267/92.75% | val 0.5302/91.57% | best 91.85% @ 88 | 3.6s
+Epoch  95/100 | train 0.5271/92.52% | val 0.5304/91.69% | best 91.85% @ 88 | 3.9s
+Epoch  96/100 | train 0.5244/92.76% | val 0.5288/91.57% | best 91.85% @ 88 | 3.6s
+Epoch  97/100 | train 0.5248/92.88% | val 0.5315/91.81% | best 91.85% @ 88 | 3.6s
+Epoch  98/100 | train 0.5209/92.96% | val 0.5319/91.52% | best 91.85% @ 88 | 3.6s
+Epoch  99/100 | train 0.5266/92.63% | val 0.5356/91.56% | best 91.85% @ 88 | 3.5s
+Epoch 100/100 | train 0.5256/92.67% | val 0.5286/91.70% | best 91.85% @ 88 | 3.4s
+[enable_qat] Enabled QAT on 6 layers
+[disable_qat] Disabled QAT on 6 layers
+{
+  "status": "complete",
+  "model": "model2",
+  "kernel_size": 2,
+  "padding": 0,
+  "stride": 2,
+  "seed": 42,
+  "epochs": 100,
+  "batch_size": 64,
+  "weight_bits": 8,
+  "parameter_count": 267944,
+  "macs_per_image": 1051136,
+  "feature_shape_after_stage2": [
+    1,
+    32,
+    8,
+    8
+  ],
+  "alignment_ratio": 0.9964689265536724,
+  "best_epoch": 88,
+  "best_val_accuracy_pct": 91.85185185185185,
+  "best_qat_val_accuracy_pct": 91.85185185185185,
+  "best_float_val_accuracy_pct": 91.88888888888889,
+  "duration_seconds": 355.57690834999084,
+  "completed_at": "2026-07-18T23:35:45.723331+00:00",
+  "output_dir": "/root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model2/k2/seed42/20260719-072949"
+}
+Artifacts: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model3/k3/seed42/20260719-073549
+训练: 16200, 验证: 5400, 留出测试: 5400; workers=4
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8
+  QAT Conv: 3 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015)
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [model3 kernel=3x3] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w8
+  [QATConv2d_v4 QAT  ] stage1.0                     8   3×3        72        72  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage2.0                    16   3×3       144       144  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage3.0                    32   1×1        32        32  100.0%  w8
+  综合硬件对齐率: 99.7% (展平总长度 1531 → 补零后 1536)
+==============================================================================
+Kernel ablation: model3, 3x3, seed=42
+Device: cuda; parameters: 271,144; MACs/image: 1,870,336
+Data: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/data/EuroSAT_RGB; epochs=100; batch=64
+==============================================================================
+Epoch   1/100 | train 7.0974/62.23% | val 1.4226/73.54% | best 73.54% @ 1 | 5.2s
+Epoch   2/100 | train 5.1446/73.87% | val 1.1537/78.69% | best 78.69% @ 2 | 4.0s
+Epoch   3/100 | train 4.9973/74.46% | val 1.2300/79.04% | best 79.04% @ 3 | 4.1s
+Epoch   4/100 | train 4.8222/75.73% | val 1.1881/79.78% | best 79.78% @ 4 | 4.1s
+Epoch   5/100 | train 4.6479/77.41% | val 1.2195/81.20% | best 81.20% @ 5 | 4.1s
+Epoch   6/100 | train 4.6042/77.22% | val 1.1881/81.35% | best 81.35% @ 6 | 4.2s
+Epoch   7/100 | train 4.3375/79.18% | val 1.2186/82.17% | best 82.17% @ 7 | 4.1s
+Epoch   8/100 | train 4.2174/80.09% | val 1.0580/84.89% | best 84.89% @ 8 | 4.0s
+Epoch   9/100 | train 4.0414/80.75% | val 1.3257/80.59% | best 84.89% @ 8 | 4.1s
+Epoch  10/100 | train 3.9486/81.89% | val 1.0898/85.24% | best 85.24% @ 10 | 4.1s
+Epoch  11/100 | train 3.7251/83.49% | val 1.1341/83.43% | best 85.24% @ 10 | 4.0s
+Epoch  12/100 | train 3.7069/83.41% | val 1.1537/83.87% | best 85.24% @ 10 | 4.1s
+Epoch  13/100 | train 3.5806/83.98% | val 1.0866/85.52% | best 85.52% @ 13 | 4.0s
+Epoch  14/100 | train 3.4903/84.84% | val 1.0608/86.35% | best 86.35% @ 14 | 3.9s
+Epoch  15/100 | train 3.4314/85.27% | val 0.9834/87.78% | best 87.78% @ 15 | 4.1s
+Epoch  16/100 | train 3.3528/85.56% | val 1.1643/84.78% | best 87.78% @ 15 | 4.4s
+Epoch  17/100 | train 3.3085/85.85% | val 1.0683/87.00% | best 87.78% @ 15 | 4.4s
+Epoch  18/100 | train 3.3138/85.76% | val 1.0367/87.17% | best 87.78% @ 15 | 4.0s
+Epoch  19/100 | train 3.2772/85.77% | val 1.0365/86.54% | best 87.78% @ 15 | 4.0s
+Epoch  20/100 | train 3.1867/86.64% | val 0.9987/87.80% | best 87.80% @ 20 | 4.0s
+Epoch  21/100 | train 3.0596/87.40% | val 0.9776/88.87% | best 88.87% @ 21 | 3.8s
+Epoch  22/100 | train 3.0623/87.51% | val 0.9666/89.31% | best 89.31% @ 22 | 4.1s
+Epoch  23/100 | train 3.0229/87.67% | val 1.0143/88.04% | best 89.31% @ 22 | 4.1s
+Epoch  24/100 | train 2.9798/87.86% | val 0.9540/88.96% | best 89.31% @ 22 | 4.3s
+Epoch  25/100 | train 2.9872/87.59% | val 1.0684/87.19% | best 89.31% @ 22 | 4.0s
+Epoch  26/100 | train 2.8760/88.49% | val 1.0104/88.44% | best 89.31% @ 22 | 4.2s
+Epoch  27/100 | train 2.9282/88.19% | val 1.0615/87.59% | best 89.31% @ 22 | 4.2s
+Epoch  28/100 | train 2.8622/88.59% | val 0.9841/89.15% | best 89.31% @ 22 | 4.2s
+Epoch  29/100 | train 2.8629/88.79% | val 0.9694/88.35% | best 89.31% @ 22 | 4.0s
+Epoch  30/100 | train 2.7498/89.38% | val 0.8990/90.59% | best 90.59% @ 30 | 3.8s
+Epoch  31/100 | train 2.7361/89.25% | val 0.9405/89.94% | best 90.59% @ 30 | 4.0s
+Epoch  32/100 | train 2.7627/89.17% | val 0.9436/89.91% | best 90.59% @ 30 | 4.1s
+Epoch  33/100 | train 2.6730/89.72% | val 0.9558/89.80% | best 90.59% @ 30 | 4.1s
+Epoch  34/100 | train 2.7249/89.35% | val 0.9584/89.78% | best 90.59% @ 30 | 3.9s
+Epoch  35/100 | train 2.6348/90.01% | val 0.9334/89.69% | best 90.59% @ 30 | 3.8s
+Epoch  36/100 | train 2.6547/90.03% | val 0.9317/90.33% | best 90.59% @ 30 | 4.0s
+Epoch  37/100 | train 2.6337/89.88% | val 0.9723/89.81% | best 90.59% @ 30 | 4.2s
+Epoch  38/100 | train 2.5423/90.74% | val 0.9124/91.00% | best 91.00% @ 38 | 4.1s
+Epoch  39/100 | train 2.5343/90.64% | val 0.9289/89.93% | best 91.00% @ 38 | 3.9s
+Epoch  40/100 | train 2.5964/90.08% | val 0.9435/90.20% | best 91.00% @ 38 | 3.8s
+Epoch  41/100 | train 2.4994/90.67% | val 0.9449/90.67% | best 91.00% @ 38 | 3.9s
+Epoch  42/100 | train 2.5098/90.73% | val 0.8942/90.93% | best 91.00% @ 38 | 4.0s
+Epoch  43/100 | train 2.5084/90.71% | val 0.8798/91.39% | best 91.39% @ 43 | 3.4s
+Epoch  44/100 | train 2.5229/90.83% | val 0.9178/90.67% | best 91.39% @ 43 | 3.9s
+Epoch  45/100 | train 2.4784/91.21% | val 0.9007/91.19% | best 91.39% @ 43 | 4.0s
+Epoch  46/100 | train 2.4233/91.33% | val 0.9225/90.78% | best 91.39% @ 43 | 4.0s
+Epoch  47/100 | train 2.4490/91.15% | val 0.8675/91.35% | best 91.39% @ 43 | 4.1s
+Epoch  48/100 | train 2.3976/91.53% | val 0.9050/91.33% | best 91.39% @ 43 | 4.2s
+Epoch  49/100 | train 2.3754/91.69% | val 0.8678/91.56% | best 91.56% @ 49 | 4.1s
+Epoch  50/100 | train 2.4010/91.19% | val 0.8961/91.89% | best 91.89% @ 50 | 4.3s
+Epoch  51/100 | train 2.3370/91.96% | val 0.8686/91.81% | best 91.89% @ 50 | 4.3s
+Epoch  52/100 | train 2.3218/92.03% | val 0.8878/91.91% | best 91.91% @ 52 | 4.0s
+Epoch  53/100 | train 2.3721/91.67% | val 0.8914/91.69% | best 91.91% @ 52 | 4.1s
+Epoch  54/100 | train 2.3200/92.20% | val 0.8704/91.67% | best 91.91% @ 52 | 4.0s
+Epoch  55/100 | train 2.2724/92.35% | val 0.8848/92.04% | best 92.04% @ 55 | 4.2s
+Epoch  56/100 | train 2.2308/92.40% | val 0.8871/91.50% | best 92.04% @ 55 | 3.9s
+Epoch  57/100 | train 2.2360/92.42% | val 0.8658/92.48% | best 92.48% @ 57 | 4.0s
+Epoch  58/100 | train 2.2437/92.44% | val 0.8531/92.04% | best 92.48% @ 57 | 4.1s
+Epoch  59/100 | train 2.2463/92.17% | val 0.8746/91.74% | best 92.48% @ 57 | 4.1s
+Epoch  60/100 | train 2.2440/92.37% | val 0.8905/91.30% | best 92.48% @ 57 | 3.8s
+Epoch  61/100 | train 2.2419/92.56% | val 0.8893/91.44% | best 92.48% @ 57 | 4.0s
+Epoch  62/100 | train 2.1797/92.82% | val 0.8560/92.17% | best 92.48% @ 57 | 4.2s
+Epoch  63/100 | train 2.1930/92.65% | val 0.8506/92.39% | best 92.48% @ 57 | 4.0s
+Epoch  64/100 | train 2.2173/92.60% | val 0.8648/91.83% | best 92.48% @ 57 | 4.0s
+Epoch  65/100 | train 2.1550/92.91% | val 0.8612/92.24% | best 92.48% @ 57 | 3.8s
+Epoch  66/100 | train 2.1608/92.98% | val 0.8634/91.94% | best 92.48% @ 57 | 3.9s
+Epoch  67/100 | train 2.1539/93.02% | val 0.8597/91.81% | best 92.48% @ 57 | 4.1s
+Epoch  68/100 | train 2.1230/93.26% | val 0.8848/92.04% | best 92.48% @ 57 | 3.9s
+Epoch  69/100 | train 2.1372/92.98% | val 0.8612/92.07% | best 92.48% @ 57 | 4.0s
+Epoch  70/100 | train 2.1082/93.38% | val 0.8539/92.46% | best 92.48% @ 57 | 4.1s
+Epoch  71/100 | train 2.0764/93.44% | val 0.8465/92.69% | best 92.69% @ 71 | 4.0s
+Epoch  72/100 | train 2.0806/93.46% | val 0.8497/92.31% | best 92.69% @ 71 | 4.0s
+Epoch  73/100 | train 2.1118/93.07% | val 0.8509/92.50% | best 92.69% @ 71 | 3.8s
+Epoch  74/100 | train 2.1060/93.20% | val 0.8351/92.70% | best 92.70% @ 74 | 3.9s
+Epoch  75/100 | train 2.0830/93.38% | val 0.8265/92.81% | best 92.81% @ 75 | 4.2s
+Epoch  76/100 | train 2.0605/93.66% | val 0.8414/92.63% | best 92.81% @ 75 | 4.0s
+Epoch  77/100 | train 2.0857/93.42% | val 0.8298/92.80% | best 92.81% @ 75 | 4.2s
+Epoch  78/100 | train 2.0418/93.63% | val 0.8426/92.94% | best 92.94% @ 78 | 3.9s
+Epoch  79/100 | train 2.0564/93.62% | val 0.8334/92.80% | best 92.94% @ 78 | 4.1s
+Epoch  80/100 | train 2.0268/93.77% | val 0.8323/92.43% | best 92.94% @ 78 | 4.1s
+Epoch  81/100 | train 2.0277/93.89% | val 0.8293/92.93% | best 92.94% @ 78 | 4.0s
+Epoch  82/100 | train 2.0202/93.91% | val 0.8489/93.20% | best 93.20% @ 82 | 4.0s
+Epoch  83/100 | train 2.0185/93.81% | val 0.8568/92.43% | best 93.20% @ 82 | 4.2s
+Epoch  84/100 | train 2.0041/93.82% | val 0.8329/92.93% | best 93.20% @ 82 | 4.0s
+Epoch  85/100 | train 2.0092/93.73% | val 0.8370/92.54% | best 93.20% @ 82 | 4.1s
+Epoch  86/100 | train 2.0039/93.90% | val 0.8408/92.46% | best 93.20% @ 82 | 3.7s
+Epoch  87/100 | train 1.9931/94.01% | val 0.8328/93.19% | best 93.20% @ 82 | 3.8s
+Epoch  88/100 | train 2.0078/93.79% | val 0.8351/93.24% | best 93.24% @ 88 | 4.1s
+Epoch  89/100 | train 2.0143/93.91% | val 0.8243/92.94% | best 93.24% @ 88 | 4.2s
+Epoch  90/100 | train 1.9929/93.65% | val 0.8309/93.31% | best 93.31% @ 90 | 4.0s
+Epoch  91/100 | train 1.9890/94.07% | val 0.8321/93.07% | best 93.31% @ 90 | 3.9s
+Epoch  92/100 | train 1.9703/94.11% | val 0.8319/93.17% | best 93.31% @ 90 | 4.5s
+Epoch  93/100 | train 1.9984/94.05% | val 0.8361/93.19% | best 93.31% @ 90 | 4.1s
+Epoch  94/100 | train 1.9839/93.86% | val 0.8259/93.00% | best 93.31% @ 90 | 3.9s
+Epoch  95/100 | train 1.9847/94.01% | val 0.8250/92.98% | best 93.31% @ 90 | 3.8s
+Epoch  96/100 | train 1.9865/94.23% | val 0.8339/92.96% | best 93.31% @ 90 | 3.9s
+Epoch  97/100 | train 1.9598/94.25% | val 0.8380/93.15% | best 93.31% @ 90 | 4.3s
+Epoch  98/100 | train 1.9362/94.17% | val 0.8344/93.07% | best 93.31% @ 90 | 4.2s
+Epoch  99/100 | train 1.9998/93.80% | val 0.8354/93.17% | best 93.31% @ 90 | 4.3s
+Epoch 100/100 | train 1.9724/94.20% | val 0.8222/93.24% | best 93.31% @ 90 | 4.3s
+[enable_qat] Enabled QAT on 6 layers
+[disable_qat] Disabled QAT on 6 layers
+{
+  "status": "complete",
+  "model": "model3",
+  "kernel_size": 3,
+  "padding": 1,
+  "stride": 2,
+  "seed": 42,
+  "epochs": 100,
+  "batch_size": 64,
+  "weight_bits": 8,
+  "parameter_count": 271144,
+  "macs_per_image": 1870336,
+  "feature_shape_after_stage2": [
+    1,
+    32,
+    8,
+    8
+  ],
+  "alignment_ratio": 0.9967447916666666,
+  "best_epoch": 90,
+  "best_val_accuracy_pct": 93.31481481481482,
+  "best_qat_val_accuracy_pct": 93.31481481481482,
+  "best_float_val_accuracy_pct": 93.16666666666666,
+  "duration_seconds": 407.0015778541565,
+  "completed_at": "2026-07-18T23:42:37.239588+00:00",
+  "output_dir": "/root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model3/k3/seed42/20260719-073549"
+}
+Artifacts: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model3/k2/seed42/20260719-074241
+训练: 16200, 验证: 5400, 留出测试: 5400; workers=4
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8
+  QAT Conv: 3 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015)
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [model3 kernel=2x2] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w8
+  [QATConv2d_v4 QAT  ] stage1.0                     8   2×2        32        32  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage2.0                    16   2×2        64        64  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage3.0                    32   1×1        32        32  100.0%  w8
+  综合硬件对齐率: 99.6% (展平总长度 1411 → 补零后 1416)
+==============================================================================
+Kernel ablation: model3, 2x2, seed=42
+Device: cuda; parameters: 267,944; MACs/image: 1,051,136
+Data: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/data/EuroSAT_RGB; epochs=100; batch=64
+==============================================================================
+Epoch   1/100 | train 7.5323/59.59% | val 1.4197/72.94% | best 72.94% @ 1 | 5.3s
+Epoch   2/100 | train 5.5206/72.71% | val 1.2482/76.70% | best 76.70% @ 2 | 4.1s
+Epoch   3/100 | train 5.3121/73.62% | val 1.2237/78.67% | best 78.67% @ 3 | 4.0s
+Epoch   4/100 | train 5.1058/74.89% | val 1.2440/78.52% | best 78.67% @ 3 | 4.3s
+Epoch   5/100 | train 4.9394/75.92% | val 1.2027/80.65% | best 80.65% @ 5 | 4.3s
+Epoch   6/100 | train 4.7718/76.95% | val 1.1349/80.28% | best 80.65% @ 5 | 4.3s
+Epoch   7/100 | train 4.5708/78.40% | val 1.1694/81.15% | best 81.15% @ 7 | 4.1s
+Epoch   8/100 | train 4.4340/79.17% | val 1.0545/83.78% | best 83.78% @ 8 | 4.1s
+Epoch   9/100 | train 4.2606/80.36% | val 1.3461/80.41% | best 83.78% @ 8 | 4.1s
+Epoch  10/100 | train 4.1937/80.93% | val 1.0498/85.74% | best 85.74% @ 10 | 4.1s
+Epoch  11/100 | train 3.9192/82.70% | val 1.0524/85.31% | best 85.74% @ 10 | 4.1s
+Epoch  12/100 | train 3.9862/81.70% | val 1.1703/83.69% | best 85.74% @ 10 | 4.3s
+Epoch  13/100 | train 3.8442/82.93% | val 1.0341/86.22% | best 86.22% @ 13 | 4.2s
+Epoch  14/100 | train 3.7549/83.60% | val 0.9890/87.00% | best 87.00% @ 14 | 4.2s
+Epoch  15/100 | train 3.7158/84.04% | val 1.0203/86.94% | best 87.00% @ 14 | 4.4s
+Epoch  16/100 | train 3.6207/84.30% | val 1.0107/87.41% | best 87.41% @ 16 | 4.4s
+Epoch  17/100 | train 3.6011/84.27% | val 1.0077/87.46% | best 87.46% @ 17 | 4.1s
+Epoch  18/100 | train 3.5279/84.90% | val 1.0834/86.13% | best 87.46% @ 17 | 4.2s
+Epoch  19/100 | train 3.5233/84.81% | val 1.0551/86.61% | best 87.46% @ 17 | 4.5s
+Epoch  20/100 | train 3.4373/85.41% | val 1.0349/87.11% | best 87.46% @ 17 | 4.2s
+Epoch  21/100 | train 3.3215/86.10% | val 1.0127/87.96% | best 87.96% @ 21 | 4.3s
+Epoch  22/100 | train 3.3332/85.90% | val 0.9744/88.52% | best 88.52% @ 22 | 4.2s
+Epoch  23/100 | train 3.2868/86.25% | val 1.0244/87.24% | best 88.52% @ 22 | 4.2s
+Epoch  24/100 | train 3.2565/86.28% | val 0.9622/89.02% | best 89.02% @ 24 | 4.2s
+Epoch  25/100 | train 3.3071/86.41% | val 1.1718/84.11% | best 89.02% @ 24 | 4.0s
+Epoch  26/100 | train 3.2279/86.75% | val 1.0405/87.67% | best 89.02% @ 24 | 4.1s
+Epoch  27/100 | train 3.2153/86.70% | val 0.9851/88.48% | best 89.02% @ 24 | 4.1s
+Epoch  28/100 | train 3.1359/87.53% | val 1.0051/88.54% | best 89.02% @ 24 | 4.1s
+Epoch  29/100 | train 3.1932/86.67% | val 0.9439/88.70% | best 89.02% @ 24 | 4.2s
+Epoch  30/100 | train 3.0361/88.09% | val 1.0032/88.26% | best 89.02% @ 24 | 4.2s
+Epoch  31/100 | train 3.0693/87.73% | val 0.9691/89.52% | best 89.52% @ 31 | 4.0s
+Epoch  32/100 | train 3.0871/87.67% | val 0.9669/89.19% | best 89.52% @ 31 | 4.3s
+Epoch  33/100 | train 3.0262/87.65% | val 0.9834/88.52% | best 89.52% @ 31 | 4.0s
+Epoch  34/100 | train 3.0212/87.59% | val 0.9747/89.17% | best 89.52% @ 31 | 3.9s
+Epoch  35/100 | train 2.9543/88.12% | val 0.9493/89.94% | best 89.94% @ 35 | 4.1s
+Epoch  36/100 | train 2.9632/88.06% | val 0.9461/89.98% | best 89.98% @ 36 | 4.1s
+Epoch  37/100 | train 2.9683/88.22% | val 1.0277/88.26% | best 89.98% @ 36 | 4.0s
+Epoch  38/100 | train 2.9328/88.27% | val 0.9306/90.39% | best 90.39% @ 38 | 4.0s
+Epoch  39/100 | train 2.8929/88.36% | val 0.9474/89.85% | best 90.39% @ 38 | 4.3s
+Epoch  40/100 | train 2.9112/88.46% | val 1.0101/88.26% | best 90.39% @ 38 | 4.2s
+Epoch  41/100 | train 2.8559/88.77% | val 0.9848/89.72% | best 90.39% @ 38 | 3.9s
+Epoch  42/100 | train 2.8353/89.07% | val 0.9364/90.57% | best 90.57% @ 42 | 4.3s
+Epoch  43/100 | train 2.8419/89.14% | val 0.9099/90.33% | best 90.57% @ 42 | 4.1s
+Epoch  44/100 | train 2.8205/89.48% | val 0.9422/90.24% | best 90.57% @ 42 | 4.1s
+Epoch  45/100 | train 2.7732/89.40% | val 0.9416/90.17% | best 90.57% @ 42 | 4.3s
+Epoch  46/100 | train 2.8180/89.07% | val 0.9452/90.26% | best 90.57% @ 42 | 4.2s
+Epoch  47/100 | train 2.8220/88.88% | val 0.9268/90.26% | best 90.57% @ 42 | 4.3s
+Epoch  48/100 | train 2.7576/89.53% | val 0.9381/90.20% | best 90.57% @ 42 | 4.2s
+Epoch  49/100 | train 2.7032/89.80% | val 0.8921/90.87% | best 90.87% @ 49 | 4.3s
+Epoch  50/100 | train 2.7507/89.36% | val 0.9440/90.20% | best 90.87% @ 49 | 4.2s
+Epoch  51/100 | train 2.7052/89.90% | val 0.9100/90.87% | best 90.87% @ 49 | 4.2s
+Epoch  52/100 | train 2.6406/90.35% | val 0.9180/90.72% | best 90.87% @ 49 | 4.2s
+Epoch  53/100 | train 2.7164/89.75% | val 0.9253/90.50% | best 90.87% @ 49 | 4.1s
+Epoch  54/100 | train 2.6968/89.90% | val 0.9191/90.94% | best 90.94% @ 54 | 3.8s
+Epoch  55/100 | train 2.6360/90.12% | val 0.9122/90.83% | best 90.94% @ 54 | 4.1s
+Epoch  56/100 | train 2.5941/90.59% | val 0.9212/90.67% | best 90.94% @ 54 | 4.2s
+Epoch  57/100 | train 2.6319/90.08% | val 0.9125/91.15% | best 91.15% @ 57 | 4.4s
+Epoch  58/100 | train 2.6199/90.19% | val 0.8879/91.44% | best 91.44% @ 58 | 4.1s
+Epoch  59/100 | train 2.5942/90.44% | val 0.8803/91.39% | best 91.44% @ 58 | 4.0s
+Epoch  60/100 | train 2.6255/90.37% | val 0.9348/90.80% | best 91.44% @ 58 | 4.2s
+Epoch  61/100 | train 2.5954/90.43% | val 0.9136/91.00% | best 91.44% @ 58 | 3.7s
+Epoch  62/100 | train 2.5274/90.90% | val 0.9374/90.41% | best 91.44% @ 58 | 3.8s
+Epoch  63/100 | train 2.5682/90.48% | val 0.9172/90.98% | best 91.44% @ 58 | 4.0s
+Epoch  64/100 | train 2.5885/90.38% | val 0.9213/90.83% | best 91.44% @ 58 | 4.2s
+Epoch  65/100 | train 2.5365/90.34% | val 0.8863/91.28% | best 91.44% @ 58 | 4.1s
+Epoch  66/100 | train 2.5344/90.77% | val 0.9111/91.04% | best 91.44% @ 58 | 4.2s
+Epoch  67/100 | train 2.5286/90.98% | val 0.8809/91.15% | best 91.44% @ 58 | 4.1s
+Epoch  68/100 | train 2.4716/91.36% | val 0.9225/91.30% | best 91.44% @ 58 | 4.4s
+Epoch  69/100 | train 2.5017/91.07% | val 0.8771/91.46% | best 91.46% @ 69 | 4.2s
+Epoch  70/100 | train 2.4957/91.11% | val 0.8845/91.33% | best 91.46% @ 69 | 4.0s
+Epoch  71/100 | train 2.4907/91.32% | val 0.9085/91.41% | best 91.46% @ 69 | 4.1s
+Epoch  72/100 | train 2.4542/91.25% | val 0.8950/91.33% | best 91.46% @ 69 | 4.3s
+Epoch  73/100 | train 2.4862/91.14% | val 0.8901/91.30% | best 91.46% @ 69 | 4.2s
+Epoch  74/100 | train 2.4520/91.23% | val 0.9015/91.06% | best 91.46% @ 69 | 4.3s
+Epoch  75/100 | train 2.4471/91.31% | val 0.8798/91.69% | best 91.69% @ 75 | 4.1s
+Epoch  76/100 | train 2.4477/91.23% | val 0.8830/91.44% | best 91.69% @ 75 | 4.1s
+Epoch  77/100 | train 2.5035/91.41% | val 0.8711/91.54% | best 91.69% @ 75 | 4.2s
+Epoch  78/100 | train 2.4132/91.68% | val 0.9011/91.54% | best 91.69% @ 75 | 4.2s
+Epoch  79/100 | train 2.4171/91.54% | val 0.8793/91.57% | best 91.69% @ 75 | 4.2s
+Epoch  80/100 | train 2.4122/91.39% | val 0.8839/91.17% | best 91.69% @ 75 | 4.1s
+Epoch  81/100 | train 2.4071/91.65% | val 0.8916/91.39% | best 91.69% @ 75 | 4.3s
+Epoch  82/100 | train 2.3981/91.61% | val 0.9025/91.61% | best 91.69% @ 75 | 4.4s
+Epoch  83/100 | train 2.4034/91.37% | val 0.8932/91.80% | best 91.80% @ 83 | 4.2s
+Epoch  84/100 | train 2.3699/91.80% | val 0.8932/91.72% | best 91.80% @ 83 | 4.1s
+Epoch  85/100 | train 2.3569/91.92% | val 0.8844/91.33% | best 91.80% @ 83 | 4.2s
+Epoch  86/100 | train 2.3758/91.64% | val 0.9004/91.06% | best 91.80% @ 83 | 4.3s
+Epoch  87/100 | train 2.3765/91.73% | val 0.8850/91.93% | best 91.93% @ 87 | 4.2s
+Epoch  88/100 | train 2.3645/91.73% | val 0.8935/91.83% | best 91.93% @ 87 | 4.1s
+Epoch  89/100 | train 2.3934/91.78% | val 0.8870/91.57% | best 91.93% @ 87 | 4.0s
+Epoch  90/100 | train 2.3917/91.96% | val 0.8850/91.70% | best 91.93% @ 87 | 4.2s
+Epoch  91/100 | train 2.3722/91.76% | val 0.8921/91.69% | best 91.93% @ 87 | 4.1s
+Epoch  92/100 | train 2.3474/91.90% | val 0.8834/91.63% | best 91.93% @ 87 | 3.9s
+Epoch  93/100 | train 2.3707/91.98% | val 0.8915/92.00% | best 92.00% @ 93 | 3.9s
+Epoch  94/100 | train 2.3778/91.72% | val 0.8868/91.81% | best 92.00% @ 93 | 4.1s
+Epoch  95/100 | train 2.3719/91.74% | val 0.8852/91.48% | best 92.00% @ 93 | 4.0s
+Epoch  96/100 | train 2.3389/92.06% | val 0.8874/91.72% | best 92.00% @ 93 | 4.2s
+Epoch  97/100 | train 2.3517/91.91% | val 0.8923/91.80% | best 92.00% @ 93 | 4.0s
+Epoch  98/100 | train 2.3235/92.16% | val 0.8814/91.72% | best 92.00% @ 93 | 3.9s
+Epoch  99/100 | train 2.3511/92.18% | val 0.8956/91.63% | best 92.00% @ 93 | 4.1s
+Epoch 100/100 | train 2.3633/91.72% | val 0.8789/91.72% | best 92.00% @ 93 | 4.0s
+[enable_qat] Enabled QAT on 6 layers
+[disable_qat] Disabled QAT on 6 layers
+{
+  "status": "complete",
+  "model": "model3",
+  "kernel_size": 2,
+  "padding": 0,
+  "stride": 2,
+  "seed": 42,
+  "epochs": 100,
+  "batch_size": 64,
+  "weight_bits": 8,
+  "parameter_count": 267944,
+  "macs_per_image": 1051136,
+  "feature_shape_after_stage2": [
+    1,
+    32,
+    8,
+    8
+  ],
+  "alignment_ratio": 0.9964689265536724,
+  "best_epoch": 93,
+  "best_val_accuracy_pct": 92.0,
+  "best_qat_val_accuracy_pct": 92.0,
+  "best_float_val_accuracy_pct": 91.9074074074074,
+  "duration_seconds": 416.93712043762207,
+  "completed_at": "2026-07-18T23:49:38.628879+00:00",
+  "output_dir": "/root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model3/k2/seed42/20260719-074241"
+}
+Artifacts: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model2/k3/seed43/20260719-074942
+训练: 16200, 验证: 5400, 留出测试: 5400; workers=4
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8
+  QAT Conv: 3 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015)
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [model2 kernel=3x3] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w8
+  [QATConv2d_v4 QAT  ] stage1.0                     8   3×3        72        72  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage2.0                    16   3×3       144       144  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage3.0                    32   1×1        32        32  100.0%  w8
+  综合硬件对齐率: 99.7% (展平总长度 1531 → 补零后 1536)
+==============================================================================
+Kernel ablation: model2, 3x3, seed=43
+Device: cuda; parameters: 271,144; MACs/image: 1,870,336
+Data: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/data/EuroSAT_RGB; epochs=100; batch=64
+==============================================================================
+Epoch   1/100 | train 1.2716/61.31% | val 0.9798/73.80% | best 73.80% @ 1 | 4.3s
+Epoch   2/100 | train 0.9504/74.71% | val 0.8201/79.57% | best 79.57% @ 2 | 3.4s
+Epoch   3/100 | train 0.9222/75.88% | val 0.8650/76.33% | best 79.57% @ 2 | 3.3s
+Epoch   4/100 | train 0.9000/76.49% | val 0.8575/77.26% | best 79.57% @ 2 | 3.3s
+Epoch   5/100 | train 0.8923/76.59% | val 0.8024/79.85% | best 79.85% @ 5 | 3.4s
+Epoch   6/100 | train 0.8824/77.44% | val 0.7842/80.41% | best 80.41% @ 6 | 3.4s
+Epoch   7/100 | train 0.8343/79.67% | val 0.9618/73.67% | best 80.41% @ 6 | 3.5s
+Epoch   8/100 | train 0.8106/80.73% | val 0.7411/82.07% | best 82.07% @ 8 | 3.6s
+Epoch   9/100 | train 0.7818/81.77% | val 0.7496/82.65% | best 82.65% @ 9 | 3.4s
+Epoch  10/100 | train 0.7722/82.01% | val 0.7450/82.24% | best 82.65% @ 9 | 3.3s
+Epoch  11/100 | train 0.7386/83.61% | val 0.6949/83.56% | best 83.56% @ 11 | 3.4s
+Epoch  12/100 | train 0.7343/83.85% | val 0.6815/85.31% | best 85.31% @ 12 | 3.4s
+Epoch  13/100 | train 0.7347/83.92% | val 0.6756/85.24% | best 85.31% @ 12 | 3.6s
+Epoch  14/100 | train 0.7062/84.64% | val 0.7292/82.80% | best 85.31% @ 12 | 3.4s
+Epoch  15/100 | train 0.6919/85.27% | val 0.6924/84.59% | best 85.31% @ 12 | 3.4s
+Epoch  16/100 | train 0.7036/84.90% | val 0.6317/87.11% | best 87.11% @ 16 | 3.4s
+Epoch  17/100 | train 0.6814/86.01% | val 0.6318/87.37% | best 87.37% @ 17 | 3.3s
+Epoch  18/100 | train 0.6756/86.23% | val 0.6647/85.70% | best 87.37% @ 17 | 3.4s
+Epoch  19/100 | train 0.6657/86.73% | val 0.5999/88.44% | best 88.44% @ 19 | 3.3s
+Epoch  20/100 | train 0.6566/87.06% | val 0.6075/88.07% | best 88.44% @ 19 | 3.3s
+Epoch  21/100 | train 0.6456/87.62% | val 0.6578/86.13% | best 88.44% @ 19 | 3.3s
+Epoch  22/100 | train 0.6434/87.48% | val 0.5932/89.20% | best 89.20% @ 22 | 3.3s
+Epoch  23/100 | train 0.6348/88.22% | val 0.6454/86.70% | best 89.20% @ 22 | 3.3s
+Epoch  24/100 | train 0.6420/87.56% | val 0.6236/87.52% | best 89.20% @ 22 | 3.3s
+Epoch  25/100 | train 0.6229/88.38% | val 0.6165/87.52% | best 89.20% @ 22 | 3.3s
+Epoch  26/100 | train 0.6159/88.82% | val 0.6702/85.78% | best 89.20% @ 22 | 3.3s
+Epoch  27/100 | train 0.6119/88.84% | val 0.5850/88.89% | best 89.20% @ 22 | 3.3s
+Epoch  28/100 | train 0.6097/89.32% | val 0.5824/89.19% | best 89.20% @ 22 | 3.4s
+Epoch  29/100 | train 0.6131/88.77% | val 0.6254/87.54% | best 89.20% @ 22 | 3.3s
+Epoch  30/100 | train 0.6013/89.15% | val 0.5833/89.39% | best 89.39% @ 30 | 3.5s
+Epoch  31/100 | train 0.5989/89.20% | val 0.5965/88.80% | best 89.39% @ 30 | 3.4s
+Epoch  32/100 | train 0.5951/89.61% | val 0.5573/90.24% | best 90.24% @ 32 | 3.4s
+Epoch  33/100 | train 0.5848/90.11% | val 0.5785/89.89% | best 90.24% @ 32 | 3.4s
+Epoch  34/100 | train 0.5962/89.61% | val 0.5834/89.57% | best 90.24% @ 32 | 3.4s
+Epoch  35/100 | train 0.5744/90.52% | val 0.5751/89.74% | best 90.24% @ 32 | 3.3s
+Epoch  36/100 | train 0.5744/90.70% | val 0.5703/89.81% | best 90.24% @ 32 | 3.3s
+Epoch  37/100 | train 0.5713/90.58% | val 0.5554/90.69% | best 90.69% @ 37 | 3.3s
+Epoch  38/100 | train 0.5657/90.82% | val 0.5576/90.37% | best 90.69% @ 37 | 3.4s
+Epoch  39/100 | train 0.5645/90.78% | val 0.5560/90.56% | best 90.69% @ 37 | 3.3s
+Epoch  40/100 | train 0.5670/90.85% | val 0.5591/90.22% | best 90.69% @ 37 | 3.3s
+Epoch  41/100 | train 0.5533/91.59% | val 0.5626/90.07% | best 90.69% @ 37 | 3.4s
+Epoch  42/100 | train 0.5532/91.69% | val 0.5816/89.26% | best 90.69% @ 37 | 3.4s
+Epoch  43/100 | train 0.5549/91.31% | val 0.5770/90.09% | best 90.69% @ 37 | 3.2s
+Epoch  44/100 | train 0.5510/91.56% | val 0.5456/90.69% | best 90.69% @ 37 | 3.5s
+Epoch  45/100 | train 0.5488/91.44% | val 0.5506/90.65% | best 90.69% @ 37 | 3.5s
+Epoch  46/100 | train 0.5432/91.95% | val 0.5417/91.44% | best 91.44% @ 46 | 3.5s
+Epoch  47/100 | train 0.5387/92.36% | val 0.5514/90.96% | best 91.44% @ 46 | 3.6s
+Epoch  48/100 | train 0.5401/92.14% | val 0.5397/91.26% | best 91.44% @ 46 | 3.6s
+Epoch  49/100 | train 0.5388/91.70% | val 0.5397/91.07% | best 91.44% @ 46 | 3.6s
+Epoch  50/100 | train 0.5376/92.11% | val 0.5463/91.13% | best 91.44% @ 46 | 3.7s
+Epoch  51/100 | train 0.5335/92.39% | val 0.5415/91.39% | best 91.44% @ 46 | 3.6s
+Epoch  52/100 | train 0.5345/92.20% | val 0.5396/90.83% | best 91.44% @ 46 | 3.6s
+Epoch  53/100 | train 0.5233/93.06% | val 0.5281/91.46% | best 91.46% @ 53 | 3.6s
+Epoch  54/100 | train 0.5213/92.70% | val 0.5328/91.48% | best 91.48% @ 54 | 3.5s
+Epoch  55/100 | train 0.5253/92.47% | val 0.5413/91.26% | best 91.48% @ 54 | 3.6s
+Epoch  56/100 | train 0.5213/92.96% | val 0.5317/91.44% | best 91.48% @ 54 | 3.6s
+Epoch  57/100 | train 0.5238/92.86% | val 0.5261/91.63% | best 91.63% @ 57 | 3.5s
+Epoch  58/100 | train 0.5116/93.08% | val 0.5299/91.52% | best 91.63% @ 57 | 3.3s
+Epoch  59/100 | train 0.5211/92.69% | val 0.5239/91.74% | best 91.74% @ 59 | 3.4s
+Epoch  60/100 | train 0.5079/93.26% | val 0.5308/91.78% | best 91.78% @ 60 | 3.5s
+Epoch  61/100 | train 0.5093/93.18% | val 0.5272/91.69% | best 91.78% @ 60 | 3.4s
+Epoch  62/100 | train 0.5130/93.14% | val 0.5271/91.94% | best 91.94% @ 62 | 3.6s
+Epoch  63/100 | train 0.5040/93.66% | val 0.5189/91.83% | best 91.94% @ 62 | 3.5s
+Epoch  64/100 | train 0.5087/93.33% | val 0.5153/92.37% | best 92.37% @ 64 | 3.5s
+Epoch  65/100 | train 0.5074/93.44% | val 0.5137/92.22% | best 92.37% @ 64 | 3.6s
+Epoch  66/100 | train 0.5045/93.49% | val 0.5156/91.85% | best 92.37% @ 64 | 3.6s
+Epoch  67/100 | train 0.4930/93.83% | val 0.5237/92.06% | best 92.37% @ 64 | 3.4s
+Epoch  68/100 | train 0.4982/93.85% | val 0.5157/91.89% | best 92.37% @ 64 | 3.6s
+Epoch  69/100 | train 0.4980/93.85% | val 0.5192/91.85% | best 92.37% @ 64 | 3.6s
+Epoch  70/100 | train 0.4990/93.82% | val 0.5142/91.69% | best 92.37% @ 64 | 3.3s
+Epoch  71/100 | train 0.4921/93.86% | val 0.5157/92.19% | best 92.37% @ 64 | 3.6s
+Epoch  72/100 | train 0.4884/94.12% | val 0.5239/91.87% | best 92.37% @ 64 | 3.5s
+Epoch  73/100 | train 0.4867/94.35% | val 0.5169/92.07% | best 92.37% @ 64 | 3.5s
+Epoch  74/100 | train 0.4841/94.37% | val 0.5134/92.07% | best 92.37% @ 64 | 3.4s
+Epoch  75/100 | train 0.4841/94.40% | val 0.5130/92.22% | best 92.37% @ 64 | 3.4s
+Epoch  76/100 | train 0.4836/94.59% | val 0.5203/92.02% | best 92.37% @ 64 | 3.5s
+Epoch  77/100 | train 0.4835/94.54% | val 0.5130/92.17% | best 92.37% @ 64 | 3.6s
+Epoch  78/100 | train 0.4790/94.67% | val 0.5091/92.39% | best 92.39% @ 78 | 3.4s
+Epoch  79/100 | train 0.4812/94.48% | val 0.5132/92.54% | best 92.54% @ 79 | 3.6s
+Epoch  80/100 | train 0.4833/94.38% | val 0.5062/92.26% | best 92.54% @ 79 | 3.5s
+Epoch  81/100 | train 0.4795/94.43% | val 0.5085/92.44% | best 92.54% @ 79 | 3.4s
+Epoch  82/100 | train 0.4772/94.65% | val 0.5104/92.15% | best 92.54% @ 79 | 3.4s
+Epoch  83/100 | train 0.4764/94.68% | val 0.5063/92.59% | best 92.59% @ 83 | 3.4s
+Epoch  84/100 | train 0.4746/94.88% | val 0.5085/92.56% | best 92.59% @ 83 | 3.4s
+Epoch  85/100 | train 0.4772/94.68% | val 0.5083/92.52% | best 92.59% @ 83 | 3.4s
+Epoch  86/100 | train 0.4752/94.73% | val 0.5058/92.44% | best 92.59% @ 83 | 3.4s
+Epoch  87/100 | train 0.4747/94.83% | val 0.5122/92.28% | best 92.59% @ 83 | 3.5s
+Epoch  88/100 | train 0.4734/94.75% | val 0.5068/92.46% | best 92.59% @ 83 | 3.3s
+Epoch  89/100 | train 0.4739/94.81% | val 0.5064/92.67% | best 92.67% @ 89 | 3.3s
+Epoch  90/100 | train 0.4762/94.93% | val 0.5060/92.59% | best 92.67% @ 89 | 3.4s
+Epoch  91/100 | train 0.4769/94.77% | val 0.5048/92.81% | best 92.81% @ 91 | 3.3s
+Epoch  92/100 | train 0.4705/94.91% | val 0.5138/92.28% | best 92.81% @ 91 | 3.4s
+Epoch  93/100 | train 0.4783/94.62% | val 0.5189/92.00% | best 92.81% @ 91 | 3.4s
+Epoch  94/100 | train 0.4694/95.14% | val 0.5071/92.52% | best 92.81% @ 91 | 3.5s
+Epoch  95/100 | train 0.4733/94.91% | val 0.5074/92.30% | best 92.81% @ 91 | 3.2s
+Epoch  96/100 | train 0.4673/95.11% | val 0.5045/92.52% | best 92.81% @ 91 | 3.2s
+Epoch  97/100 | train 0.4698/95.07% | val 0.5034/92.39% | best 92.81% @ 91 | 3.2s
+Epoch  98/100 | train 0.4690/95.27% | val 0.5026/92.65% | best 92.81% @ 91 | 3.3s
+Epoch  99/100 | train 0.4711/95.02% | val 0.5084/92.65% | best 92.81% @ 91 | 3.3s
+Epoch 100/100 | train 0.4702/95.19% | val 0.5105/92.59% | best 92.81% @ 91 | 3.3s
+[enable_qat] Enabled QAT on 6 layers
+[disable_qat] Disabled QAT on 6 layers
+{
+  "status": "complete",
+  "model": "model2",
+  "kernel_size": 3,
+  "padding": 1,
+  "stride": 2,
+  "seed": 43,
+  "epochs": 100,
+  "batch_size": 64,
+  "weight_bits": 8,
+  "parameter_count": 271144,
+  "macs_per_image": 1870336,
+  "feature_shape_after_stage2": [
+    1,
+    32,
+    8,
+    8
+  ],
+  "alignment_ratio": 0.9967447916666666,
+  "best_epoch": 91,
+  "best_val_accuracy_pct": 92.81481481481481,
+  "best_qat_val_accuracy_pct": 92.81481481481481,
+  "best_float_val_accuracy_pct": 92.62962962962963,
+  "duration_seconds": 344.49344873428345,
+  "completed_at": "2026-07-18T23:55:26.894023+00:00",
+  "output_dir": "/root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model2/k3/seed43/20260719-074942"
+}
+Artifacts: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model2/k2/seed43/20260719-075530
+训练: 16200, 验证: 5400, 留出测试: 5400; workers=4
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8
+  QAT Conv: 3 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015)
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [model2 kernel=2x2] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w8
+  [QATConv2d_v4 QAT  ] stage1.0                     8   2×2        32        32  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage2.0                    16   2×2        64        64  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage3.0                    32   1×1        32        32  100.0%  w8
+  综合硬件对齐率: 99.6% (展平总长度 1411 → 补零后 1416)
+==============================================================================
+Kernel ablation: model2, 2x2, seed=43
+Device: cuda; parameters: 267,944; MACs/image: 1,051,136
+Data: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/data/EuroSAT_RGB; epochs=100; batch=64
+==============================================================================
+Epoch   1/100 | train 1.2945/60.16% | val 0.9919/72.00% | best 72.00% @ 1 | 4.3s
+Epoch   2/100 | train 1.0054/72.44% | val 0.8799/77.02% | best 77.02% @ 2 | 3.3s
+Epoch   3/100 | train 0.9696/73.55% | val 0.8883/75.98% | best 77.02% @ 2 | 3.5s
+Epoch   4/100 | train 0.9473/74.91% | val 0.8172/79.00% | best 79.00% @ 4 | 3.6s
+Epoch   5/100 | train 0.9314/75.06% | val 0.8563/77.76% | best 79.00% @ 4 | 3.4s
+Epoch   6/100 | train 0.9234/75.50% | val 0.8340/77.61% | best 79.00% @ 4 | 3.6s
+Epoch   7/100 | train 0.8803/77.07% | val 0.9340/73.81% | best 79.00% @ 4 | 3.6s
+Epoch   8/100 | train 0.8646/78.33% | val 0.7799/81.41% | best 81.41% @ 8 | 3.5s
+Epoch   9/100 | train 0.8399/79.41% | val 0.7763/80.89% | best 81.41% @ 8 | 3.3s
+Epoch  10/100 | train 0.8281/79.78% | val 0.7519/81.94% | best 81.94% @ 10 | 3.4s
+Epoch  11/100 | train 0.8152/80.83% | val 0.7596/81.98% | best 81.98% @ 11 | 3.3s
+Epoch  12/100 | train 0.8038/80.87% | val 0.7666/81.81% | best 81.98% @ 11 | 3.5s
+Epoch  13/100 | train 0.8089/80.71% | val 0.7697/81.83% | best 81.98% @ 11 | 3.5s
+Epoch  14/100 | train 0.7716/82.18% | val 0.6827/84.94% | best 84.94% @ 14 | 3.5s
+Epoch  15/100 | train 0.7623/82.65% | val 0.7616/81.81% | best 84.94% @ 14 | 3.5s
+Epoch  16/100 | train 0.7535/82.94% | val 0.7431/82.59% | best 84.94% @ 14 | 3.5s
+Epoch  17/100 | train 0.7375/83.77% | val 0.6685/85.94% | best 85.94% @ 17 | 3.6s
+Epoch  18/100 | train 0.7358/84.04% | val 0.6464/87.06% | best 87.06% @ 18 | 3.5s
+Epoch  19/100 | train 0.7204/84.42% | val 0.6572/85.80% | best 87.06% @ 18 | 3.5s
+Epoch  20/100 | train 0.7145/84.80% | val 0.6630/86.46% | best 87.06% @ 18 | 3.5s
+Epoch  21/100 | train 0.7143/84.69% | val 0.6622/86.04% | best 87.06% @ 18 | 3.4s
+Epoch  22/100 | train 0.6935/85.22% | val 0.6358/86.72% | best 87.06% @ 18 | 3.4s
+Epoch  23/100 | train 0.7059/85.04% | val 0.6320/87.65% | best 87.65% @ 23 | 3.5s
+Epoch  24/100 | train 0.6962/85.54% | val 0.6422/87.17% | best 87.65% @ 23 | 3.5s
+Epoch  25/100 | train 0.6863/86.18% | val 0.6548/86.11% | best 87.65% @ 23 | 3.5s
+Epoch  26/100 | train 0.6720/86.69% | val 0.6450/86.67% | best 87.65% @ 23 | 3.4s
+Epoch  27/100 | train 0.6718/86.73% | val 0.6166/87.94% | best 87.94% @ 27 | 3.4s
+Epoch  28/100 | train 0.6762/86.26% | val 0.6847/84.89% | best 87.94% @ 27 | 3.5s
+Epoch  29/100 | train 0.6616/87.12% | val 0.6197/87.78% | best 87.94% @ 27 | 3.3s
+Epoch  30/100 | train 0.6638/87.06% | val 0.6266/88.11% | best 88.11% @ 30 | 3.5s
+Epoch  31/100 | train 0.6545/87.58% | val 0.6069/88.50% | best 88.50% @ 31 | 3.5s
+Epoch  32/100 | train 0.6512/87.56% | val 0.6000/88.89% | best 88.89% @ 32 | 3.4s
+Epoch  33/100 | train 0.6423/87.88% | val 0.6313/87.31% | best 88.89% @ 32 | 3.4s
+Epoch  34/100 | train 0.6539/87.43% | val 0.5927/89.02% | best 89.02% @ 34 | 3.5s
+Epoch  35/100 | train 0.6270/88.44% | val 0.5980/89.28% | best 89.28% @ 35 | 3.4s
+Epoch  36/100 | train 0.6336/87.96% | val 0.6096/88.57% | best 89.28% @ 35 | 3.5s
+Epoch  37/100 | train 0.6333/88.22% | val 0.5952/88.63% | best 89.28% @ 35 | 3.5s
+Epoch  38/100 | train 0.6240/88.60% | val 0.5865/88.85% | best 89.28% @ 35 | 3.5s
+Epoch  39/100 | train 0.6186/88.97% | val 0.5978/89.19% | best 89.28% @ 35 | 3.3s
+Epoch  40/100 | train 0.6231/88.61% | val 0.5937/89.13% | best 89.28% @ 35 | 3.5s
+Epoch  41/100 | train 0.6149/89.08% | val 0.5991/88.44% | best 89.28% @ 35 | 3.3s
+Epoch  42/100 | train 0.6083/89.30% | val 0.5829/89.06% | best 89.28% @ 35 | 3.3s
+Epoch  43/100 | train 0.6065/89.44% | val 0.6027/88.74% | best 89.28% @ 35 | 3.3s
+Epoch  44/100 | train 0.6048/89.64% | val 0.5863/89.15% | best 89.28% @ 35 | 3.5s
+Epoch  45/100 | train 0.6056/89.31% | val 0.5829/89.67% | best 89.67% @ 45 | 3.3s
+Epoch  46/100 | train 0.5992/89.40% | val 0.5821/89.54% | best 89.67% @ 45 | 3.4s
+Epoch  47/100 | train 0.5949/89.91% | val 0.5900/89.17% | best 89.67% @ 45 | 3.3s
+Epoch  48/100 | train 0.5992/89.66% | val 0.5841/88.96% | best 89.67% @ 45 | 3.3s
+Epoch  49/100 | train 0.5892/89.99% | val 0.5999/88.83% | best 89.67% @ 45 | 3.4s
+Epoch  50/100 | train 0.5885/90.27% | val 0.5649/90.33% | best 90.33% @ 50 | 3.5s
+Epoch  51/100 | train 0.5921/90.14% | val 0.5692/90.06% | best 90.33% @ 50 | 3.4s
+Epoch  52/100 | train 0.5900/90.23% | val 0.5696/89.89% | best 90.33% @ 50 | 3.6s
+Epoch  53/100 | train 0.5795/90.43% | val 0.5622/90.15% | best 90.33% @ 50 | 3.6s
+Epoch  54/100 | train 0.5792/90.54% | val 0.5576/90.39% | best 90.39% @ 54 | 3.6s
+Epoch  55/100 | train 0.5729/91.04% | val 0.5781/89.46% | best 90.39% @ 54 | 3.6s
+Epoch  56/100 | train 0.5728/90.81% | val 0.5588/90.20% | best 90.39% @ 54 | 3.5s
+Epoch  57/100 | train 0.5707/90.95% | val 0.5645/90.24% | best 90.39% @ 54 | 3.6s
+Epoch  58/100 | train 0.5682/91.01% | val 0.5570/90.63% | best 90.63% @ 58 | 3.4s
+Epoch  59/100 | train 0.5680/90.86% | val 0.5645/90.31% | best 90.63% @ 58 | 3.5s
+Epoch  60/100 | train 0.5646/90.97% | val 0.5741/89.70% | best 90.63% @ 58 | 3.6s
+Epoch  61/100 | train 0.5591/91.19% | val 0.5594/90.63% | best 90.63% @ 58 | 3.5s
+Epoch  62/100 | train 0.5615/91.27% | val 0.5508/90.76% | best 90.76% @ 62 | 3.6s
+Epoch  63/100 | train 0.5555/91.51% | val 0.5588/90.31% | best 90.76% @ 62 | 3.4s
+Epoch  64/100 | train 0.5606/91.22% | val 0.5482/90.87% | best 90.87% @ 64 | 3.5s
+Epoch  65/100 | train 0.5634/90.95% | val 0.5497/90.76% | best 90.87% @ 64 | 3.4s
+Epoch  66/100 | train 0.5525/91.65% | val 0.5431/91.06% | best 91.06% @ 66 | 3.4s
+Epoch  67/100 | train 0.5446/91.81% | val 0.5643/90.22% | best 91.06% @ 66 | 3.3s
+Epoch  68/100 | train 0.5506/91.65% | val 0.5541/90.59% | best 91.06% @ 66 | 3.4s
+Epoch  69/100 | train 0.5467/91.91% | val 0.5525/90.59% | best 91.06% @ 66 | 3.3s
+Epoch  70/100 | train 0.5465/91.81% | val 0.5466/90.81% | best 91.06% @ 66 | 3.2s
+Epoch  71/100 | train 0.5441/91.96% | val 0.5543/90.69% | best 91.06% @ 66 | 3.4s
+Epoch  72/100 | train 0.5419/92.17% | val 0.5545/90.39% | best 91.06% @ 66 | 3.4s
+Epoch  73/100 | train 0.5412/92.03% | val 0.5467/90.76% | best 91.06% @ 66 | 3.5s
+Epoch  74/100 | train 0.5372/92.33% | val 0.5527/90.59% | best 91.06% @ 66 | 3.5s
+Epoch  75/100 | train 0.5353/92.31% | val 0.5428/91.30% | best 91.30% @ 75 | 3.4s
+Epoch  76/100 | train 0.5347/92.45% | val 0.5458/91.04% | best 91.30% @ 75 | 3.5s
+Epoch  77/100 | train 0.5372/92.35% | val 0.5480/90.87% | best 91.30% @ 75 | 3.4s
+Epoch  78/100 | train 0.5298/92.55% | val 0.5482/90.78% | best 91.30% @ 75 | 3.4s
+Epoch  79/100 | train 0.5337/92.41% | val 0.5515/90.81% | best 91.30% @ 75 | 3.4s
+Epoch  80/100 | train 0.5337/92.57% | val 0.5386/91.04% | best 91.30% @ 75 | 3.4s
+Epoch  81/100 | train 0.5342/92.48% | val 0.5393/90.94% | best 91.30% @ 75 | 3.5s
+Epoch  82/100 | train 0.5307/92.71% | val 0.5417/90.91% | best 91.30% @ 75 | 3.5s
+Epoch  83/100 | train 0.5281/92.73% | val 0.5399/91.06% | best 91.30% @ 75 | 3.4s
+Epoch  84/100 | train 0.5272/92.77% | val 0.5373/91.19% | best 91.30% @ 75 | 3.2s
+Epoch  85/100 | train 0.5248/92.87% | val 0.5386/91.19% | best 91.30% @ 75 | 3.2s
+Epoch  86/100 | train 0.5259/92.72% | val 0.5367/91.28% | best 91.30% @ 75 | 3.2s
+Epoch  87/100 | train 0.5216/92.93% | val 0.5470/91.00% | best 91.30% @ 75 | 3.3s
+Epoch  88/100 | train 0.5269/92.48% | val 0.5404/91.28% | best 91.30% @ 75 | 3.4s
+Epoch  89/100 | train 0.5243/92.90% | val 0.5367/91.35% | best 91.35% @ 89 | 3.4s
+Epoch  90/100 | train 0.5301/92.68% | val 0.5387/91.37% | best 91.37% @ 90 | 3.4s
+Epoch  91/100 | train 0.5250/92.82% | val 0.5467/90.89% | best 91.37% @ 90 | 3.5s
+Epoch  92/100 | train 0.5264/92.82% | val 0.5407/91.26% | best 91.37% @ 90 | 3.4s
+Epoch  93/100 | train 0.5297/92.54% | val 0.5435/91.15% | best 91.37% @ 90 | 3.6s
+Epoch  94/100 | train 0.5263/92.82% | val 0.5423/91.26% | best 91.37% @ 90 | 3.4s
+Epoch  95/100 | train 0.5274/92.67% | val 0.5364/91.31% | best 91.37% @ 90 | 3.4s
+Epoch  96/100 | train 0.5218/92.73% | val 0.5376/91.22% | best 91.37% @ 90 | 3.4s
+Epoch  97/100 | train 0.5201/93.07% | val 0.5398/91.35% | best 91.37% @ 90 | 3.2s
+Epoch  98/100 | train 0.5173/93.25% | val 0.5362/91.37% | best 91.37% @ 90 | 3.4s
+Epoch  99/100 | train 0.5203/93.12% | val 0.5434/91.28% | best 91.37% @ 90 | 3.4s
+Epoch 100/100 | train 0.5172/93.16% | val 0.5461/91.19% | best 91.37% @ 90 | 3.5s
+[enable_qat] Enabled QAT on 6 layers
+[disable_qat] Disabled QAT on 6 layers
+{
+  "status": "complete",
+  "model": "model2",
+  "kernel_size": 2,
+  "padding": 0,
+  "stride": 2,
+  "seed": 43,
+  "epochs": 100,
+  "batch_size": 64,
+  "weight_bits": 8,
+  "parameter_count": 267944,
+  "macs_per_image": 1051136,
+  "feature_shape_after_stage2": [
+    1,
+    32,
+    8,
+    8
+  ],
+  "alignment_ratio": 0.9964689265536724,
+  "best_epoch": 90,
+  "best_val_accuracy_pct": 91.37037037037037,
+  "best_qat_val_accuracy_pct": 91.37037037037037,
+  "best_float_val_accuracy_pct": 91.37037037037037,
+  "duration_seconds": 345.43955516815186,
+  "completed_at": "2026-07-19T00:01:16.204162+00:00",
+  "output_dir": "/root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model2/k2/seed43/20260719-075530"
+}
+Artifacts: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model3/k3/seed43/20260719-080120
+训练: 16200, 验证: 5400, 留出测试: 5400; workers=4
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8
+  QAT Conv: 3 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015)
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [model3 kernel=3x3] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w8
+  [QATConv2d_v4 QAT  ] stage1.0                     8   3×3        72        72  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage2.0                    16   3×3       144       144  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage3.0                    32   1×1        32        32  100.0%  w8
+  综合硬件对齐率: 99.7% (展平总长度 1531 → 补零后 1536)
+==============================================================================
+Kernel ablation: model3, 3x3, seed=43
+Device: cuda; parameters: 271,144; MACs/image: 1,870,336
+Data: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/data/EuroSAT_RGB; epochs=100; batch=64
+==============================================================================
+Epoch   1/100 | train 7.3574/61.01% | val 1.3487/74.61% | best 74.61% @ 1 | 5.1s
+Epoch   2/100 | train 5.1406/74.41% | val 1.2331/78.09% | best 78.09% @ 2 | 4.2s
+Epoch   3/100 | train 4.8957/75.38% | val 1.3033/76.87% | best 78.09% @ 2 | 4.2s
+Epoch   4/100 | train 4.7134/76.67% | val 1.2542/78.96% | best 78.96% @ 4 | 4.1s
+Epoch   5/100 | train 4.6250/77.09% | val 1.2650/79.85% | best 79.85% @ 5 | 4.1s
+Epoch   6/100 | train 4.5115/78.07% | val 1.2112/79.85% | best 79.85% @ 5 | 4.2s
+Epoch   7/100 | train 4.2081/79.69% | val 1.2496/80.76% | best 80.76% @ 7 | 3.9s
+Epoch   8/100 | train 3.9827/81.28% | val 1.2177/81.65% | best 81.65% @ 8 | 3.9s
+Epoch   9/100 | train 3.8545/81.93% | val 1.2820/82.13% | best 82.13% @ 9 | 3.9s
+Epoch  10/100 | train 3.7486/82.91% | val 1.2289/82.56% | best 82.56% @ 10 | 4.0s
+Epoch  11/100 | train 3.5566/83.99% | val 1.2490/82.81% | best 82.81% @ 11 | 4.1s
+Epoch  12/100 | train 3.5095/84.45% | val 1.1970/84.81% | best 84.81% @ 12 | 4.2s
+Epoch  13/100 | train 3.4891/84.43% | val 1.1022/84.94% | best 84.94% @ 13 | 4.1s
+Epoch  14/100 | train 3.3368/85.18% | val 1.2486/82.07% | best 84.94% @ 13 | 4.1s
+Epoch  15/100 | train 3.2433/86.16% | val 1.1890/83.33% | best 84.94% @ 13 | 4.1s
+Epoch  16/100 | train 3.2635/85.87% | val 1.0080/88.06% | best 88.06% @ 16 | 3.9s
+Epoch  17/100 | train 3.2296/85.83% | val 1.0068/86.57% | best 88.06% @ 16 | 4.0s
+Epoch  18/100 | train 3.1548/86.22% | val 1.1036/85.78% | best 88.06% @ 16 | 4.1s
+Epoch  19/100 | train 3.0734/87.19% | val 1.0283/88.11% | best 88.11% @ 19 | 3.9s
+Epoch  20/100 | train 3.0465/87.23% | val 1.0889/85.89% | best 88.11% @ 19 | 4.3s
+Epoch  21/100 | train 3.0089/87.62% | val 1.0240/87.02% | best 88.11% @ 19 | 4.0s
+Epoch  22/100 | train 2.9720/87.61% | val 1.0243/88.61% | best 88.61% @ 22 | 4.1s
+Epoch  23/100 | train 2.9231/88.04% | val 1.0422/86.39% | best 88.61% @ 22 | 4.0s
+Epoch  24/100 | train 2.9320/87.96% | val 1.0555/86.61% | best 88.61% @ 22 | 4.4s
+Epoch  25/100 | train 2.8497/88.46% | val 0.9715/88.54% | best 88.61% @ 22 | 4.2s
+Epoch  26/100 | train 2.8037/88.74% | val 1.0086/87.89% | best 88.61% @ 22 | 4.2s
+Epoch  27/100 | train 2.8149/88.55% | val 0.9517/89.57% | best 89.57% @ 27 | 4.2s
+Epoch  28/100 | train 2.7429/89.33% | val 0.9780/87.74% | best 89.57% @ 27 | 4.1s
+Epoch  29/100 | train 2.7502/88.98% | val 0.9575/89.11% | best 89.57% @ 27 | 4.1s
+Epoch  30/100 | train 2.7219/89.11% | val 0.9614/89.26% | best 89.57% @ 27 | 4.1s
+Epoch  31/100 | train 2.6907/89.48% | val 0.9330/90.06% | best 90.06% @ 31 | 4.3s
+Epoch  32/100 | train 2.6751/89.60% | val 0.9423/89.83% | best 90.06% @ 31 | 4.2s
+Epoch  33/100 | train 2.6308/89.74% | val 0.9085/89.76% | best 90.06% @ 31 | 3.6s
+Epoch  34/100 | train 2.6314/89.77% | val 0.9199/89.69% | best 90.06% @ 31 | 4.2s
+Epoch  35/100 | train 2.5856/90.06% | val 0.9416/89.44% | best 90.06% @ 31 | 4.0s
+Epoch  36/100 | train 2.5941/90.02% | val 0.9175/90.06% | best 90.06% @ 31 | 4.0s
+Epoch  37/100 | train 2.5391/90.27% | val 0.9472/89.31% | best 90.06% @ 31 | 4.1s
+Epoch  38/100 | train 2.4889/90.76% | val 0.9445/90.13% | best 90.13% @ 38 | 4.0s
+Epoch  39/100 | train 2.4994/90.45% | val 0.8990/89.70% | best 90.13% @ 38 | 4.1s
+Epoch  40/100 | train 2.5097/90.56% | val 0.9016/90.59% | best 90.59% @ 40 | 4.2s
+Epoch  41/100 | train 2.4503/90.78% | val 0.9137/90.54% | best 90.59% @ 40 | 4.2s
+Epoch  42/100 | train 2.4564/91.15% | val 0.9732/89.39% | best 90.59% @ 40 | 4.1s
+Epoch  43/100 | train 2.4635/90.63% | val 0.9123/90.33% | best 90.59% @ 40 | 4.1s
+Epoch  44/100 | train 2.4017/91.30% | val 0.9375/91.22% | best 91.22% @ 44 | 4.3s
+Epoch  45/100 | train 2.4255/91.14% | val 0.9212/90.13% | best 91.22% @ 44 | 4.2s
+Epoch  46/100 | train 2.3588/91.60% | val 0.9364/90.39% | best 91.22% @ 44 | 4.3s
+Epoch  47/100 | train 2.3758/91.25% | val 0.8946/91.30% | best 91.30% @ 47 | 4.5s
+Epoch  48/100 | train 2.3860/91.44% | val 0.9089/90.78% | best 91.30% @ 47 | 4.3s
+Epoch  49/100 | train 2.3394/91.54% | val 0.9261/90.89% | best 91.30% @ 47 | 4.3s
+Epoch  50/100 | train 2.3062/91.57% | val 0.8987/91.44% | best 91.44% @ 50 | 4.0s
+Epoch  51/100 | train 2.3076/91.85% | val 0.9215/90.85% | best 91.44% @ 50 | 4.0s
+Epoch  52/100 | train 2.3173/91.72% | val 0.8978/91.48% | best 91.48% @ 52 | 4.0s
+Epoch  53/100 | train 2.2763/92.05% | val 0.8796/91.37% | best 91.48% @ 52 | 4.2s
+Epoch  54/100 | train 2.2632/92.14% | val 0.8792/91.43% | best 91.48% @ 52 | 3.8s
+Epoch  55/100 | train 2.2653/92.07% | val 0.8767/91.22% | best 91.48% @ 52 | 4.2s
+Epoch  56/100 | train 2.2630/92.11% | val 0.8637/91.28% | best 91.48% @ 52 | 4.3s
+Epoch  57/100 | train 2.2685/92.11% | val 0.8736/91.46% | best 91.48% @ 52 | 4.2s
+Epoch  58/100 | train 2.2128/92.06% | val 0.8697/91.54% | best 91.54% @ 58 | 4.2s
+Epoch  59/100 | train 2.2288/92.14% | val 0.8680/91.39% | best 91.54% @ 58 | 4.3s
+Epoch  60/100 | train 2.1683/92.30% | val 0.8534/91.54% | best 91.54% @ 58 | 4.1s
+Epoch  61/100 | train 2.1924/92.57% | val 0.8516/91.76% | best 91.76% @ 61 | 4.3s
+Epoch  62/100 | train 2.1667/92.39% | val 0.8847/91.48% | best 91.76% @ 61 | 4.2s
+Epoch  63/100 | train 2.1420/92.84% | val 0.8458/91.96% | best 91.96% @ 63 | 4.3s
+Epoch  64/100 | train 2.1872/92.48% | val 0.8662/91.67% | best 91.96% @ 63 | 4.2s
+Epoch  65/100 | train 2.1360/92.55% | val 0.8429/92.17% | best 92.17% @ 65 | 4.3s
+Epoch  66/100 | train 2.1283/92.85% | val 0.8411/92.30% | best 92.30% @ 66 | 3.8s
+Epoch  67/100 | train 2.0855/92.92% | val 0.8722/91.56% | best 92.30% @ 66 | 4.1s
+Epoch  68/100 | train 2.1018/92.99% | val 0.8512/92.06% | best 92.30% @ 66 | 4.0s
+Epoch  69/100 | train 2.0888/93.05% | val 0.8678/91.56% | best 92.30% @ 66 | 4.2s
+Epoch  70/100 | train 2.1039/92.95% | val 0.8494/92.24% | best 92.30% @ 66 | 4.2s
+Epoch  71/100 | train 2.0721/93.14% | val 0.8476/92.28% | best 92.30% @ 66 | 4.3s
+Epoch  72/100 | train 2.0685/93.31% | val 0.8431/92.15% | best 92.30% @ 66 | 4.0s
+Epoch  73/100 | train 2.0616/93.44% | val 0.8578/92.13% | best 92.30% @ 66 | 4.1s
+Epoch  74/100 | train 2.0478/93.17% | val 0.8705/92.35% | best 92.35% @ 74 | 4.2s
+Epoch  75/100 | train 2.0327/93.35% | val 0.8500/92.35% | best 92.35% @ 74 | 4.0s
+Epoch  76/100 | train 2.0282/93.30% | val 0.8624/91.96% | best 92.35% @ 74 | 4.0s
+Epoch  77/100 | train 2.0340/93.46% | val 0.8427/92.22% | best 92.35% @ 74 | 4.2s
+Epoch  78/100 | train 2.0079/93.72% | val 0.8439/92.24% | best 92.35% @ 74 | 4.1s
+Epoch  79/100 | train 2.0209/93.52% | val 0.8412/92.15% | best 92.35% @ 74 | 4.1s
+Epoch  80/100 | train 2.0236/93.46% | val 0.8373/92.48% | best 92.48% @ 80 | 4.0s
+Epoch  81/100 | train 2.0191/93.32% | val 0.8444/92.46% | best 92.48% @ 80 | 4.2s
+Epoch  82/100 | train 1.9965/93.39% | val 0.8382/92.11% | best 92.48% @ 80 | 4.0s
+Epoch  83/100 | train 2.0045/93.69% | val 0.8365/92.35% | best 92.48% @ 80 | 4.1s
+Epoch  84/100 | train 1.9972/93.62% | val 0.8393/92.43% | best 92.48% @ 80 | 4.3s
+Epoch  85/100 | train 2.0147/93.59% | val 0.8388/92.69% | best 92.69% @ 85 | 4.1s
+Epoch  86/100 | train 1.9679/93.71% | val 0.8404/92.48% | best 92.69% @ 85 | 4.1s
+Epoch  87/100 | train 1.9694/93.85% | val 0.8565/92.39% | best 92.69% @ 85 | 4.0s
+Epoch  88/100 | train 1.9661/93.77% | val 0.8383/92.44% | best 92.69% @ 85 | 4.0s
+Epoch  89/100 | train 1.9769/93.70% | val 0.8327/92.50% | best 92.69% @ 85 | 4.0s
+Epoch  90/100 | train 1.9769/93.90% | val 0.8379/92.59% | best 92.69% @ 85 | 4.1s
+Epoch  91/100 | train 1.9705/93.64% | val 0.8325/92.37% | best 92.69% @ 85 | 4.2s
+Epoch  92/100 | train 1.9659/93.88% | val 0.8498/92.46% | best 92.69% @ 85 | 4.1s
+Epoch  93/100 | train 1.9803/93.71% | val 0.8626/92.22% | best 92.69% @ 85 | 3.7s
+Epoch  94/100 | train 1.9785/93.85% | val 0.8538/92.48% | best 92.69% @ 85 | 3.9s
+Epoch  95/100 | train 1.9671/93.86% | val 0.8302/92.61% | best 92.69% @ 85 | 4.1s
+Epoch  96/100 | train 1.9358/94.06% | val 0.8443/92.69% | best 92.69% @ 85 | 4.3s
+Epoch  97/100 | train 1.9684/93.93% | val 0.8270/92.44% | best 92.69% @ 85 | 4.1s
+Epoch  98/100 | train 1.9474/93.90% | val 0.8266/92.61% | best 92.69% @ 85 | 3.9s
+Epoch  99/100 | train 1.9582/93.62% | val 0.8455/92.19% | best 92.69% @ 85 | 4.3s
+Epoch 100/100 | train 1.9513/94.02% | val 0.8403/92.50% | best 92.69% @ 85 | 4.2s
+[enable_qat] Enabled QAT on 6 layers
+[disable_qat] Disabled QAT on 6 layers
+{
+  "status": "complete",
+  "model": "model3",
+  "kernel_size": 3,
+  "padding": 1,
+  "stride": 2,
+  "seed": 43,
+  "epochs": 100,
+  "batch_size": 64,
+  "weight_bits": 8,
+  "parameter_count": 271144,
+  "macs_per_image": 1870336,
+  "feature_shape_after_stage2": [
+    1,
+    32,
+    8,
+    8
+  ],
+  "alignment_ratio": 0.9967447916666666,
+  "best_epoch": 85,
+  "best_val_accuracy_pct": 92.68518518518518,
+  "best_qat_val_accuracy_pct": 92.68518518518518,
+  "best_float_val_accuracy_pct": 92.57407407407408,
+  "duration_seconds": 414.17378640174866,
+  "completed_at": "2026-07-19T00:08:14.938260+00:00",
+  "output_dir": "/root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model3/k3/seed43/20260719-080120"
+}
+Artifacts: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model3/k2/seed43/20260719-080818
+训练: 16200, 验证: 5400, 留出测试: 5400; workers=4
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8
+  QAT Conv: 3 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015)
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [model3 kernel=2x2] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w8
+  [QATConv2d_v4 QAT  ] stage1.0                     8   2×2        32        32  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage2.0                    16   2×2        64        64  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage3.0                    32   1×1        32        32  100.0%  w8
+  综合硬件对齐率: 99.6% (展平总长度 1411 → 补零后 1416)
+==============================================================================
+Kernel ablation: model3, 2x2, seed=43
+Device: cuda; parameters: 267,944; MACs/image: 1,051,136
+Data: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/data/EuroSAT_RGB; epochs=100; batch=64
+==============================================================================
+Epoch   1/100 | train 7.5285/59.88% | val 1.4163/74.26% | best 74.26% @ 1 | 5.1s
+Epoch   2/100 | train 5.4085/72.58% | val 1.3263/77.20% | best 77.20% @ 2 | 4.0s
+Epoch   3/100 | train 5.0907/73.87% | val 1.3573/76.69% | best 77.20% @ 2 | 4.1s
+Epoch   4/100 | train 4.9375/75.28% | val 1.2405/80.04% | best 80.04% @ 4 | 3.8s
+Epoch   5/100 | train 4.7850/75.75% | val 1.2546/78.96% | best 80.04% @ 4 | 4.0s
+Epoch   6/100 | train 4.6919/76.38% | val 1.3221/78.56% | best 80.04% @ 4 | 4.2s
+Epoch   7/100 | train 4.4606/78.16% | val 1.2622/79.52% | best 80.04% @ 4 | 4.2s
+Epoch   8/100 | train 4.3116/79.08% | val 1.2347/81.54% | best 81.54% @ 8 | 4.3s
+Epoch   9/100 | train 4.2289/79.49% | val 1.1544/83.02% | best 83.02% @ 9 | 4.3s
+Epoch  10/100 | train 4.1144/80.45% | val 1.1593/82.89% | best 83.02% @ 9 | 4.3s
+Epoch  11/100 | train 4.0036/81.77% | val 1.2591/81.78% | best 83.02% @ 9 | 4.3s
+Epoch  12/100 | train 3.9564/81.33% | val 1.2262/83.56% | best 83.56% @ 12 | 4.1s
+Epoch  13/100 | train 3.9224/81.72% | val 1.1443/83.91% | best 83.91% @ 13 | 4.4s
+Epoch  14/100 | train 3.7407/83.16% | val 1.1028/85.24% | best 85.24% @ 14 | 4.4s
+Epoch  15/100 | train 3.6667/83.61% | val 1.1213/84.85% | best 85.24% @ 14 | 4.3s
+Epoch  16/100 | train 3.5969/83.74% | val 1.1342/85.41% | best 85.41% @ 16 | 4.2s
+Epoch  17/100 | train 3.5508/84.51% | val 1.0371/86.57% | best 86.57% @ 17 | 4.2s
+Epoch  18/100 | train 3.5285/84.69% | val 1.0500/86.17% | best 86.57% @ 17 | 4.4s
+Epoch  19/100 | train 3.4618/85.09% | val 1.0341/87.11% | best 87.11% @ 19 | 4.3s
+Epoch  20/100 | train 3.4506/85.30% | val 1.0188/87.54% | best 87.54% @ 20 | 3.9s
+Epoch  21/100 | train 3.3939/85.10% | val 1.0467/87.74% | best 87.74% @ 21 | 4.1s
+Epoch  22/100 | train 3.2691/85.96% | val 1.0489/87.85% | best 87.85% @ 22 | 4.0s
+Epoch  23/100 | train 3.3470/85.72% | val 1.0185/87.52% | best 87.85% @ 22 | 4.4s
+Epoch  24/100 | train 3.3002/85.80% | val 1.0267/87.06% | best 87.85% @ 22 | 4.1s
+Epoch  25/100 | train 3.2544/86.30% | val 0.9732/87.30% | best 87.85% @ 22 | 4.2s
+Epoch  26/100 | train 3.1736/86.66% | val 1.0278/87.91% | best 87.91% @ 26 | 4.2s
+Epoch  27/100 | train 3.1713/86.56% | val 0.9769/87.83% | best 87.91% @ 26 | 3.9s
+Epoch  28/100 | train 3.1721/86.59% | val 1.0319/86.74% | best 87.91% @ 26 | 3.9s
+Epoch  29/100 | train 3.1238/87.06% | val 0.9475/88.93% | best 88.93% @ 29 | 4.0s
+Epoch  30/100 | train 3.1039/87.14% | val 0.9772/88.37% | best 88.93% @ 29 | 4.2s
+Epoch  31/100 | train 3.0196/87.73% | val 1.0475/88.31% | best 88.93% @ 29 | 4.3s
+Epoch  32/100 | train 3.0152/87.50% | val 0.9319/89.35% | best 89.35% @ 32 | 4.4s
+Epoch  33/100 | train 2.9884/87.84% | val 0.9941/88.50% | best 89.35% @ 32 | 4.2s
+Epoch  34/100 | train 2.9874/87.85% | val 0.9237/89.31% | best 89.35% @ 32 | 4.1s
+Epoch  35/100 | train 2.8891/88.21% | val 0.9284/89.83% | best 89.83% @ 35 | 4.3s
+Epoch  36/100 | train 2.8881/88.49% | val 0.9824/89.02% | best 89.83% @ 35 | 4.5s
+Epoch  37/100 | train 2.8744/88.62% | val 0.9567/89.69% | best 89.83% @ 35 | 3.9s
+Epoch  38/100 | train 2.8783/88.62% | val 0.9237/89.41% | best 89.83% @ 35 | 4.0s
+Epoch  39/100 | train 2.8010/88.97% | val 0.9515/89.20% | best 89.83% @ 35 | 4.2s
+Epoch  40/100 | train 2.8565/88.84% | val 0.9419/89.26% | best 89.83% @ 35 | 4.1s
+Epoch  41/100 | train 2.8297/88.84% | val 0.9721/89.39% | best 89.83% @ 35 | 4.2s
+Epoch  42/100 | train 2.7812/89.05% | val 0.9705/89.50% | best 89.83% @ 35 | 4.5s
+Epoch  43/100 | train 2.7967/89.17% | val 0.9435/89.43% | best 89.83% @ 35 | 4.3s
+Epoch  44/100 | train 2.7518/89.27% | val 1.0007/88.87% | best 89.83% @ 35 | 4.3s
+Epoch  45/100 | train 2.7939/89.30% | val 0.9427/90.22% | best 90.22% @ 45 | 4.2s
+Epoch  46/100 | train 2.6919/89.62% | val 0.9502/89.69% | best 90.22% @ 45 | 4.0s
+Epoch  47/100 | train 2.6912/89.82% | val 0.9435/89.98% | best 90.22% @ 45 | 4.3s
+Epoch  48/100 | train 2.7000/89.48% | val 0.9459/89.83% | best 90.22% @ 45 | 4.4s
+Epoch  49/100 | train 2.6661/89.78% | val 0.9391/90.37% | best 90.37% @ 49 | 4.4s
+Epoch  50/100 | train 2.6502/89.81% | val 0.9025/90.19% | best 90.37% @ 49 | 4.3s
+Epoch  51/100 | train 2.6434/89.96% | val 0.9148/90.31% | best 90.37% @ 49 | 4.5s
+Epoch  52/100 | train 2.6472/90.23% | val 0.9349/90.04% | best 90.37% @ 49 | 4.3s
+Epoch  53/100 | train 2.5939/90.28% | val 0.9061/90.69% | best 90.69% @ 53 | 4.3s
+Epoch  54/100 | train 2.5941/90.28% | val 0.9276/90.09% | best 90.69% @ 53 | 4.4s
+Epoch  55/100 | train 2.5956/90.52% | val 0.9410/90.33% | best 90.69% @ 53 | 4.5s
+Epoch  56/100 | train 2.5672/90.41% | val 0.9090/90.65% | best 90.69% @ 53 | 4.2s
+Epoch  57/100 | train 2.5882/90.10% | val 0.9315/90.44% | best 90.69% @ 53 | 4.4s
+Epoch  58/100 | train 2.5391/90.47% | val 0.9250/90.65% | best 90.69% @ 53 | 4.4s
+Epoch  59/100 | train 2.5696/90.39% | val 0.9385/89.91% | best 90.69% @ 53 | 4.3s
+Epoch  60/100 | train 2.5183/90.94% | val 0.8745/90.81% | best 90.81% @ 60 | 4.5s
+Epoch  61/100 | train 2.5008/90.93% | val 0.9229/90.35% | best 90.81% @ 60 | 4.2s
+Epoch  62/100 | train 2.5073/90.69% | val 0.9344/90.24% | best 90.81% @ 60 | 3.8s
+Epoch  63/100 | train 2.5086/91.04% | val 0.9030/90.52% | best 90.81% @ 60 | 4.4s
+Epoch  64/100 | train 2.4822/90.87% | val 0.9114/90.52% | best 90.81% @ 60 | 4.4s
+Epoch  65/100 | train 2.5298/90.73% | val 0.8836/90.76% | best 90.81% @ 60 | 4.2s
+Epoch  66/100 | train 2.4579/91.04% | val 0.8647/91.06% | best 91.06% @ 66 | 4.4s
+Epoch  67/100 | train 2.4087/91.40% | val 0.9212/90.33% | best 91.06% @ 66 | 4.5s
+Epoch  68/100 | train 2.4327/91.26% | val 0.8810/90.85% | best 91.06% @ 66 | 4.5s
+Epoch  69/100 | train 2.4481/91.41% | val 0.9048/90.48% | best 91.06% @ 66 | 4.4s
+Epoch  70/100 | train 2.4643/90.98% | val 0.9029/90.74% | best 91.06% @ 66 | 4.4s
+Epoch  71/100 | train 2.4244/91.12% | val 0.9118/90.37% | best 91.06% @ 66 | 4.4s
+Epoch  72/100 | train 2.3979/91.44% | val 0.9067/90.96% | best 91.06% @ 66 | 4.4s
+Epoch  73/100 | train 2.4164/91.36% | val 0.9105/90.59% | best 91.06% @ 66 | 4.4s
+Epoch  74/100 | train 2.3664/91.69% | val 0.9300/90.59% | best 91.06% @ 66 | 4.3s
+Epoch  75/100 | train 2.3434/91.72% | val 0.8904/91.26% | best 91.26% @ 75 | 4.3s
+Epoch  76/100 | train 2.3627/91.70% | val 0.9088/90.87% | best 91.26% @ 75 | 4.4s
+Epoch  77/100 | train 2.3966/91.46% | val 0.9001/90.93% | best 91.26% @ 75 | 4.8s
+Epoch  78/100 | train 2.3557/91.51% | val 0.9062/90.83% | best 91.26% @ 75 | 4.3s
+Epoch  79/100 | train 2.3374/91.76% | val 0.9066/91.11% | best 91.26% @ 75 | 4.3s
+Epoch  80/100 | train 2.3654/91.60% | val 0.8786/91.22% | best 91.26% @ 75 | 4.4s
+Epoch  81/100 | train 2.3550/91.75% | val 0.8822/91.57% | best 91.57% @ 81 | 4.3s
+Epoch  82/100 | train 2.3897/91.30% | val 0.8852/90.83% | best 91.57% @ 81 | 4.4s
+Epoch  83/100 | train 2.3440/91.81% | val 0.8784/91.19% | best 91.57% @ 81 | 4.2s
+Epoch  84/100 | train 2.3186/91.81% | val 0.8737/91.59% | best 91.59% @ 84 | 4.5s
+Epoch  85/100 | train 2.3346/91.85% | val 0.8822/91.48% | best 91.59% @ 84 | 4.3s
+Epoch  86/100 | train 2.2967/92.01% | val 0.8763/91.39% | best 91.59% @ 84 | 4.2s
+Epoch  87/100 | train 2.2880/92.24% | val 0.8999/91.24% | best 91.59% @ 84 | 4.4s
+Epoch  88/100 | train 2.3276/91.90% | val 0.8881/91.33% | best 91.59% @ 84 | 4.1s
+Epoch  89/100 | train 2.2871/92.19% | val 0.8646/91.63% | best 91.63% @ 89 | 4.2s
+Epoch  90/100 | train 2.3060/92.06% | val 0.8878/91.37% | best 91.63% @ 89 | 4.4s
+Epoch  91/100 | train 2.3003/91.81% | val 0.8901/90.87% | best 91.63% @ 89 | 4.2s
+Epoch  92/100 | train 2.3096/92.02% | val 0.8830/91.69% | best 91.69% @ 92 | 4.2s
+Epoch  93/100 | train 2.3260/91.76% | val 0.8986/91.26% | best 91.69% @ 92 | 4.6s
+Epoch  94/100 | train 2.3098/92.02% | val 0.8939/91.41% | best 91.69% @ 92 | 4.4s
+Epoch  95/100 | train 2.3060/92.03% | val 0.8637/91.43% | best 91.69% @ 92 | 4.6s
+Epoch  96/100 | train 2.2702/92.09% | val 0.8819/91.54% | best 91.69% @ 92 | 4.4s
+Epoch  97/100 | train 2.3012/92.04% | val 0.8795/91.22% | best 91.69% @ 92 | 4.4s
+Epoch  98/100 | train 2.2763/92.33% | val 0.8692/91.46% | best 91.69% @ 92 | 4.5s
+Epoch  99/100 | train 2.2952/92.20% | val 0.8962/91.46% | best 91.69% @ 92 | 4.4s
+Epoch 100/100 | train 2.2920/92.10% | val 0.8795/91.15% | best 91.69% @ 92 | 4.3s
+[enable_qat] Enabled QAT on 6 layers
+[disable_qat] Disabled QAT on 6 layers
+{
+  "status": "complete",
+  "model": "model3",
+  "kernel_size": 2,
+  "padding": 0,
+  "stride": 2,
+  "seed": 43,
+  "epochs": 100,
+  "batch_size": 64,
+  "weight_bits": 8,
+  "parameter_count": 267944,
+  "macs_per_image": 1051136,
+  "feature_shape_after_stage2": [
+    1,
+    32,
+    8,
+    8
+  ],
+  "alignment_ratio": 0.9964689265536724,
+  "best_epoch": 92,
+  "best_val_accuracy_pct": 91.68518518518518,
+  "best_qat_val_accuracy_pct": 91.68518518518518,
+  "best_float_val_accuracy_pct": 91.66666666666666,
+  "duration_seconds": 430.4757914543152,
+  "completed_at": "2026-07-19T00:15:29.822074+00:00",
+  "output_dir": "/root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model3/k2/seed43/20260719-080818"
+}
+Artifacts: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model2/k3/seed44/20260719-081534
+训练: 16200, 验证: 5400, 留出测试: 5400; workers=4
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8
+  QAT Conv: 3 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015)
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [model2 kernel=3x3] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w8
+  [QATConv2d_v4 QAT  ] stage1.0                     8   3×3        72        72  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage2.0                    16   3×3       144       144  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage3.0                    32   1×1        32        32  100.0%  w8
+  综合硬件对齐率: 99.7% (展平总长度 1531 → 补零后 1536)
+==============================================================================
+Kernel ablation: model2, 3x3, seed=44
+Device: cuda; parameters: 271,144; MACs/image: 1,870,336
+Data: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/data/EuroSAT_RGB; epochs=100; batch=64
+==============================================================================
+Epoch   1/100 | train 1.2689/60.91% | val 0.9989/73.02% | best 73.02% @ 1 | 4.7s
+Epoch   2/100 | train 0.9786/72.75% | val 0.8607/76.72% | best 76.72% @ 2 | 3.8s
+Epoch   3/100 | train 0.9522/73.76% | val 0.8244/78.78% | best 78.78% @ 3 | 3.6s
+Epoch   4/100 | train 0.9235/75.43% | val 0.8355/78.41% | best 78.78% @ 3 | 3.7s
+Epoch   5/100 | train 0.9150/75.94% | val 0.7963/79.87% | best 79.87% @ 5 | 3.8s
+Epoch   6/100 | train 0.8961/76.99% | val 0.7960/80.19% | best 80.19% @ 6 | 3.6s
+Epoch   7/100 | train 0.8739/77.71% | val 0.7953/80.07% | best 80.19% @ 6 | 3.5s
+Epoch   8/100 | train 0.8522/78.74% | val 0.7466/81.89% | best 81.89% @ 8 | 3.6s
+Epoch   9/100 | train 0.8203/80.18% | val 0.7632/81.76% | best 81.89% @ 8 | 3.5s
+Epoch  10/100 | train 0.7963/80.94% | val 0.7116/83.69% | best 83.69% @ 10 | 3.8s
+Epoch  11/100 | train 0.7795/81.95% | val 0.6690/85.33% | best 85.33% @ 11 | 3.7s
+Epoch  12/100 | train 0.7659/82.62% | val 0.7112/84.81% | best 85.33% @ 11 | 3.7s
+Epoch  13/100 | train 0.7353/83.56% | val 0.7177/83.44% | best 85.33% @ 11 | 3.7s
+Epoch  14/100 | train 0.7315/83.86% | val 0.6784/84.85% | best 85.33% @ 11 | 3.8s
+Epoch  15/100 | train 0.7150/85.15% | val 0.6533/86.89% | best 86.89% @ 15 | 3.7s
+Epoch  16/100 | train 0.6970/85.10% | val 0.6271/88.06% | best 88.06% @ 16 | 3.7s
+Epoch  17/100 | train 0.6921/85.58% | val 0.6314/87.57% | best 88.06% @ 16 | 3.6s
+Epoch  18/100 | train 0.6771/86.20% | val 0.6398/86.96% | best 88.06% @ 16 | 3.5s
+Epoch  19/100 | train 0.6717/86.35% | val 0.5923/89.19% | best 89.19% @ 19 | 3.6s
+Epoch  20/100 | train 0.6688/86.91% | val 0.5948/88.57% | best 89.19% @ 19 | 3.5s
+Epoch  21/100 | train 0.6720/86.84% | val 0.5870/89.11% | best 89.19% @ 19 | 3.5s
+Epoch  22/100 | train 0.6457/87.66% | val 0.5870/89.30% | best 89.30% @ 22 | 3.8s
+Epoch  23/100 | train 0.6405/87.82% | val 0.5907/88.69% | best 89.30% @ 22 | 3.8s
+Epoch  24/100 | train 0.6359/87.96% | val 0.6598/86.30% | best 89.30% @ 22 | 3.6s
+Epoch  25/100 | train 0.6323/88.19% | val 0.5759/89.52% | best 89.52% @ 25 | 3.8s
+Epoch  26/100 | train 0.6223/88.68% | val 0.6171/87.70% | best 89.52% @ 25 | 3.7s
+Epoch  27/100 | train 0.6176/88.85% | val 0.6023/88.52% | best 89.52% @ 25 | 3.7s
+Epoch  28/100 | train 0.6108/89.09% | val 0.6017/88.93% | best 89.52% @ 25 | 3.7s
+Epoch  29/100 | train 0.6117/89.27% | val 0.5700/90.11% | best 90.11% @ 29 | 3.8s
+Epoch  30/100 | train 0.6028/89.32% | val 0.5744/90.13% | best 90.13% @ 30 | 3.7s
+Epoch  31/100 | train 0.5973/90.00% | val 0.5601/90.13% | best 90.13% @ 30 | 3.6s
+Epoch  32/100 | train 0.5924/89.68% | val 0.5780/89.83% | best 90.13% @ 30 | 3.7s
+Epoch  33/100 | train 0.5939/89.79% | val 0.5527/90.94% | best 90.94% @ 33 | 3.7s
+Epoch  34/100 | train 0.5820/90.33% | val 0.5703/90.00% | best 90.94% @ 33 | 3.8s
+Epoch  35/100 | train 0.5797/90.35% | val 0.5912/89.00% | best 90.94% @ 33 | 3.8s
+Epoch  36/100 | train 0.5734/90.75% | val 0.5332/91.48% | best 91.48% @ 36 | 3.7s
+Epoch  37/100 | train 0.5782/90.54% | val 0.5466/91.09% | best 91.48% @ 36 | 3.7s
+Epoch  38/100 | train 0.5637/91.07% | val 0.5523/90.65% | best 91.48% @ 36 | 3.8s
+Epoch  39/100 | train 0.5642/91.08% | val 0.5370/91.52% | best 91.52% @ 39 | 3.8s
+Epoch  40/100 | train 0.5596/91.30% | val 0.5426/90.98% | best 91.52% @ 39 | 3.7s
+Epoch  41/100 | train 0.5570/91.27% | val 0.5466/90.74% | best 91.52% @ 39 | 3.5s
+Epoch  42/100 | train 0.5487/91.84% | val 0.5330/91.37% | best 91.52% @ 39 | 3.9s
+Epoch  43/100 | train 0.5561/91.40% | val 0.5224/91.94% | best 91.94% @ 43 | 3.7s
+Epoch  44/100 | train 0.5459/91.93% | val 0.5252/91.74% | best 91.94% @ 43 | 3.7s
+Epoch  45/100 | train 0.5551/91.60% | val 0.5720/89.94% | best 91.94% @ 43 | 3.6s
+Epoch  46/100 | train 0.5341/92.49% | val 0.5349/91.22% | best 91.94% @ 43 | 3.7s
+Epoch  47/100 | train 0.5333/92.48% | val 0.5112/92.24% | best 92.24% @ 47 | 3.6s
+Epoch  48/100 | train 0.5293/92.61% | val 0.5146/92.02% | best 92.24% @ 47 | 3.7s
+Epoch  49/100 | train 0.5390/92.28% | val 0.5252/91.67% | best 92.24% @ 47 | 3.8s
+Epoch  50/100 | train 0.5368/92.12% | val 0.5053/92.35% | best 92.35% @ 50 | 3.7s
+Epoch  51/100 | train 0.5305/92.54% | val 0.5040/92.48% | best 92.48% @ 51 | 3.5s
+Epoch  52/100 | train 0.5284/92.50% | val 0.5228/92.02% | best 92.48% @ 51 | 3.6s
+Epoch  53/100 | train 0.5263/92.63% | val 0.5174/91.91% | best 92.48% @ 51 | 3.6s
+Epoch  54/100 | train 0.5203/92.73% | val 0.5180/91.76% | best 92.48% @ 51 | 3.6s
+Epoch  55/100 | train 0.5184/92.99% | val 0.5051/92.63% | best 92.63% @ 55 | 3.6s
+Epoch  56/100 | train 0.5162/93.21% | val 0.5562/90.52% | best 92.63% @ 55 | 3.7s
+Epoch  57/100 | train 0.5169/93.17% | val 0.5096/92.41% | best 92.63% @ 55 | 3.7s
+Epoch  58/100 | train 0.5083/93.59% | val 0.5051/92.43% | best 92.63% @ 55 | 3.7s
+Epoch  59/100 | train 0.5151/93.04% | val 0.5296/91.63% | best 92.63% @ 55 | 3.7s
+Epoch  60/100 | train 0.5093/93.38% | val 0.5073/92.46% | best 92.63% @ 55 | 3.6s
+Epoch  61/100 | train 0.5112/93.25% | val 0.4968/93.00% | best 93.00% @ 61 | 3.6s
+Epoch  62/100 | train 0.4988/93.80% | val 0.5034/92.83% | best 93.00% @ 61 | 3.6s
+Epoch  63/100 | train 0.4993/93.92% | val 0.4993/92.87% | best 93.00% @ 61 | 3.6s
+Epoch  64/100 | train 0.4973/93.97% | val 0.5038/92.65% | best 93.00% @ 61 | 3.5s
+Epoch  65/100 | train 0.4994/93.71% | val 0.4951/92.87% | best 93.00% @ 61 | 3.6s
+Epoch  66/100 | train 0.4971/93.85% | val 0.5036/92.48% | best 93.00% @ 61 | 3.6s
+Epoch  67/100 | train 0.4987/93.85% | val 0.4913/93.11% | best 93.11% @ 67 | 3.7s
+Epoch  68/100 | train 0.4998/93.90% | val 0.5067/92.20% | best 93.11% @ 67 | 3.6s
+Epoch  69/100 | train 0.4928/93.99% | val 0.4892/93.46% | best 93.46% @ 69 | 3.7s
+Epoch  70/100 | train 0.4883/94.27% | val 0.4945/92.96% | best 93.46% @ 69 | 3.7s
+Epoch  71/100 | train 0.4897/94.12% | val 0.4967/93.02% | best 93.46% @ 69 | 3.7s
+Epoch  72/100 | train 0.4852/94.50% | val 0.4850/93.35% | best 93.46% @ 69 | 3.6s
+Epoch  73/100 | train 0.4834/94.46% | val 0.4996/92.83% | best 93.46% @ 69 | 3.6s
+Epoch  74/100 | train 0.4843/94.54% | val 0.4863/93.54% | best 93.54% @ 74 | 3.6s
+Epoch  75/100 | train 0.4809/94.54% | val 0.4830/93.50% | best 93.54% @ 74 | 3.5s
+Epoch  76/100 | train 0.4788/94.62% | val 0.4829/93.61% | best 93.61% @ 76 | 3.5s
+Epoch  77/100 | train 0.4813/94.59% | val 0.4868/93.50% | best 93.61% @ 76 | 3.5s
+Epoch  78/100 | train 0.4766/94.83% | val 0.4819/93.61% | best 93.61% @ 76 | 3.7s
+Epoch  79/100 | train 0.4791/94.61% | val 0.4914/93.24% | best 93.61% @ 76 | 3.7s
+Epoch  80/100 | train 0.4864/94.30% | val 0.4828/93.61% | best 93.61% @ 76 | 3.8s
+Epoch  81/100 | train 0.4765/94.49% | val 0.4863/93.22% | best 93.61% @ 76 | 3.8s
+Epoch  82/100 | train 0.4742/94.93% | val 0.4827/93.93% | best 93.93% @ 82 | 3.6s
+Epoch  83/100 | train 0.4715/95.07% | val 0.4807/93.83% | best 93.93% @ 82 | 3.7s
+Epoch  84/100 | train 0.4716/94.89% | val 0.4898/93.19% | best 93.93% @ 82 | 3.6s
+Epoch  85/100 | train 0.4709/95.23% | val 0.4805/93.59% | best 93.93% @ 82 | 3.6s
+Epoch  86/100 | train 0.4698/95.04% | val 0.4783/93.93% | best 93.93% @ 82 | 3.7s
+Epoch  87/100 | train 0.4731/94.92% | val 0.4759/93.98% | best 93.98% @ 87 | 3.7s
+Epoch  88/100 | train 0.4672/95.09% | val 0.4813/93.59% | best 93.98% @ 87 | 3.6s
+Epoch  89/100 | train 0.4684/95.23% | val 0.4791/94.00% | best 94.00% @ 89 | 3.6s
+Epoch  90/100 | train 0.4709/95.19% | val 0.4792/94.00% | best 94.00% @ 89 | 3.6s
+Epoch  91/100 | train 0.4667/95.19% | val 0.4790/93.72% | best 94.00% @ 89 | 3.5s
+Epoch  92/100 | train 0.4685/95.15% | val 0.4762/93.94% | best 94.00% @ 89 | 3.7s
+Epoch  93/100 | train 0.4709/95.12% | val 0.4803/93.76% | best 94.00% @ 89 | 3.5s
+Epoch  94/100 | train 0.4688/95.12% | val 0.4775/93.70% | best 94.00% @ 89 | 3.6s
+Epoch  95/100 | train 0.4704/95.02% | val 0.4862/93.39% | best 94.00% @ 89 | 3.6s
+Epoch  96/100 | train 0.4705/95.00% | val 0.4763/93.80% | best 94.00% @ 89 | 3.6s
+Epoch  97/100 | train 0.4704/94.88% | val 0.4766/93.70% | best 94.00% @ 89 | 3.6s
+Epoch  98/100 | train 0.4709/94.91% | val 0.4774/94.06% | best 94.06% @ 98 | 3.7s
+Epoch  99/100 | train 0.4661/95.23% | val 0.4736/94.22% | best 94.22% @ 99 | 3.6s
+Epoch 100/100 | train 0.4639/95.30% | val 0.4741/94.11% | best 94.22% @ 99 | 3.6s
+[enable_qat] Enabled QAT on 6 layers
+[disable_qat] Disabled QAT on 6 layers
+{
+  "status": "complete",
+  "model": "model2",
+  "kernel_size": 3,
+  "padding": 1,
+  "stride": 2,
+  "seed": 44,
+  "epochs": 100,
+  "batch_size": 64,
+  "weight_bits": 8,
+  "parameter_count": 271144,
+  "macs_per_image": 1870336,
+  "feature_shape_after_stage2": [
+    1,
+    32,
+    8,
+    8
+  ],
+  "alignment_ratio": 0.9967447916666666,
+  "best_epoch": 99,
+  "best_val_accuracy_pct": 94.22222222222221,
+  "best_qat_val_accuracy_pct": 94.22222222222221,
+  "best_float_val_accuracy_pct": 94.07407407407408,
+  "duration_seconds": 367.86059522628784,
+  "completed_at": "2026-07-19T00:21:42.248025+00:00",
+  "output_dir": "/root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model2/k3/seed44/20260719-081534"
+}
+Artifacts: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model2/k2/seed44/20260719-082146
+训练: 16200, 验证: 5400, 留出测试: 5400; workers=4
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8
+  QAT Conv: 3 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015)
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [model2 kernel=2x2] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w8
+  [QATConv2d_v4 QAT  ] stage1.0                     8   2×2        32        32  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage2.0                    16   2×2        64        64  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage3.0                    32   1×1        32        32  100.0%  w8
+  综合硬件对齐率: 99.6% (展平总长度 1411 → 补零后 1416)
+==============================================================================
+Kernel ablation: model2, 2x2, seed=44
+Device: cuda; parameters: 267,944; MACs/image: 1,051,136
+Data: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/data/EuroSAT_RGB; epochs=100; batch=64
+==============================================================================
+Epoch   1/100 | train 1.2651/60.98% | val 1.0176/70.78% | best 70.78% @ 1 | 4.8s
+Epoch   2/100 | train 0.9980/72.10% | val 0.8935/76.61% | best 76.61% @ 2 | 3.7s
+Epoch   3/100 | train 0.9626/73.78% | val 0.8529/77.78% | best 77.78% @ 3 | 3.7s
+Epoch   4/100 | train 0.9386/74.82% | val 0.8485/77.80% | best 77.80% @ 4 | 3.7s
+Epoch   5/100 | train 0.9120/76.22% | val 0.7785/80.61% | best 80.61% @ 5 | 3.7s
+Epoch   6/100 | train 0.9020/76.98% | val 0.7734/81.06% | best 81.06% @ 6 | 3.8s
+Epoch   7/100 | train 0.8846/77.51% | val 0.7534/81.91% | best 81.91% @ 7 | 3.8s
+Epoch   8/100 | train 0.8551/78.51% | val 0.7970/80.17% | best 81.91% @ 7 | 3.7s
+Epoch   9/100 | train 0.8348/79.33% | val 0.8349/77.94% | best 81.91% @ 7 | 3.6s
+Epoch  10/100 | train 0.8183/80.54% | val 0.7075/84.26% | best 84.26% @ 10 | 3.8s
+Epoch  11/100 | train 0.7845/81.64% | val 0.7135/84.59% | best 84.59% @ 11 | 3.7s
+Epoch  12/100 | train 0.7792/82.03% | val 0.6899/84.70% | best 84.70% @ 12 | 3.8s
+Epoch  13/100 | train 0.7622/82.36% | val 0.7259/83.19% | best 84.70% @ 12 | 3.8s
+Epoch  14/100 | train 0.7528/83.20% | val 0.6565/86.81% | best 86.81% @ 14 | 3.7s
+Epoch  15/100 | train 0.7389/83.49% | val 0.8562/77.83% | best 86.81% @ 14 | 3.8s
+Epoch  16/100 | train 0.7425/83.44% | val 0.6702/86.00% | best 86.81% @ 14 | 3.6s
+Epoch  17/100 | train 0.7239/84.38% | val 0.6692/85.89% | best 86.81% @ 14 | 3.7s
+Epoch  18/100 | train 0.7179/84.71% | val 0.7130/83.65% | best 86.81% @ 14 | 3.6s
+Epoch  19/100 | train 0.7174/84.60% | val 0.6559/86.52% | best 86.81% @ 14 | 3.7s
+Epoch  20/100 | train 0.6981/85.26% | val 0.6268/87.65% | best 87.65% @ 20 | 3.6s
+Epoch  21/100 | train 0.7070/84.98% | val 0.7008/84.13% | best 87.65% @ 20 | 3.5s
+Epoch  22/100 | train 0.6943/85.72% | val 0.6411/86.93% | best 87.65% @ 20 | 3.5s
+Epoch  23/100 | train 0.6831/86.24% | val 0.6586/86.04% | best 87.65% @ 20 | 3.5s
+Epoch  24/100 | train 0.6812/86.28% | val 0.6177/88.26% | best 88.26% @ 24 | 3.5s
+Epoch  25/100 | train 0.6805/86.36% | val 0.6119/87.93% | best 88.26% @ 24 | 3.4s
+Epoch  26/100 | train 0.6670/86.91% | val 0.6407/86.93% | best 88.26% @ 24 | 3.5s
+Epoch  27/100 | train 0.6626/86.85% | val 0.6333/87.20% | best 88.26% @ 24 | 3.5s
+Epoch  28/100 | train 0.6653/87.12% | val 0.6455/86.93% | best 88.26% @ 24 | 3.4s
+Epoch  29/100 | train 0.6592/87.45% | val 0.6367/87.00% | best 88.26% @ 24 | 3.6s
+Epoch  30/100 | train 0.6521/87.47% | val 0.6242/87.41% | best 88.26% @ 24 | 3.5s
+Epoch  31/100 | train 0.6449/87.72% | val 0.6169/87.96% | best 88.26% @ 24 | 3.4s
+Epoch  32/100 | train 0.6508/87.57% | val 0.6189/87.57% | best 88.26% @ 24 | 3.6s
+Epoch  33/100 | train 0.6408/87.90% | val 0.6080/88.48% | best 88.48% @ 33 | 3.7s
+Epoch  34/100 | train 0.6372/88.10% | val 0.6270/87.46% | best 88.48% @ 33 | 3.5s
+Epoch  35/100 | train 0.6319/88.41% | val 0.6160/88.00% | best 88.48% @ 33 | 3.7s
+Epoch  36/100 | train 0.6317/88.36% | val 0.5903/89.02% | best 89.02% @ 36 | 3.7s
+Epoch  37/100 | train 0.6371/88.33% | val 0.5881/89.02% | best 89.02% @ 36 | 3.5s
+Epoch  38/100 | train 0.6310/88.27% | val 0.6035/88.41% | best 89.02% @ 36 | 3.6s
+Epoch  39/100 | train 0.6208/88.78% | val 0.5783/89.19% | best 89.19% @ 39 | 3.6s
+Epoch  40/100 | train 0.6154/88.90% | val 0.5774/89.54% | best 89.54% @ 40 | 3.6s
+Epoch  41/100 | train 0.6091/89.13% | val 0.5813/89.30% | best 89.54% @ 40 | 3.7s
+Epoch  42/100 | train 0.6021/89.73% | val 0.5845/89.20% | best 89.54% @ 40 | 3.8s
+Epoch  43/100 | train 0.6082/89.42% | val 0.5796/89.13% | best 89.54% @ 40 | 3.6s
+Epoch  44/100 | train 0.6035/89.48% | val 0.5759/89.54% | best 89.54% @ 40 | 3.7s
+Epoch  45/100 | train 0.6041/89.51% | val 0.5963/88.46% | best 89.54% @ 40 | 3.7s
+Epoch  46/100 | train 0.5906/90.02% | val 0.5919/88.96% | best 89.54% @ 40 | 3.7s
+Epoch  47/100 | train 0.5954/89.86% | val 0.5689/89.78% | best 89.78% @ 47 | 3.8s
+Epoch  48/100 | train 0.5859/90.02% | val 0.5642/89.89% | best 89.89% @ 48 | 3.7s
+Epoch  49/100 | train 0.5982/89.85% | val 0.5789/89.20% | best 89.89% @ 48 | 3.8s
+Epoch  50/100 | train 0.5896/89.99% | val 0.5808/89.30% | best 89.89% @ 48 | 3.8s
+Epoch  51/100 | train 0.5891/89.81% | val 0.5711/89.44% | best 89.89% @ 48 | 3.7s
+Epoch  52/100 | train 0.5884/90.08% | val 0.5651/89.48% | best 89.89% @ 48 | 3.8s
+Epoch  53/100 | train 0.5850/90.08% | val 0.5702/89.52% | best 89.89% @ 48 | 4.0s
+Epoch  54/100 | train 0.5794/90.50% | val 0.5664/89.65% | best 89.89% @ 48 | 3.9s
+Epoch  55/100 | train 0.5781/90.52% | val 0.5706/89.81% | best 89.89% @ 48 | 3.8s
+Epoch  56/100 | train 0.5667/90.96% | val 0.5871/89.19% | best 89.89% @ 48 | 3.9s
+Epoch  57/100 | train 0.5762/90.59% | val 0.5678/89.83% | best 89.89% @ 48 | 3.9s
+Epoch  58/100 | train 0.5614/91.07% | val 0.5651/90.07% | best 90.07% @ 58 | 3.8s
+Epoch  59/100 | train 0.5732/90.72% | val 0.6029/88.39% | best 90.07% @ 58 | 3.8s
+Epoch  60/100 | train 0.5666/90.99% | val 0.5551/90.35% | best 90.35% @ 60 | 3.8s
+Epoch  61/100 | train 0.5649/91.18% | val 0.5455/90.85% | best 90.85% @ 61 | 3.8s
+Epoch  62/100 | train 0.5612/91.31% | val 0.5718/89.81% | best 90.85% @ 61 | 3.8s
+Epoch  63/100 | train 0.5580/91.50% | val 0.5581/90.35% | best 90.85% @ 61 | 3.9s
+Epoch  64/100 | train 0.5565/91.19% | val 0.5496/90.43% | best 90.85% @ 61 | 3.7s
+Epoch  65/100 | train 0.5564/91.37% | val 0.5535/90.31% | best 90.85% @ 61 | 3.7s
+Epoch  66/100 | train 0.5574/91.15% | val 0.5497/90.46% | best 90.85% @ 61 | 3.7s
+Epoch  67/100 | train 0.5545/91.66% | val 0.5458/90.52% | best 90.85% @ 61 | 3.7s
+Epoch  68/100 | train 0.5530/91.78% | val 0.5634/90.09% | best 90.85% @ 61 | 3.8s
+Epoch  69/100 | train 0.5520/91.70% | val 0.5488/90.69% | best 90.85% @ 61 | 3.7s
+Epoch  70/100 | train 0.5518/91.44% | val 0.5615/90.15% | best 90.85% @ 61 | 3.6s
+Epoch  71/100 | train 0.5507/91.62% | val 0.5399/90.78% | best 90.85% @ 61 | 3.6s
+Epoch  72/100 | train 0.5491/91.61% | val 0.5488/90.74% | best 90.85% @ 61 | 3.6s
+Epoch  73/100 | train 0.5428/91.81% | val 0.5502/90.56% | best 90.85% @ 61 | 3.7s
+Epoch  74/100 | train 0.5401/92.23% | val 0.5473/90.46% | best 90.85% @ 61 | 3.8s
+Epoch  75/100 | train 0.5387/92.17% | val 0.5414/90.89% | best 90.89% @ 75 | 3.7s
+Epoch  76/100 | train 0.5357/92.41% | val 0.5381/90.76% | best 90.89% @ 75 | 3.8s
+Epoch  77/100 | train 0.5391/92.12% | val 0.5429/90.72% | best 90.89% @ 75 | 3.7s
+Epoch  78/100 | train 0.5346/92.48% | val 0.5384/90.76% | best 90.89% @ 75 | 3.8s
+Epoch  79/100 | train 0.5371/92.12% | val 0.5554/90.26% | best 90.89% @ 75 | 3.7s
+Epoch  80/100 | train 0.5430/92.25% | val 0.5426/90.93% | best 90.93% @ 80 | 3.8s
+Epoch  81/100 | train 0.5291/92.50% | val 0.5390/90.96% | best 90.96% @ 81 | 3.9s
+Epoch  82/100 | train 0.5333/92.40% | val 0.5420/90.57% | best 90.96% @ 81 | 3.8s
+Epoch  83/100 | train 0.5285/92.80% | val 0.5364/90.72% | best 90.96% @ 81 | 3.8s
+Epoch  84/100 | train 0.5290/92.77% | val 0.5460/90.74% | best 90.96% @ 81 | 3.8s
+Epoch  85/100 | train 0.5283/92.79% | val 0.5363/91.02% | best 91.02% @ 85 | 3.8s
+Epoch  86/100 | train 0.5306/92.23% | val 0.5339/90.89% | best 91.02% @ 85 | 3.8s
+Epoch  87/100 | train 0.5317/92.53% | val 0.5379/90.87% | best 91.02% @ 85 | 3.8s
+Epoch  88/100 | train 0.5246/92.81% | val 0.5365/90.80% | best 91.02% @ 85 | 3.8s
+Epoch  89/100 | train 0.5275/92.49% | val 0.5383/90.89% | best 91.02% @ 85 | 3.8s
+Epoch  90/100 | train 0.5297/92.60% | val 0.5359/90.91% | best 91.02% @ 85 | 3.8s
+Epoch  91/100 | train 0.5263/92.74% | val 0.5408/90.94% | best 91.02% @ 85 | 3.7s
+Epoch  92/100 | train 0.5254/92.55% | val 0.5359/90.80% | best 91.02% @ 85 | 3.9s
+Epoch  93/100 | train 0.5267/92.70% | val 0.5368/90.96% | best 91.02% @ 85 | 3.7s
+Epoch  94/100 | train 0.5237/92.67% | val 0.5313/91.28% | best 91.28% @ 94 | 3.8s
+Epoch  95/100 | train 0.5265/92.60% | val 0.5406/90.70% | best 91.28% @ 94 | 3.7s
+Epoch  96/100 | train 0.5234/92.91% | val 0.5331/91.04% | best 91.28% @ 94 | 3.8s
+Epoch  97/100 | train 0.5267/92.59% | val 0.5325/91.13% | best 91.28% @ 94 | 3.8s
+Epoch  98/100 | train 0.5252/92.71% | val 0.5352/90.87% | best 91.28% @ 94 | 3.6s
+Epoch  99/100 | train 0.5263/92.83% | val 0.5338/91.13% | best 91.28% @ 94 | 3.5s
+Epoch 100/100 | train 0.5262/92.67% | val 0.5341/90.94% | best 91.28% @ 94 | 3.7s
+[enable_qat] Enabled QAT on 6 layers
+[disable_qat] Disabled QAT on 6 layers
+{
+  "status": "complete",
+  "model": "model2",
+  "kernel_size": 2,
+  "padding": 0,
+  "stride": 2,
+  "seed": 44,
+  "epochs": 100,
+  "batch_size": 64,
+  "weight_bits": 8,
+  "parameter_count": 267944,
+  "macs_per_image": 1051136,
+  "feature_shape_after_stage2": [
+    1,
+    32,
+    8,
+    8
+  ],
+  "alignment_ratio": 0.9964689265536724,
+  "best_epoch": 94,
+  "best_val_accuracy_pct": 91.27777777777779,
+  "best_qat_val_accuracy_pct": 91.27777777777779,
+  "best_float_val_accuracy_pct": 91.20370370370371,
+  "duration_seconds": 373.29770374298096,
+  "completed_at": "2026-07-19T00:27:59.701908+00:00",
+  "output_dir": "/root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model2/k2/seed44/20260719-082146"
+}
+Artifacts: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model3/k3/seed44/20260719-082803
+训练: 16200, 验证: 5400, 留出测试: 5400; workers=4
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8
+  QAT Conv: 3 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015)
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [model3 kernel=3x3] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w8
+  [QATConv2d_v4 QAT  ] stage1.0                     8   3×3        72        72  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage2.0                    16   3×3       144       144  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage3.0                    32   1×1        32        32  100.0%  w8
+  综合硬件对齐率: 99.7% (展平总长度 1531 → 补零后 1536)
+==============================================================================
+Kernel ablation: model3, 3x3, seed=44
+Device: cuda; parameters: 271,144; MACs/image: 1,870,336
+Data: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/data/EuroSAT_RGB; epochs=100; batch=64
+==============================================================================
+Epoch   1/100 | train 7.3764/60.53% | val 1.3635/73.74% | best 73.74% @ 1 | 5.1s
+Epoch   2/100 | train 5.2251/73.07% | val 1.2304/76.30% | best 76.30% @ 2 | 4.1s
+Epoch   3/100 | train 5.0355/74.44% | val 1.2209/77.44% | best 77.44% @ 3 | 4.4s
+Epoch   4/100 | train 4.8094/75.91% | val 1.2310/78.70% | best 78.70% @ 4 | 4.1s
+Epoch   5/100 | train 4.6628/76.85% | val 1.1529/80.69% | best 80.69% @ 5 | 3.8s
+Epoch   6/100 | train 4.5646/77.35% | val 1.2860/78.43% | best 80.69% @ 5 | 4.3s
+Epoch   7/100 | train 4.4060/78.45% | val 1.2061/81.17% | best 81.17% @ 7 | 4.2s
+Epoch   8/100 | train 4.2799/79.40% | val 1.2186/81.80% | best 81.80% @ 8 | 4.2s
+Epoch   9/100 | train 4.1161/80.39% | val 1.1350/82.56% | best 82.56% @ 9 | 4.1s
+Epoch  10/100 | train 3.9294/81.80% | val 1.0563/85.02% | best 85.02% @ 10 | 4.3s
+Epoch  11/100 | train 3.8313/82.36% | val 1.0697/85.17% | best 85.17% @ 11 | 4.0s
+Epoch  12/100 | train 3.6957/83.30% | val 1.1031/83.85% | best 85.17% @ 11 | 4.1s
+Epoch  13/100 | train 3.5658/83.93% | val 1.2686/81.93% | best 85.17% @ 11 | 4.2s
+Epoch  14/100 | train 3.5542/84.07% | val 1.0373/85.85% | best 85.85% @ 14 | 4.2s
+Epoch  15/100 | train 3.4329/84.81% | val 0.9907/86.70% | best 86.70% @ 15 | 4.1s
+Epoch  16/100 | train 3.3541/85.36% | val 0.9990/87.09% | best 87.09% @ 16 | 4.2s
+Epoch  17/100 | train 3.3066/85.85% | val 1.0599/85.35% | best 87.09% @ 16 | 4.2s
+Epoch  18/100 | train 3.2338/86.18% | val 1.0749/85.69% | best 87.09% @ 16 | 4.2s
+Epoch  19/100 | train 3.2068/86.07% | val 0.9797/87.43% | best 87.43% @ 19 | 4.1s
+Epoch  20/100 | train 3.1782/86.57% | val 0.9644/88.26% | best 88.26% @ 20 | 4.2s
+Epoch  21/100 | train 3.1885/86.58% | val 0.9875/87.48% | best 88.26% @ 20 | 4.0s
+Epoch  22/100 | train 3.0905/86.78% | val 0.9660/87.96% | best 88.26% @ 20 | 4.2s
+Epoch  23/100 | train 2.9963/87.54% | val 0.9393/88.69% | best 88.69% @ 23 | 4.4s
+Epoch  24/100 | train 3.0227/87.40% | val 0.9426/88.13% | best 88.69% @ 23 | 4.2s
+Epoch  25/100 | train 3.0052/87.55% | val 0.9515/89.22% | best 89.22% @ 25 | 4.2s
+Epoch  26/100 | train 2.8837/88.47% | val 1.0652/86.46% | best 89.22% @ 25 | 4.2s
+Epoch  27/100 | train 2.8624/88.59% | val 1.0388/86.61% | best 89.22% @ 25 | 3.7s
+Epoch  28/100 | train 2.9002/88.29% | val 0.9865/88.28% | best 89.22% @ 25 | 3.8s
+Epoch  29/100 | train 2.8978/88.42% | val 0.9333/89.43% | best 89.43% @ 29 | 3.9s
+Epoch  30/100 | train 2.8416/88.64% | val 0.9281/89.59% | best 89.59% @ 30 | 3.9s
+Epoch  31/100 | train 2.7990/88.73% | val 0.9380/89.31% | best 89.59% @ 30 | 4.2s
+Epoch  32/100 | train 2.8122/88.66% | val 0.9952/88.20% | best 89.59% @ 30 | 4.1s
+Epoch  33/100 | train 2.7363/89.15% | val 0.9254/89.81% | best 89.81% @ 33 | 4.3s
+Epoch  34/100 | train 2.6889/89.54% | val 0.8796/91.13% | best 91.13% @ 34 | 3.8s
+Epoch  35/100 | train 2.6621/89.70% | val 0.9674/88.98% | best 91.13% @ 34 | 4.0s
+Epoch  36/100 | train 2.6698/89.47% | val 0.9035/90.50% | best 91.13% @ 34 | 3.9s
+Epoch  37/100 | train 2.6965/89.11% | val 0.9566/89.06% | best 91.13% @ 34 | 4.1s
+Epoch  38/100 | train 2.6185/89.96% | val 0.9286/90.17% | best 91.13% @ 34 | 3.9s
+Epoch  39/100 | train 2.6160/90.02% | val 0.9282/90.22% | best 91.13% @ 34 | 4.2s
+Epoch  40/100 | train 2.5819/90.25% | val 0.8938/90.76% | best 91.13% @ 34 | 4.2s
+Epoch  41/100 | train 2.5328/90.49% | val 0.9124/90.59% | best 91.13% @ 34 | 4.1s
+Epoch  42/100 | train 2.5187/90.38% | val 0.8941/90.37% | best 91.13% @ 34 | 4.0s
+Epoch  43/100 | train 2.5337/90.54% | val 0.8694/91.20% | best 91.20% @ 43 | 4.0s
+Epoch  44/100 | train 2.4981/90.65% | val 0.8816/91.50% | best 91.50% @ 44 | 4.0s
+Epoch  45/100 | train 2.4986/90.60% | val 0.8957/90.98% | best 91.50% @ 44 | 4.1s
+Epoch  46/100 | train 2.4276/91.35% | val 0.8766/90.94% | best 91.50% @ 44 | 4.3s
+Epoch  47/100 | train 2.4601/90.97% | val 0.8396/92.07% | best 92.07% @ 47 | 4.2s
+Epoch  48/100 | train 2.4212/91.40% | val 0.8345/91.76% | best 92.07% @ 47 | 4.1s
+Epoch  49/100 | train 2.4239/91.20% | val 0.8993/90.43% | best 92.07% @ 47 | 4.0s
+Epoch  50/100 | train 2.4286/91.15% | val 0.8591/91.85% | best 92.07% @ 47 | 4.2s
+Epoch  51/100 | train 2.3899/91.28% | val 0.8835/91.09% | best 92.07% @ 47 | 4.0s
+Epoch  52/100 | train 2.3689/91.39% | val 0.8543/91.81% | best 92.07% @ 47 | 4.1s
+Epoch  53/100 | train 2.3701/91.44% | val 0.8810/91.57% | best 92.07% @ 47 | 4.6s
+Epoch  54/100 | train 2.3610/91.48% | val 0.8775/91.35% | best 92.07% @ 47 | 4.1s
+Epoch  55/100 | train 2.3184/91.94% | val 0.9051/91.15% | best 92.07% @ 47 | 4.1s
+Epoch  56/100 | train 2.3146/91.96% | val 0.9072/91.15% | best 92.07% @ 47 | 4.1s
+Epoch  57/100 | train 2.3388/91.48% | val 0.8473/92.24% | best 92.24% @ 57 | 4.1s
+Epoch  58/100 | train 2.2707/92.02% | val 0.8918/91.17% | best 92.24% @ 57 | 4.0s
+Epoch  59/100 | train 2.3205/91.96% | val 0.8701/91.20% | best 92.24% @ 57 | 4.3s
+Epoch  60/100 | train 2.2865/91.81% | val 0.8371/91.98% | best 92.24% @ 57 | 4.2s
+Epoch  61/100 | train 2.2596/92.52% | val 0.8499/91.91% | best 92.24% @ 57 | 4.0s
+Epoch  62/100 | train 2.2285/92.43% | val 0.8567/91.69% | best 92.24% @ 57 | 4.1s
+Epoch  63/100 | train 2.2385/92.06% | val 0.8597/91.76% | best 92.24% @ 57 | 4.0s
+Epoch  64/100 | train 2.2302/92.40% | val 0.8571/91.80% | best 92.24% @ 57 | 3.8s
+Epoch  65/100 | train 2.2191/92.59% | val 0.8560/91.80% | best 92.24% @ 57 | 3.7s
+Epoch  66/100 | train 2.2123/92.55% | val 0.8710/91.74% | best 92.24% @ 57 | 3.8s
+Epoch  67/100 | train 2.2307/92.29% | val 0.8329/92.43% | best 92.43% @ 67 | 3.7s
+Epoch  68/100 | train 2.2050/92.72% | val 0.8567/91.80% | best 92.43% @ 67 | 3.8s
+Epoch  69/100 | train 2.2037/92.38% | val 0.8229/92.63% | best 92.63% @ 69 | 4.1s
+Epoch  70/100 | train 2.2029/92.48% | val 0.8319/92.17% | best 92.63% @ 69 | 4.2s
+Epoch  71/100 | train 2.1851/92.60% | val 0.8379/92.33% | best 92.63% @ 69 | 4.1s
+Epoch  72/100 | train 2.1461/92.85% | val 0.8249/92.72% | best 92.72% @ 72 | 3.9s
+Epoch  73/100 | train 2.1403/92.73% | val 0.8449/92.48% | best 92.72% @ 72 | 4.0s
+Epoch  74/100 | train 2.1262/92.83% | val 0.8343/92.50% | best 92.72% @ 72 | 4.0s
+Epoch  75/100 | train 2.1243/93.08% | val 0.8142/92.83% | best 92.83% @ 75 | 4.1s
+Epoch  76/100 | train 2.1060/93.01% | val 0.8287/92.41% | best 92.83% @ 75 | 4.0s
+Epoch  77/100 | train 2.1191/93.08% | val 0.8259/92.67% | best 92.83% @ 75 | 4.0s
+Epoch  78/100 | train 2.0937/92.93% | val 0.8103/92.94% | best 92.94% @ 78 | 4.0s
+Epoch  79/100 | train 2.1302/92.98% | val 0.8326/92.96% | best 92.96% @ 79 | 4.1s
+Epoch  80/100 | train 2.1231/92.96% | val 0.8282/92.76% | best 92.96% @ 79 | 4.0s
+Epoch  81/100 | train 2.1135/92.94% | val 0.8287/92.52% | best 92.96% @ 79 | 3.8s
+Epoch  82/100 | train 2.0807/93.17% | val 0.8335/92.35% | best 92.96% @ 79 | 3.8s
+Epoch  83/100 | train 2.0768/93.41% | val 0.8316/92.67% | best 92.96% @ 79 | 3.9s
+Epoch  84/100 | train 2.0631/93.06% | val 0.8441/92.30% | best 92.96% @ 79 | 3.9s
+Epoch  85/100 | train 2.0596/93.14% | val 0.8210/92.87% | best 92.96% @ 79 | 3.7s
+Epoch  86/100 | train 2.0445/93.36% | val 0.8215/92.78% | best 92.96% @ 79 | 4.0s
+Epoch  87/100 | train 2.0542/93.35% | val 0.8173/93.09% | best 93.09% @ 87 | 4.1s
+Epoch  88/100 | train 2.0576/93.35% | val 0.8197/92.81% | best 93.09% @ 87 | 3.9s
+Epoch  89/100 | train 2.0537/93.40% | val 0.8164/92.89% | best 93.09% @ 87 | 3.9s
+Epoch  90/100 | train 2.0679/93.27% | val 0.8215/92.76% | best 93.09% @ 87 | 3.9s
+Epoch  91/100 | train 2.0460/93.39% | val 0.8197/92.94% | best 93.09% @ 87 | 4.1s
+Epoch  92/100 | train 2.0292/93.45% | val 0.8289/92.70% | best 93.09% @ 87 | 4.0s
+Epoch  93/100 | train 2.0609/93.26% | val 0.8322/92.70% | best 93.09% @ 87 | 4.0s
+Epoch  94/100 | train 2.0465/93.51% | val 0.8197/92.96% | best 93.09% @ 87 | 4.1s
+Epoch  95/100 | train 2.0679/93.36% | val 0.8148/92.43% | best 93.09% @ 87 | 4.3s
+Epoch  96/100 | train 2.0345/93.62% | val 0.8241/92.96% | best 93.09% @ 87 | 3.9s
+Epoch  97/100 | train 2.0741/93.44% | val 0.8210/93.06% | best 93.09% @ 87 | 3.8s
+Epoch  98/100 | train 2.0489/93.26% | val 0.8209/92.74% | best 93.09% @ 87 | 3.9s
+Epoch  99/100 | train 2.0181/93.54% | val 0.8244/92.80% | best 93.09% @ 87 | 4.0s
+Epoch 100/100 | train 2.0281/93.30% | val 0.8172/93.07% | best 93.09% @ 87 | 3.8s
+[enable_qat] Enabled QAT on 6 layers
+[disable_qat] Disabled QAT on 6 layers
+{
+  "status": "complete",
+  "model": "model3",
+  "kernel_size": 3,
+  "padding": 1,
+  "stride": 2,
+  "seed": 44,
+  "epochs": 100,
+  "batch_size": 64,
+  "weight_bits": 8,
+  "parameter_count": 271144,
+  "macs_per_image": 1870336,
+  "feature_shape_after_stage2": [
+    1,
+    32,
+    8,
+    8
+  ],
+  "alignment_ratio": 0.9967447916666666,
+  "best_epoch": 87,
+  "best_val_accuracy_pct": 93.0925925925926,
+  "best_qat_val_accuracy_pct": 93.0925925925926,
+  "best_float_val_accuracy_pct": 93.03703703703704,
+  "duration_seconds": 407.2579743862152,
+  "completed_at": "2026-07-19T00:34:51.607025+00:00",
+  "output_dir": "/root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model3/k3/seed44/20260719-082803"
+}
+Artifacts: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model3/k2/seed44/20260719-083455
+训练: 16200, 验证: 5400, 留出测试: 5400; workers=4
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8
+  QAT Conv: 3 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015)
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [model3 kernel=2x2] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w8
+  [QATConv2d_v4 QAT  ] stage1.0                     8   2×2        32        32  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage2.0                    16   2×2        64        64  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage3.0                    32   1×1        32        32  100.0%  w8
+  综合硬件对齐率: 99.6% (展平总长度 1411 → 补零后 1416)
+==============================================================================
+Kernel ablation: model3, 2x2, seed=44
+Device: cuda; parameters: 267,944; MACs/image: 1,051,136
+Data: /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/data/EuroSAT_RGB; epochs=100; batch=64
+==============================================================================
+Epoch   1/100 | train 7.3745/60.04% | val 1.5459/70.22% | best 70.22% @ 1 | 4.6s
+Epoch   2/100 | train 5.4190/71.93% | val 1.3142/76.02% | best 76.02% @ 2 | 3.9s
+Epoch   3/100 | train 5.1827/73.83% | val 1.1961/77.80% | best 77.80% @ 3 | 4.2s
+Epoch   4/100 | train 4.9700/74.59% | val 1.2187/78.69% | best 78.69% @ 4 | 4.0s
+Epoch   5/100 | train 4.7502/76.48% | val 1.1842/79.98% | best 79.98% @ 5 | 3.9s
+Epoch   6/100 | train 4.6021/77.52% | val 1.1745/80.59% | best 80.59% @ 6 | 3.9s
+Epoch   7/100 | train 4.4920/78.21% | val 1.2177/80.89% | best 80.89% @ 7 | 4.0s
+Epoch   8/100 | train 4.3220/79.51% | val 1.2122/81.57% | best 81.57% @ 8 | 4.1s
+Epoch   9/100 | train 4.1757/80.46% | val 1.2194/81.30% | best 81.57% @ 8 | 4.2s
+Epoch  10/100 | train 4.0242/81.26% | val 1.1084/82.91% | best 82.91% @ 10 | 3.9s
+Epoch  11/100 | train 3.8615/82.48% | val 1.1026/85.06% | best 85.06% @ 11 | 3.9s
+Epoch  12/100 | train 3.7898/82.69% | val 1.0627/84.96% | best 85.06% @ 11 | 4.1s
+Epoch  13/100 | train 3.6865/83.28% | val 1.0520/85.17% | best 85.17% @ 13 | 4.2s
+Epoch  14/100 | train 3.6504/83.65% | val 0.9606/87.15% | best 87.15% @ 14 | 4.2s
+Epoch  15/100 | train 3.5581/84.57% | val 1.2377/81.91% | best 87.15% @ 14 | 3.9s
+Epoch  16/100 | train 3.5383/84.21% | val 1.0459/85.57% | best 87.15% @ 14 | 4.2s
+Epoch  17/100 | train 3.4838/84.84% | val 0.9955/86.46% | best 87.15% @ 14 | 4.1s
+Epoch  18/100 | train 3.3913/85.36% | val 1.2730/82.33% | best 87.15% @ 14 | 4.1s
+Epoch  19/100 | train 3.3886/85.14% | val 1.0421/86.07% | best 87.15% @ 14 | 4.0s
+Epoch  20/100 | train 3.3199/85.72% | val 1.0764/86.37% | best 87.15% @ 14 | 4.1s
+Epoch  21/100 | train 3.3247/86.04% | val 0.9923/87.67% | best 87.67% @ 21 | 3.9s
+Epoch  22/100 | train 3.2800/86.11% | val 0.9555/88.22% | best 88.22% @ 22 | 3.9s
+Epoch  23/100 | train 3.2113/86.38% | val 1.0836/85.52% | best 88.22% @ 22 | 4.1s
+Epoch  24/100 | train 3.2140/86.54% | val 0.9310/88.61% | best 88.61% @ 24 | 3.9s
+Epoch  25/100 | train 3.1882/86.52% | val 1.0084/86.83% | best 88.61% @ 24 | 3.9s
+Epoch  26/100 | train 3.1214/87.09% | val 0.9395/88.52% | best 88.61% @ 24 | 4.1s
+Epoch  27/100 | train 3.1112/87.04% | val 1.0337/86.35% | best 88.61% @ 24 | 4.0s
+Epoch  28/100 | train 3.1067/87.27% | val 0.9759/88.33% | best 88.61% @ 24 | 4.1s
+Epoch  29/100 | train 3.0570/87.37% | val 0.9688/87.93% | best 88.61% @ 24 | 4.0s
+Epoch  30/100 | train 3.0738/87.63% | val 0.9355/89.43% | best 89.43% @ 30 | 4.1s
+Epoch  31/100 | train 3.0043/87.66% | val 0.9030/88.93% | best 89.43% @ 30 | 4.1s
+Epoch  32/100 | train 3.0093/87.94% | val 0.9450/88.30% | best 89.43% @ 30 | 3.7s
+Epoch  33/100 | train 3.0057/87.77% | val 0.9423/89.13% | best 89.43% @ 30 | 4.1s
+Epoch  34/100 | train 2.9364/88.20% | val 0.9945/87.89% | best 89.43% @ 30 | 4.0s
+Epoch  35/100 | train 2.9493/88.28% | val 0.9549/88.80% | best 89.43% @ 30 | 3.8s
+Epoch  36/100 | train 2.9303/88.33% | val 0.9342/88.69% | best 89.43% @ 30 | 4.1s
+Epoch  37/100 | train 2.9212/88.20% | val 0.9389/89.31% | best 89.43% @ 30 | 4.1s
+Epoch  38/100 | train 2.8873/88.87% | val 0.9251/89.46% | best 89.46% @ 38 | 3.8s
+Epoch  39/100 | train 2.8622/88.65% | val 0.9370/89.11% | best 89.46% @ 38 | 4.1s
+Epoch  40/100 | train 2.8000/89.10% | val 0.9237/89.78% | best 89.78% @ 40 | 3.9s
+Epoch  41/100 | train 2.8103/88.84% | val 0.9362/89.26% | best 89.78% @ 40 | 4.0s
+Epoch  42/100 | train 2.7943/89.31% | val 0.9254/89.61% | best 89.78% @ 40 | 4.1s
+Epoch  43/100 | train 2.7670/89.16% | val 0.9723/88.69% | best 89.78% @ 40 | 3.9s
+Epoch  44/100 | train 2.7559/89.38% | val 0.8992/90.07% | best 90.07% @ 44 | 4.1s
+Epoch  45/100 | train 2.7300/89.74% | val 0.9157/89.61% | best 90.07% @ 44 | 4.0s
+Epoch  46/100 | train 2.7193/89.46% | val 0.9227/90.11% | best 90.11% @ 46 | 4.1s
+Epoch  47/100 | train 2.7258/89.48% | val 0.8795/89.94% | best 90.11% @ 46 | 4.1s
+Epoch  48/100 | train 2.7138/89.73% | val 0.8691/90.48% | best 90.48% @ 48 | 3.9s
+Epoch  49/100 | train 2.7307/89.76% | val 0.8906/90.11% | best 90.48% @ 48 | 3.7s
+Epoch  50/100 | train 2.6943/89.81% | val 0.9289/89.83% | best 90.48% @ 48 | 3.4s
+Epoch  51/100 | train 2.6765/89.55% | val 0.8875/90.06% | best 90.48% @ 48 | 3.8s
+Epoch  52/100 | train 2.6722/89.85% | val 0.9058/89.93% | best 90.48% @ 48 | 3.7s
+Epoch  53/100 | train 2.6366/90.08% | val 0.8995/90.31% | best 90.48% @ 48 | 4.1s
+Epoch  54/100 | train 2.6271/90.11% | val 0.9061/90.46% | best 90.48% @ 48 | 3.9s
+Epoch  55/100 | train 2.6010/90.40% | val 0.8993/90.04% | best 90.48% @ 48 | 4.1s
+Epoch  56/100 | train 2.6088/89.93% | val 0.9535/89.65% | best 90.48% @ 48 | 4.0s
+Epoch  57/100 | train 2.5898/90.52% | val 0.8719/90.46% | best 90.48% @ 48 | 4.0s
+Epoch  58/100 | train 2.5627/90.67% | val 0.9027/90.35% | best 90.48% @ 48 | 3.6s
+Epoch  59/100 | train 2.6074/90.24% | val 0.8878/90.00% | best 90.48% @ 48 | 3.7s
+Epoch  60/100 | train 2.5834/90.66% | val 0.8893/90.65% | best 90.65% @ 60 | 3.8s
+Epoch  61/100 | train 2.5427/90.73% | val 0.8903/90.85% | best 90.85% @ 61 | 3.6s
+Epoch  62/100 | train 2.5367/90.64% | val 0.9135/89.98% | best 90.85% @ 61 | 4.0s
+Epoch  63/100 | train 2.5139/90.77% | val 0.8839/90.48% | best 90.85% @ 61 | 3.8s
+Epoch  64/100 | train 2.5079/90.94% | val 0.8729/90.80% | best 90.85% @ 61 | 4.0s
+Epoch  65/100 | train 2.5161/91.01% | val 0.8999/90.52% | best 90.85% @ 61 | 3.9s
+Epoch  66/100 | train 2.4851/91.16% | val 0.8738/90.65% | best 90.85% @ 61 | 4.0s
+Epoch  67/100 | train 2.4754/91.07% | val 0.8708/90.91% | best 90.91% @ 67 | 3.9s
+Epoch  68/100 | train 2.4905/90.90% | val 0.8903/90.65% | best 90.91% @ 67 | 4.1s
+Epoch  69/100 | train 2.4814/91.09% | val 0.8912/90.59% | best 90.91% @ 67 | 4.0s
+Epoch  70/100 | train 2.4877/90.91% | val 0.8620/90.94% | best 90.94% @ 70 | 4.0s
+Epoch  71/100 | train 2.4869/90.87% | val 0.8704/91.00% | best 91.00% @ 71 | 3.8s
+Epoch  72/100 | train 2.4215/91.12% | val 0.8594/91.07% | best 91.07% @ 72 | 4.1s
+Epoch  73/100 | train 2.4465/91.20% | val 0.8994/90.80% | best 91.07% @ 72 | 3.9s
+Epoch  74/100 | train 2.4444/91.56% | val 0.8558/91.33% | best 91.33% @ 74 | 3.8s
+Epoch  75/100 | train 2.4479/91.12% | val 0.8645/90.87% | best 91.33% @ 74 | 4.2s
+Epoch  76/100 | train 2.3783/91.71% | val 0.8502/91.06% | best 91.33% @ 74 | 3.9s
+Epoch  77/100 | train 2.4355/91.20% | val 0.8727/91.24% | best 91.33% @ 74 | 3.9s
+Epoch  78/100 | train 2.4091/91.47% | val 0.8485/91.52% | best 91.52% @ 78 | 3.9s
+Epoch  79/100 | train 2.3929/91.70% | val 0.8680/90.98% | best 91.52% @ 78 | 4.0s
+Epoch  80/100 | train 2.4596/91.35% | val 0.8650/91.26% | best 91.52% @ 78 | 4.0s
+Epoch  81/100 | train 2.3698/91.68% | val 0.8682/91.43% | best 91.52% @ 78 | 4.1s
+Epoch  82/100 | train 2.3848/91.85% | val 0.8580/91.13% | best 91.52% @ 78 | 3.9s
+Epoch  83/100 | train 2.3654/91.88% | val 0.8648/91.37% | best 91.52% @ 78 | 4.1s
+Epoch  84/100 | train 2.3671/91.78% | val 0.8663/91.35% | best 91.52% @ 78 | 4.0s
+Epoch  85/100 | train 2.3608/91.92% | val 0.8620/91.26% | best 91.52% @ 78 | 3.8s
+Epoch  86/100 | train 2.3559/91.72% | val 0.8586/91.54% | best 91.54% @ 86 | 3.8s
+Epoch  87/100 | train 2.3910/91.56% | val 0.8609/91.43% | best 91.54% @ 86 | 3.7s
+Epoch  88/100 | train 2.3733/91.81% | val 0.8619/91.39% | best 91.54% @ 86 | 3.6s
+Epoch  89/100 | train 2.3638/91.81% | val 0.8528/91.35% | best 91.54% @ 86 | 4.2s
+Epoch  90/100 | train 2.3417/91.72% | val 0.8538/91.35% | best 91.54% @ 86 | 4.1s
+Epoch  91/100 | train 2.3285/91.94% | val 0.8598/91.50% | best 91.54% @ 86 | 4.1s
+Epoch  92/100 | train 2.3373/91.79% | val 0.8652/91.67% | best 91.67% @ 92 | 4.0s
+Epoch  93/100 | train 2.3416/91.81% | val 0.8627/91.31% | best 91.67% @ 92 | 4.0s
+Epoch  94/100 | train 2.3169/91.94% | val 0.8513/91.63% | best 91.67% @ 92 | 4.0s
+Epoch  95/100 | train 2.3596/92.03% | val 0.8512/91.37% | best 91.67% @ 92 | 3.9s
+Epoch  96/100 | train 2.3506/91.74% | val 0.8645/91.37% | best 91.67% @ 92 | 3.9s
+Epoch  97/100 | train 2.3559/91.75% | val 0.8673/91.56% | best 91.67% @ 92 | 4.2s
+Epoch  98/100 | train 2.3524/91.43% | val 0.8538/91.44% | best 91.67% @ 92 | 4.1s
+Epoch  99/100 | train 2.3424/91.75% | val 0.8573/91.52% | best 91.67% @ 92 | 3.7s
+Epoch 100/100 | train 2.3480/91.78% | val 0.8553/91.43% | best 91.67% @ 92 | 4.0s
+[enable_qat] Enabled QAT on 6 layers
+[disable_qat] Disabled QAT on 6 layers
+{
+  "status": "complete",
+  "model": "model3",
+  "kernel_size": 2,
+  "padding": 0,
+  "stride": 2,
+  "seed": 44,
+  "epochs": 100,
+  "batch_size": 64,
+  "weight_bits": 8,
+  "parameter_count": 267944,
+  "macs_per_image": 1051136,
+  "feature_shape_after_stage2": [
+    1,
+    32,
+    8,
+    8
+  ],
+  "alignment_ratio": 0.9964689265536724,
+  "best_epoch": 92,
+  "best_val_accuracy_pct": 91.66666666666666,
+  "best_qat_val_accuracy_pct": 91.66666666666666,
+  "best_float_val_accuracy_pct": 91.57407407407408,
+  "duration_seconds": 398.73240208625793,
+  "completed_at": "2026-07-19T00:41:34.369124+00:00",
+  "output_dir": "/root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/results/model3/k2/seed44/20260719-083455"
+}
+Wrote /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/comparison.csv
+Wrote /root/autodl-tmp/Ltsimulator-EuroSAT-3x3/experiments/kernel_2x2_vs_3x3/REPORT.md
