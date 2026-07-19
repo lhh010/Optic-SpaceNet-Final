@@ -793,14 +793,14 @@ git commit -m "add demo page data flow: health/sample/infer rendering"
 curl -s --max-time 3 http://127.0.0.1:8765/health || true
 # 若无响应: 先确认远程服务存活, 必要时重启
 cd Ltsimulator-test && bash demo/deploy.sh
-ssh -N -L 8765:172.17.0.2:8765 fdusc-cpu-135 &
+ssh -N -L 8765:172.17.0.2:8765 $REMOTE_HOST &
 sleep 3
 curl -s http://127.0.0.1:8765/health
 curl -s http://127.0.0.1:8000/api/health
 ```
 
 Expected: 远程 `/health` 返回 `"engine":"gazelle-osim"`; 本地 `/api/health` 返回 `{"local":"ok","remote":"gazelle-osim"}`。
-(若 deploy.sh 输出的容器 IP 不是 172.17.0.2, 以 `ssh fdusc-cpu-135 "docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' gazelle_sim"` 为准替换隧道目标。)
+(若 deploy.sh 输出的容器 IP 不是 172.17.0.2, 以 `ssh $REMOTE_HOST "docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' gazelle_sim"` 为准替换隧道目标。)
 
 - [ ] **Step 2: 真机模式无头截图自审**
 

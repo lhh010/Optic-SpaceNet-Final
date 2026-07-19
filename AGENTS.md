@@ -5,7 +5,7 @@ EuroSAT (10 类遥感，64×64) CNN → Gazelle 8×2 光计算加速器量化迁
 ## 关键事实
 
 - **本地仓库**: `/Users/ms.chen/Projects/2607-ciciec/Ltsimulator-test`
-- **远程主机**: `fdusc-cpu-135`（已配置 Docker context `fdusc-cpu-135`）
+- **远程主机**: `$REMOTE_HOST`（已配置 Docker context `$REMOTE_HOST`）
 - **Docker 镜像**: `lightelligence.docker:lt-simulator_v1.4.6`
 - **可用容器**: `gazelle_sim`
 - **废弃容器**: `lt-simulator`（已删除；无 license 文件，报 `license error: 276`）
@@ -28,7 +28,7 @@ EuroSAT (10 类遥感，64×64) CNN → Gazelle 8×2 光计算加速器量化迁
 
 切换 Docker context:
 ```bash
-docker context use fdusc-cpu-135
+docker context use $REMOTE_HOST
 ```
 
 进入容器（调试用）:
@@ -55,7 +55,7 @@ docker exec -it gazelle_sim bash -c "
 - Model 1（VGG）在光模拟器上极慢：约 150 秒/图像。
 - `--quick 100` 预计约 4 小时。
 - osimulator 单个大 GEMM（如 3136×756×64）耗时约 80 秒，会占用约 90 个 CPU core。
-- 宿主机 `fdusc-cpu-135`：256 核 Xeon 6980P，377GB RAM。
+- 宿主机 `$REMOTE_HOST`：256 核 Xeon 6980P，377GB RAM。
 
 ## 关键文件
 

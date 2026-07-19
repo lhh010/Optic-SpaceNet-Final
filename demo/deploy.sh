@@ -5,7 +5,7 @@
 # 用法: bash demo/deploy.sh   (在 repo 任意目录执行均可)
 set -euo pipefail
 
-REMOTE_HOST="fdusc-cpu-135"
+REMOTE_HOST="${REMOTE_HOST:?set REMOTE_HOST env var (e.g. your-server-host)}"
 CONTAINER="gazelle_sim"
 REMOTE_DIR="/workspace/demo"
 PYBIN="/local/miniconda/envs/moca_llm/bin/python"

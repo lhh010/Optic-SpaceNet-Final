@@ -65,17 +65,17 @@ demo/
 
 ## 部署链路 (deploy.sh)
 
-1. `tar | ssh fdusc-cpu-135 "docker exec -i gazelle_sim tar -x -C /workspace/demo"`
+1. `tar | ssh $REMOTE_HOST "docker exec -i gazelle_sim tar -x -C /workspace/demo"`
    同步 `optic_server.py` + `optic_layers.py` + 权重 (容器内 repo 是旧扁平版, 独立目录最干净);
 2. 容器内 `nohup python optic_server.py --port 8765 &` (用 `/local/miniconda/envs/moca_llm/bin/python`);
-3. 本地 `ssh -N -L 8765:localhost:8765 fdusc-cpu-135` 建立隧道;
+3. 本地 `ssh -N -L 8765:localhost:8765 $REMOTE_HOST` 建立隧道;
 4. `uvicorn demo.server.app:app --port 8000` 起本地后端。
 
 ## 风险与降级
 
 | 风险 | 应对 |
 |---|---|
-| 现场网络不通 fdusc-cpu-135 | remote_client 30s 超时 + health 探测 → Fake 引擎降级 (meta.degraded), 演示不中断 |
+| 现场网络不通 $REMOTE_HOST | remote_client 30s 超时 + health 探测 → Fake 引擎降级 (meta.degraded), 演示不中断 |
 | 远程服务崩溃 | deploy.sh 支持重启; 降级链兜底 |
 | 评委上传任意图片 OOD | 上传图只显示预测, 不显示对错; 服务端 resize/center-crop 到 64×64 |
 | `--qat` int4 路径混淆 | demo 完全不走 `--qat`; 只用 v3 int8 权重 |
