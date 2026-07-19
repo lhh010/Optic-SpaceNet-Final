@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Model 3 光计算演示 — 美学版 (demo/docs/frontend-design.md)。
+<!-- Model 3 光计算演示 — 单栏滚动叙事版 (demo/docs/frontend-scroll-design.md)。
      零外网依赖: Tailwind Play CDN 与字体均已 vendored 到 vendor/。 -->
 <html lang="zh">
 <head>
@@ -24,108 +24,161 @@ tailwind.config = {
   .chip { @apply border border-edge rounded-full px-3 py-1 text-xs text-slate-300 bg-panel; }
 </style>
 <style>
-  /* 辉光与进度脉冲 — Tailwind 之外的少量自定义 CSS */
+  html { scroll-snap-type: y proximity; scroll-behavior: smooth; }
+  .screen { min-height: 100vh; scroll-snap-align: start;
+            display: flex; align-items: center; justify-content: center; }
+
   .glow-photon { text-shadow: 0 0 12px rgba(34, 211, 238, .55); }
+  .grid-img { image-rendering: pixelated; }
+  .bar-photon { background: linear-gradient(90deg, #0891b2, #22d3ee);
+                box-shadow: 0 0 8px rgba(34, 211, 238, .45); }
+  .bar-elec { background: #475569; }
+
+  /* 揭示动画: IO 命中且数据就绪后 .revealed 触发, 子项错峰上浮 */
+  .reveal-item { opacity: 0; transform: translateY(24px);
+                 transition: opacity .6s ease, transform .6s ease; }
+  .revealed .reveal-item { opacity: 1; transform: none; }
+  .revealed .reveal-item:nth-child(2) { transition-delay: .12s; }
+  .revealed .reveal-item:nth-child(3) { transition-delay: .24s; }
+  .revealed .reveal-item:nth-child(4) { transition-delay: .36s; }
+
+  /* 骨架卡即使未揭示也可见, 让等待中的脉冲动画露出来 */
+  .skeleton.reveal-item { opacity: 1; transform: none; }
+
+  /* 骨架脉冲(推理结果未就绪) */
   @keyframes pulse-glow {
     0%, 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, .5); }
     50%      { box-shadow: 0 0 18px 4px rgba(34, 211, 238, .35); }
   }
-  .inferring { animation: pulse-glow 1s ease-in-out infinite; }
-  .bar-photon { background: linear-gradient(90deg, #0891b2, #22d3ee);
-                box-shadow: 0 0 8px rgba(34, 211, 238, .45); }
-  .bar-elec { background: #475569; }
-  .grid-img { image-rendering: pixelated; }
+  .skeleton { animation: pulse-glow 1.2s ease-in-out infinite; }
+  .revealed .skeleton { animation: none; }
+
+  /* 直方图 bar 生长(高度由 app.js 行内设置) */
+  .hist-bar { height: 0; transition: height .7s cubic-bezier(.2,.8,.2,1); }
+
+  /* 向下箭头呼吸 */
+  @keyframes breathe {
+    0%, 100% { transform: translateY(0); opacity: .5; }
+    50%      { transform: translateY(8px); opacity: 1; }
+  }
+  .scroll-hint { animation: breathe 1.8s ease-in-out infinite; }
+
+  /* 圆点导航 */
+  .dot { width: 10px; height: 10px; border-radius: 9999px;
+         background: #334155; transition: all .3s; cursor: pointer; }
+  .dot.active { background: #22d3ee;
+                box-shadow: 0 0 10px rgba(34, 211, 238, .8);
+                transform: scale(1.35); }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .reveal-item, .hist-bar { transition: none !important; }
+    .skeleton, .scroll-hint { animation: none !important; }
+  }
 </style>
 </head>
-<body class="bg-ink text-slate-200 font-mono min-w-[1280px] min-h-screen">
-<div class="max-w-[1600px] mx-auto px-5 py-4">
+<body class="bg-ink text-slate-200 font-mono min-w-[1280px]">
 
-  <header>
-    <div class="flex items-center gap-4">
-      <h1 class="text-xl font-bold tracking-wide">
+<div id="progress" class="fixed top-0 left-0 h-[2px] bg-photon z-50"
+     style="width:0%; box-shadow:0 0 8px rgba(34,211,238,.6)"></div>
+
+<header class="fixed top-[2px] left-0 right-0 z-40 px-5 py-2 flex items-center gap-3
+               bg-ink/85 backdrop-blur border-b border-edge/50">
+  <span class="text-sm font-bold text-photon glow-photon">⚡ 光计算推理演示</span>
+  <span class="text-xs text-slate-500">Model 3 · SpaceNet V2 + KD · int8</span>
+  <div class="flex items-center gap-2 ml-auto">
+    <span id="health-dot" class="w-2.5 h-2.5 rounded-full bg-slate-600"></span>
+    <span id="health-text" class="text-xs text-slate-400">连接中…</span>
+  </div>
+</header>
+
+<nav id="dots" class="fixed right-4 top-1/2 -translate-y-1/2 z-40
+                     flex flex-col gap-3"></nav>
+
+<div id="banner" class="hidden fixed top-12 left-1/2 -translate-x-1/2 z-40"></div>
+
+<!-- 屏 1: 首屏 — Header + 输入 + stem(电边界预处理) -->
+<section id="sec-input" class="screen" data-label="输入">
+  <div class="w-full max-w-[1100px] px-8 pt-14">
+    <div class="text-center mb-6">
+      <h1 class="text-3xl font-bold tracking-wide">
         <span class="text-photon glow-photon">⚡ 光计算推理演示</span>
-        <span class="text-slate-400 text-sm ml-2 font-normal">Model 3 · SpaceNet V2 + KD · int8</span>
       </h1>
-      <div class="flex items-center gap-2 ml-auto">
-        <span id="health-dot" class="w-2.5 h-2.5 rounded-full bg-slate-600"></span>
-        <span id="health-text" class="text-xs text-slate-400">连接中…</span>
-      </div>
+      <div class="text-slate-400 mt-1">Model 3 · SpaceNet V2 + KD · int8 · EuroSAT 10 类</div>
+      <div id="chips" class="flex gap-2 mt-4 justify-center flex-wrap"></div>
     </div>
-    <div class="flex gap-2 mt-3">
-      <span class="chip">光算占比 <b class="text-photon">90.65%</b></span>
-      <span class="chip">算力削减 <b class="text-photon">150×</b></span>
-      <span class="chip">osim 全量 <b class="text-photon">90.28%</b> (n=5400)</span>
-      <span class="chip">硬件对齐 <b class="text-photon">99.6%</b></span>
-      <span class="chip">int8 val <b class="text-photon">91.83%</b></span>
-    </div>
-  </header>
-
-  <div id="banner" class="hidden"></div>
-
-  <main class="grid grid-cols-[280px_minmax(0,1fr)_330px] gap-4 mt-4 items-start">
-
-    <!-- 左栏: 输入 -->
-    <section class="card flex flex-col gap-3">
-      <h2 class="text-sm text-slate-400">输入</h2>
-      <img id="img" alt="输入图像"
-           class="w-full aspect-square rounded-lg border border-edge object-cover bg-black">
-      <div class="text-xs leading-5">
-        <div>label: <b id="label" class="text-gold">-</b></div>
-        <div>index: <span id="index" class="text-slate-400">-</span></div>
+    <div class="grid grid-cols-[320px_1fr] gap-6 items-start">
+      <div class="card flex flex-col gap-3">
+        <img id="img" alt="输入图像"
+             class="w-full aspect-square rounded-lg border border-edge object-cover bg-black">
+        <div class="text-xs leading-5">
+          <div>label: <b id="label" class="text-gold">-</b></div>
+          <div>index: <span id="index" class="text-slate-400">-</span></div>
+        </div>
+        <div class="flex gap-2">
+          <select id="class-select"
+                  class="bg-panel border border-edge rounded-lg text-xs px-2 py-2 flex-1"></select>
+          <button id="btn-sample" class="btn bg-edge hover:bg-slate-700">抽图</button>
+        </div>
+        <label class="btn bg-edge hover:bg-slate-700 text-center text-xs">
+          上传图片<input type="file" id="file" accept="image/*" class="hidden">
+        </label>
+        <div id="infer-status" class="text-center text-photon text-sm min-h-[20px]">抽图后自动开始推理</div>
       </div>
-      <div class="flex gap-2">
-        <select id="class-select"
-                class="bg-panel border border-edge rounded-lg text-xs px-2 py-2 flex-1"></select>
-        <button id="btn-sample" class="btn bg-edge hover:bg-slate-700">抽图</button>
-      </div>
-      <label class="btn bg-edge hover:bg-slate-700 text-center text-xs">
-        上传图片<input type="file" id="file" accept="image/*" class="hidden">
-      </label>
-      <button id="btn-infer" disabled
-              class="btn bg-photon text-ink hover:bg-cyan-300 disabled:opacity-40 text-base py-3 mt-1">
-        ▶ 开始推理
-      </button>
-      <div id="stopwatch" class="hidden text-center text-photon text-sm">光计算推理中… 0.0s</div>
-    </section>
-
-    <!-- 中栏: 逐层对比 (主角) -->
-    <section class="card">
-      <h2 class="text-sm text-slate-400 mb-3">
-        逐层对比 <span class="text-photon font-bold">光</span> |
-        <span class="text-elec font-bold">电</span>
-        <span class="text-xs text-slate-500">(同层共享归一化; conv 层 光左|电右, fc 层 光上|电下)</span>
-      </h2>
-      <div id="layers" class="flex flex-col gap-3">
-        <div class="text-slate-500 text-sm">点击「开始推理」后展示 6 层 feature map</div>
-      </div>
-    </section>
-
-    <!-- 右栏: 预测对比 + 指标面板 -->
-    <section class="flex flex-col gap-4">
       <div class="card">
-        <h2 class="text-sm text-slate-400 mb-3">预测对比</h2>
+        <h2 class="text-sm text-slate-400 mb-2">
+          stem <span class="text-[10px] px-1.5 py-0.5 rounded border border-elec/60 text-elec">电</span>
+          <span class="text-xs text-slate-500 ml-2">电计算边界预处理 — 进入光域之前</span>
+        </h2>
+        <div id="stem-body" class="text-slate-500 text-sm">等待推理…</div>
+      </div>
+    </div>
+    <div class="text-center mt-6">
+      <div class="scroll-hint text-photon text-2xl">▼</div>
+      <div class="text-xs text-slate-500 mt-1">滚动查看逐 stage 光|电对比</div>
+    </div>
+  </div>
+</section>
+
+<!-- 屏 2-6: stage 屏由 app.js 生成 -->
+<div id="stages"></div>
+
+<!-- 屏 7: 结果 + takeaway -->
+<section id="sec-result" class="screen" data-label="结果">
+  <div class="w-full max-w-[1100px] px-8">
+    <h2 class="text-2xl font-bold text-center mb-6">结果 <span class="text-photon">·</span> 结论</h2>
+    <div class="grid grid-cols-2 gap-6 items-start">
+      <div class="card reveal-item">
+        <h3 class="text-sm text-slate-400 mb-3">预测对比</h3>
         <div class="grid grid-cols-2 gap-3 text-center">
           <div>
             <div class="text-xs text-elec mb-1">FP32 电计算</div>
-            <div id="pred-fp32" class="text-lg font-bold">-</div>
-            <div id="lat-fp32" class="text-[10px] text-slate-500"></div>
+            <div id="pred-fp32" class="text-xl font-bold">-</div>
           </div>
           <div>
             <div class="text-xs text-photon mb-1">int8 光计算</div>
-            <div id="pred-opt" class="text-lg font-bold text-photon glow-photon">-</div>
-            <div id="lat-opt" class="text-[10px] text-slate-500"></div>
+            <div id="pred-opt" class="text-xl font-bold text-photon glow-photon">-</div>
           </div>
         </div>
         <div id="verdict" class="text-center text-sm mt-2 min-h-[20px]"></div>
         <div id="probs" class="mt-3 flex flex-col gap-1.5"></div>
       </div>
-      <div class="card">
-        <h2 class="text-sm text-slate-400 mb-2">指标面板</h2>
+      <div class="card reveal-item">
+        <h3 class="text-sm text-slate-400 mb-2">关键指标</h3>
         <div id="metrics" class="text-xs leading-6"></div>
       </div>
-    </section>
-  </main>
-</div>
+    </div>
+    <div class="card mt-6 text-center reveal-item">
+      <div class="text-xs text-gold mb-2">TAKEAWAY</div>
+      <p class="text-base leading-7">
+        <b class="text-photon">90.65%</b> 算力光化, 总算力降 <b class="text-photon">150×</b>;
+        int8 光计算 vs FP32 逐层高度一致, 全量 5400 张 osim 精度 <b class="text-photon">90.28%</b>
+        —— 光计算在这颗模型上可行。
+      </p>
+    </div>
+  </div>
+</section>
+
 <script src="app.js"></script>
 </body>
 </html>

@@ -69,3 +69,30 @@ def test_inject_grids_sets_identical_grid_on_both_paths():
         assert f_layer["grid_b64"] == o_layer["grid_b64"]
         img = Image.open(io.BytesIO(base64.b64decode(f_layer["grid_b64"])))
         assert img.format == "PNG"
+
+
+def test_inject_grids_skips_undecodable_layer():
+    """A corrupted act_b64 must not fail the whole response (live demo)."""
+    rng = np.random.default_rng(0)
+    fp32 = {"layers": [_layer("stage1", rng.normal(size=(16, 16, 16))),
+                       _layer("fc2", rng.normal(size=(10,)))]}
+    optical = {"layers": [_layer("stage1", rng.normal(size=(16, 16, 16))),
+                          _layer("fc2", rng.normal(size=(10,)))]}
+    optical["layers"][1]["act_b64"] = base64.b64encode(b"garbage").decode()
+    render.inject_grids(fp32, optical)
+    assert "grid_b64" in fp32["layers"][0]
+    assert "grid_b64" in optical["layers"][0]
+    assert "grid_b64" not in fp32["layers"][1]
+    assert "grid_b64" not in optical["layers"][1]
+
+
+def test_inject_grids_skips_layer_missing_on_fp32_side():
+    """An optical layer with no fp32 counterpart is skipped, not KeyError."""
+    rng = np.random.default_rng(0)
+    fp32 = {"layers": [_layer("fc2", rng.normal(size=(10,)))]}
+    optical = {"layers": [_layer("stage1", rng.normal(size=(16, 16, 16))),
+                          _layer("fc2", rng.normal(size=(10,)))]}
+    render.inject_grids(fp32, optical)
+    assert "grid_b64" not in optical["layers"][0]
+    assert "grid_b64" in optical["layers"][1]
+    assert "grid_b64" in fp32["layers"][0]

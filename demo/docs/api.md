@@ -23,6 +23,15 @@ Layer = {
   "latency_s": 1.21,                     // 该层耗时 (光路径含引擎调用)
   "act_b64": "...",                      // np.savez 的 float16 激活, base64
   "grid_b64": "...",                     // PNG: 光|电拼接共享归一化渲染, 本地后端 render.py 生成
+  "cos_sim": 0.9987,           // 光|电激活展平余弦相似度; stem(电层)为 null
+  "max_abs_err": 0.031,        // max |光-电|; stem 为 null
+  "rel_err_hist": {            // 相对误差 |Δ|/(|fp32|+1e-3) 分桶; stem 为 null
+    "edges": [0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0],
+    "counts": [/* 9 个 int: counts[i]=[edges[i-1],edges[i]) 内元素数,
+                  edges[-1]:=0, counts[8]=≥2.0; 总和=激活元素数 */]
+  },
+  "mops": 0.5243,              // 静态表(compare.LAYER_MOPS), 与 mops_total/optic_ratio 对账; stem 为 null
+  "theoretical_s": 0.2016,     // mops / 2.6 (芯片官方 2.6 M int8 OP/s 的上板估算); stem 为 null
 }
 ```
 
@@ -31,6 +40,9 @@ Layer = {
   同一层光/电两个激活**拼接后共享 min/max 归一化**;
   conv 层取前 16 通道渲 4×4 网格 (光左电右一张 PNG); fc 层渲 1×N 条带 (光上电下);
   伪彩 LUT 深蓝→青→亮白。两条 PathResult 的 layers 就地注入后返回。
+- 对比字段 (`cos_sim` 等 5 个) 由本地后端 `demo/server/compare.py` 在 `/api/infer`
+  聚合阶段就地注入 (与 `grid_b64` 同一位置); 远程服务不返回这些字段。
+  光算层的模拟器/引擎实测耗时无物理意义, 前端展示 `theoretical_s` 而非 `latency_s`。
 
 ## 本地后端 (FastAPI, `:8000`)
 
