@@ -56,6 +56,18 @@ tailwind.config = {
   /* 直方图 bar 生长(高度由 app.js 行内设置) */
   .hist-bar { height: 0; transition: height .7s cubic-bezier(.2,.8,.2,1); }
 
+  /* 逐层结构 tensor-flow 图 (每 stage 主视觉上方的整宽 band)。
+     SVG 内 3 组(输入体/算子/输出体)在 .revealed 后左→右错峰浮现。 */
+  .arch-svg { width: 100%; height: auto; }
+  .arch-part { opacity: 0; transform: translateX(-14px);
+               transition: opacity .55s ease, transform .55s ease; }
+  .revealed .arch-part { opacity: 1; transform: none; }
+  .revealed .arch-part.p1 { transition-delay: .05s; }
+  .revealed .arch-part.p2 { transition-delay: .20s; }
+  .revealed .arch-part.p3 { transition-delay: .35s; }
+  /* 骨架态(未揭示)也让 band 结构可见, 只是不动画 */
+  .skeleton .arch-part { opacity: 1; transform: none; }
+
   /* 向下箭头呼吸 */
   @keyframes breathe {
     0%, 100% { transform: translateY(0); opacity: .5; }
@@ -72,7 +84,8 @@ tailwind.config = {
 
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
-    .reveal-item, .hist-bar { transition: none !important; }
+    .reveal-item, .hist-bar, .arch-part { transition: none !important; }
+    .arch-part { opacity: 1 !important; transform: none !important; }
     .skeleton, .scroll-hint { animation: none !important; }
   }
 </style>
@@ -131,6 +144,7 @@ tailwind.config = {
           <span class="text-xs text-slate-500 ml-2">电计算边界预处理 — 进入光域之前</span>
         </h2>
         <div id="stem-body" class="text-slate-500 text-sm">等待推理…</div>
+        <div id="stem-arch" class="mt-3"></div>
       </div>
     </div>
     <div class="text-center mt-6">

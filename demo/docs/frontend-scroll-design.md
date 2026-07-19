@@ -79,6 +79,21 @@ Layer += {
 「90.65% 算力光化, 总算力降 150×; int8 光计算 vs FP32 逐层高度一致,
 全量 5400 张 osim 精度 90.28% —— 光计算在这颗模型上可行。」
 
+## 逐层结构 band(2026-07-19 追加)
+
+每个 stage 屏(及首屏 stem 卡)在 feature map 主视觉**上方**新增一条整宽 tensor-flow 结构图,
+可视化该层的张量变换:`[输入体] → 算子药丸链 → [输出体]`。
+
+- **渲染**: 纯前端 inline SVG(`app.js` 的 `archSVG(name)` 生成), 零新依赖、零外网、零构建。
+- **数据源**: `app.js` 内静态 `ARCH` 表, 镜像后端 `demo/server/model_trace.py` 的
+  `EXPECTED_SHAPES / LAYER_SPECS / LAYER_WHERE`。**不走 API、无契约变更**(`api.md` 不动);
+  代价是前后端各存一份静态结构表, 改模型结构时两处需同步。
+- **体块**: isometric 堆叠板(正面 ∝ 空间 H×W, 深度偏移 ∝ 通道数), 尺寸跨 6 层归一化,
+  使空间收缩 / 通道增长在屏间可见(呼应 MOPs / 光算便宜的叙事); fc 层退化为 1 维竖条。
+- **配色**: optical 层 photon 青, stem(电层)elec 灰, 沿用现有色板。
+- **动画**: band 内输入体 / 算子 / 输出体三组 `.arch-part` 随 `.revealed` 左→右错峰浮现;
+  `prefers-reduced-motion` 下直接显示。
+
 ## 改动清单
 
 | 文件 | 改动 |

@@ -14,6 +14,110 @@ const STAGES = [
   { name: "fc2",    label: "FC 2 · logits" },
 ];
 
+/* 逐层结构静态表 (镜像后端 demo/server/model_trace.py 的 EXPECTED_SHAPES /
+   LAYER_SPECS / LAYER_WHERE)。纯前端可视化, 不走 API, 运行时恒定。
+   shape: conv 层 [C,H,W]; fc 层 [N] (1 维体)。ops: 该层算子链, note 为核/步长标注。 */
+const ARCH = {
+  stem:   { where: "electronic", in: [3, 64, 64],  out: [8, 64, 64],
+            ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
+  stage1: { where: "optical", in: [8, 64, 64], out: [16, 16, 16],
+            ops: [{ k: "Conv", note: "2×2 /s2" }, { k: "BN" }, { k: "ReLU" }, { k: "MaxPool", note: "2×2" }] },
+  stage2: { where: "optical", in: [16, 16, 16], out: [32, 8, 8],
+            ops: [{ k: "Conv", note: "2×2 /s2" }, { k: "BN" }, { k: "ReLU" }] },
+  stage3: { where: "optical", in: [32, 8, 8], out: [16, 8, 8],
+            ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
+  fc1:    { where: "optical", in: [1024], out: [256],
+            ops: [{ k: "Linear" }, { k: "ReLU" }] },
+  fc2:    { where: "optical", in: [256], out: [10],
+            ops: [{ k: "Linear" }] },
+};
+
+/* 跨 6 层归一化的尺寸基准: 让体块大小在屏间可比 (8×64×64 大 → 10 小)。 */
+const ARCH_MAX_SPATIAL = 64;    // 最大 H/W (stem/stage1 输入)
+const ARCH_MAX_CHAN = 32;       // 最大通道 (stage2 输出)
+const ARCH_MAX_FC = 1024;       // 最大 fc 宽度 (fc1 输入)
+
+/* 一个 tensor 体块 (isometric 堆叠板): 正面 = 空间 H×W, 偏移深度面 = 通道堆叠感。
+   conv 体 [C,H,W]: 正面边长 ∝ H/W, 深度 ∝ C; fc 体 [N]: 退化成 1 维竖条, 高 ∝ N。 */
+function archVolume(shape, x, cy, color) {
+  const stroke = color, fill = "#0b1120";
+  if (shape.length === 1) {                       // fc: 1 维竖条
+    const n = shape[0];
+    const h = 24 + (n / ARCH_MAX_FC) * 66;         // 24..90
+    const w = 26;
+    const y = cy - h / 2;
+    return `<g>
+      <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3"
+            fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>
+      <text x="${x + w / 2}" y="${cy}" text-anchor="middle" dominant-baseline="central"
+            font-size="12" fill="${stroke}" font-weight="700">${n}</text>
+    </g>`;
+  }
+  const [c, hh] = shape;                            // conv: [C,H,W] (H==W)
+  const side = 34 + (hh / ARCH_MAX_SPATIAL) * 62;   // 34..96 正面边长
+  const depth = 6 + (c / ARCH_MAX_CHAN) * 20;       // 6..26 深度偏移(通道感)
+  const x0 = x, y0 = cy - side / 2;
+  const dx = depth, dy = -depth;
+  // 顶面 + 侧面(深度) + 正面, 组成 isometric 板
+  return `<g>
+    <polygon points="${x0},${y0} ${x0 + side},${y0} ${x0 + side + dx},${y0 + dy} ${x0 + dx},${y0 + dy}"
+             fill="#0e1a30" stroke="${stroke}" stroke-width="1.2" opacity="0.9"/>
+    <polygon points="${x0 + side},${y0} ${x0 + side},${y0 + side} ${x0 + side + dx},${y0 + side + dy} ${x0 + side + dx},${y0 + dy}"
+             fill="#0a1526" stroke="${stroke}" stroke-width="1.2" opacity="0.9"/>
+    <rect x="${x0}" y="${y0}" width="${side}" height="${side}" rx="2"
+          fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>
+    <text x="${x0 + side / 2}" y="${y0 + side + 15}" text-anchor="middle"
+          font-size="11" fill="#94a3b8">${c}×${hh}×${hh}</text>
+    <text x="${x0 + side / 2}" y="${y0 + side / 2}" text-anchor="middle" dominant-baseline="central"
+          font-size="12" fill="${stroke}" font-weight="700">${c}ch</text>
+  </g>`;
+}
+
+/* 算子药丸链: 每个 op 一个 pill, 竖直堆叠居中; 可选 note (核/步长)。 */
+function archOps(ops, cx, cy, color) {
+  const pw = 116, ph = 22, gap = 8;
+  const totalH = ops.length * ph + (ops.length - 1) * gap;
+  let y = cy - totalH / 2;
+  const pills = ops.map((op) => {
+    const label = op.note ? `${op.k} ${op.note}` : op.k;
+    const g = `<g>
+      <rect x="${cx - pw / 2}" y="${y}" width="${pw}" height="${ph}" rx="11"
+            fill="#0b1120" stroke="${color}" stroke-width="1.2" opacity="0.95"/>
+      <text x="${cx}" y="${y + ph / 2}" text-anchor="middle" dominant-baseline="central"
+            font-size="11" fill="${color}">${label}</text>
+    </g>`;
+    y += ph + gap;
+    return g;
+  }).join("");
+  return pills;
+}
+
+/* 箭头连接线 (输入体 → 算子 → 输出体)。 */
+function archArrow(x1, x2, cy, color) {
+  return `<line x1="${x1}" y1="${cy}" x2="${x2 - 7}" y2="${cy}"
+            stroke="${color}" stroke-width="1.4" opacity="0.6"/>
+    <polygon points="${x2 - 7},${cy - 4} ${x2},${cy} ${x2 - 7},${cy + 4}"
+             fill="${color}" opacity="0.6"/>`;
+}
+
+/* 整宽 tensor-flow band: [输入体] → [算子链] → [输出体]。
+   optical 层用 photon 青, stem(电层)用 elec 灰。三组 .arch-part 错峰揭示。 */
+function archSVG(name) {
+  const a = ARCH[name];
+  if (!a) return "";
+  const color = a.where === "optical" ? "#22d3ee" : "#94a3b8";
+  const W = 760, H = 150, cy = 74;
+  const inX = 40, opsCx = W / 2, outX = W - 150;
+  return `<svg class="arch-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet"
+               role="img" aria-label="${name} 结构图">
+    <g class="arch-part p1">${archVolume(a.in, inX, cy, color)}</g>
+    <g class="arch-part p1">${archArrow(inX + 130, opsCx - 70, cy, color)}</g>
+    <g class="arch-part p2">${archOps(a.ops, opsCx, cy, color)}</g>
+    <g class="arch-part p3">${archArrow(opsCx + 70, outX, cy, color)}</g>
+    <g class="arch-part p3">${archVolume(a.out, outX, cy, color)}</g>
+  </svg>`;
+}
+
 let current = null;        // {image_b64, label|null}
 let inferData = null;      // /api/infer 响应体
 let inferState = "idle";   // idle | running | done | error
@@ -103,6 +207,7 @@ function buildStages() {
         <span class="text-[10px] px-1.5 py-0.5 rounded border border-photon/50 text-photon ml-2">光</span>
         <div class="stage-spec text-xs text-slate-500 mt-2">&nbsp;</div>
       </div>
+      <div class="card reveal-item mb-5 stage-arch"></div>
       <div class="grid grid-cols-[1fr_300px] gap-6 items-center">
         <div class="card reveal-item flex items-center justify-center min-h-[280px] skeleton stage-fig">
           <span class="text-slate-500 text-sm">光计算结果就绪后揭示 feature map…</span>
@@ -178,6 +283,7 @@ function fillStage(sec, name) {
   sec.querySelector(".stage-title").textContent = name;
   sec.querySelector(".stage-spec").textContent =
     `${ol.spec} · shape [${ol.shape.join(",")}]`;
+  sec.querySelector(".stage-arch").innerHTML = archSVG(name);
   sec.querySelector(".stage-fig").innerHTML = ol.grid_b64
     ? `<img class="grid-img rounded border border-edge w-full" alt="${name}"
          src="data:image/png;base64,${ol.grid_b64}">`
@@ -363,6 +469,7 @@ $("file").onchange = (ev) => {
 
 buildStages();
 buildDots();
+$("stem-arch").innerHTML = archSVG("stem");
 observeScreens();
 refreshHealth();
 loadMetrics().catch(() => {});
