@@ -294,7 +294,7 @@ STE 微调</td>
 
 Optic-SpaceNet · 光学 CNN 在轨加速系统
 
-\* 为bug修复后的结果
+\* 为bug修复后的重跑结果
 
 08 / 17
 
