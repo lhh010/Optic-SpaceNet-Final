@@ -8,14 +8,16 @@ scripts have import side effects) and the only local import is
 ``optic_layers`` from the same directory (deployed flat by demo/deploy.sh).
 
 Endpoints:
-  GET  /health -> {"status", "engine", "weight", "uptime_s"}
+  GET  /health -> {"status", "engine", "weight", "uptime_s", "models": [...]}
   POST /infer  {"image_b64": jpeg/png b64} -> PathResult (see demo/docs/api.md)
+               Query param ?model=1|2|3 selects model (default: 3 for backward compat)
                400 on undecodable image, 500 on inference failure.
 
 Env:
   OPTIC_FAKE=1    force the FakeOpticalEngine (local integration tests)
-  OPTIC_WEIGHT    override the weight file path
+  OPTIC_WEIGHT    override the weight file path (applies to model 3 only)
   --port          listen port (default 8765)
+  --models        comma-separated model IDs to load (default: "1,2,3")
 
 The module is import-safe: nothing is loaded or bound until create_server()
 or main() is called.
@@ -47,7 +49,12 @@ import torch.nn.functional as F
 
 from optic_layers import OpticalEngine, build_optical_model
 
-WEIGHT_NAME = "spacenet_v2_phase4_v3_int8.pth"
+WEIGHT_NAMES = {
+    1: "baseline_vgg_phase4_v3_int8.pth",
+    2: "spacenet_v1_phase4_v3_int8.pth",
+    3: "spacenet_v2_phase4_v3_int8.pth",
+}
+WEIGHT_NAME = WEIGHT_NAMES[3]  # backward compat
 
 CLASSES = [
     "AnnualCrop", "Forest", "HerbaceousVegetation", "Highway", "Industrial",
@@ -59,6 +66,34 @@ LAYER_WHERE = {
     "stage3": "optical", "fc1": "optical", "fc2": "optical",
 }
 LAYER_SPECS = {
+    "stem": "Conv2d 3→8 1×1 + BN + ReLU",
+    "stage1": "Conv2d 8→16 2×2/s2 + BN + ReLU + MaxPool2d",
+    "stage2": "Conv2d 16→32 2×2/s2 + BN + ReLU",
+    "stage3": "Conv2d 32→16 1×1 + BN + ReLU",
+    "fc1": "Linear 1024→256 + ReLU",
+    "fc2": "Linear 256→10",
+}
+
+# --- Model 1 layer metadata ---
+MODEL1_LAYER_WHERE = {
+    "conv1_1": "electronic", "conv1_2": "optical", "conv2_1": "optical",
+    "conv2_2": "optical", "conv3_1": "optical", "conv3_2": "optical",
+    "fc1": "optical", "fc2": "optical",
+}
+MODEL1_LAYER_SPECS = {
+    "conv1_1": "Conv2d 3→32 3×3 + BN + ReLU",
+    "conv1_2": "Conv2d 32→32 3×3 + BN + ReLU + MaxPool2d",
+    "conv2_1": "Conv2d 32→64 3×3 + BN + ReLU",
+    "conv2_2": "Conv2d 64→64 3×3 + BN + ReLU + MaxPool2d",
+    "conv3_1": "Conv2d 64→128 3×3 + BN + ReLU",
+    "conv3_2": "Conv2d 128→128 3×3 + BN + ReLU + MaxPool2d",
+    "fc1": "Linear 8192→256 + ReLU",
+    "fc2": "Linear 256→10",
+}
+
+# Model 2 reuses same LAYER_WHERE / LAYER_SPECS as Model 3 (same architecture)
+MODEL2_LAYER_WHERE = LAYER_WHERE
+MODEL2_LAYER_SPECS = {
     "stem": "Conv2d 3→8 1×1 + BN + ReLU",
     "stage1": "Conv2d 8→16 2×2/s2 + BN + ReLU + MaxPool2d",
     "stage2": "Conv2d 16→32 2×2/s2 + BN + ReLU",
@@ -102,20 +137,78 @@ class OpticSpaceNetStudent(nn.Module):
         return self.classifier(x)
 
 
-def _find_weight(weight_path=None):
+# Model 2 is architecturally identical to Model 3 (different weights only)
+OpticSpaceNetV1 = OpticSpaceNetStudent
+
+
+class BaselineVGG(nn.Module):
+    """Model 1: Flat VGG (6 Conv 3×3 + 2 Linear), bias=False, BN retained."""
+
+    def __init__(self, num_classes=10):
+        super().__init__()
+        self.conv1_1 = nn.Conv2d(3, 32, kernel_size=3, padding=1, bias=False)
+        self.bn1_1 = nn.BatchNorm2d(32)
+        self.conv1_2 = nn.Conv2d(32, 32, kernel_size=3, padding=1, bias=False)
+        self.bn1_2 = nn.BatchNorm2d(32)
+        self.pool1 = nn.MaxPool2d(2, 2)
+
+        self.conv2_1 = nn.Conv2d(32, 64, kernel_size=3, padding=1, bias=False)
+        self.bn2_1 = nn.BatchNorm2d(64)
+        self.conv2_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=False)
+        self.bn2_2 = nn.BatchNorm2d(64)
+        self.pool2 = nn.MaxPool2d(2, 2)
+
+        self.conv3_1 = nn.Conv2d(64, 128, kernel_size=3, padding=1, bias=False)
+        self.bn3_1 = nn.BatchNorm2d(128)
+        self.conv3_2 = nn.Conv2d(128, 128, kernel_size=3, padding=1, bias=False)
+        self.bn3_2 = nn.BatchNorm2d(128)
+        self.pool3 = nn.MaxPool2d(2, 2)
+
+        self.flatten = nn.Flatten()
+        self.fc1 = nn.Linear(128 * 8 * 8, 256, bias=False)
+        self.dropout = nn.Dropout(0.5)
+        self.fc2 = nn.Linear(256, num_classes, bias=False)
+
+    def forward(self, x):
+        x = torch.relu(self.bn1_1(self.conv1_1(x)))
+        x = torch.relu(self.bn1_2(self.conv1_2(x)))
+        x = self.pool1(x)
+        x = torch.relu(self.bn2_1(self.conv2_1(x)))
+        x = torch.relu(self.bn2_2(self.conv2_2(x)))
+        x = self.pool2(x)
+        x = torch.relu(self.bn3_1(self.conv3_1(x)))
+        x = torch.relu(self.bn3_2(self.conv3_2(x)))
+        x = self.pool3(x)
+        x = self.flatten(x)
+        x = torch.relu(self.fc1(x))
+        x = self.dropout(x)
+        return self.fc2(x)
+
+
+MODEL_CLASSES = {
+    1: BaselineVGG,
+    2: OpticSpaceNetV1,
+    3: OpticSpaceNetStudent,
+}
+
+# Model 1 variant A: only conv1_1 stays electronic
+MODEL1_ELECTRONIC_LAYERS = {"conv1_1"}
+
+
+def _find_weight(weight_name, weight_path=None):
     """Weight search order: explicit arg > $OPTIC_WEIGHT > alongside this file
     (deployed layout) > repo weights/ directory."""
     candidates = [
         weight_path,
-        os.environ.get("OPTIC_WEIGHT"),
-        os.path.join(_HERE, WEIGHT_NAME),
+        os.environ.get("OPTIC_WEIGHT") if weight_name == WEIGHT_NAME else None,
+        os.path.join(_HERE, weight_name),
         os.path.abspath(os.path.join(_HERE, os.pardir, os.pardir,
-                                     "weights", WEIGHT_NAME)),
+                                     "weights", weight_name)),
     ]
     for path in candidates:
         if path and os.path.isfile(path):
             return path
-    raise FileNotFoundError(f"weight file not found, tried: {candidates}")
+    raise FileNotFoundError(f"weight file {weight_name!r} not found, tried: {candidates}")
 
 
 def _load_weight_into(model, weight_path):
@@ -128,22 +221,54 @@ def _load_weight_into(model, weight_path):
     model.load_state_dict(filtered, strict=False)
 
 
-class ModelContext:
-    """Engine + optical model, loaded once at server startup."""
+class SingleModelContext:
+    """Engine + optical model for one model variant."""
 
-    def __init__(self, weight_path=None, fake=None):
+    def __init__(self, model_id, engine, weight_path=None):
+        self.model_id = model_id
+        weight_name = WEIGHT_NAMES[model_id]
+        self.weight_path = _find_weight(weight_name, weight_path)
+        self.engine = engine
+        model_cls = MODEL_CLASSES[model_id]
+        model = model_cls()
+        _load_weight_into(model, self.weight_path)
+        if model_id == 1:
+            self.model = build_optical_model(
+                model, self.engine, pad_to_8=True, input_bit=8, weight_bit=8,
+                keep_first_conv_electronic=True)
+        else:
+            self.model = build_optical_model(
+                model, self.engine, pad_to_8=True, input_bit=8, weight_bit=8,
+                keep_first_conv_electronic=True)
+        self.model.eval()
+
+
+class ModelContext:
+    """Multi-model context: shares a single OpticalEngine across models."""
+
+    def __init__(self, weight_path=None, fake=None, model_ids=None):
         if fake is None:
             fake = os.environ.get("OPTIC_FAKE") == "1"
-        self.weight_path = _find_weight(weight_path)
+        if model_ids is None:
+            model_ids = [3]  # backward compat: only model 3
         self.engine = OpticalEngine(use_real=not fake, verbose=False)
-        model = OpticSpaceNetStudent()
-        _load_weight_into(model, self.weight_path)
-        self.model = build_optical_model(
-            model, self.engine, pad_to_8=True, input_bit=8, weight_bit=8,
-            keep_first_conv_electronic=True)
-        self.model.eval()
         self.engine_label = "gazelle-osim" if self.engine.use_real else "fake-optical"
         self.started_at = time.time()
+        self.models = {}
+        for mid in model_ids:
+            wp = weight_path if mid == 3 else None
+            ctx = SingleModelContext(mid, self.engine, weight_path=wp)
+            self.models[mid] = ctx
+            print(f"[optic_server] loaded model {mid}: "
+                  f"{os.path.basename(ctx.weight_path)}", flush=True)
+        # backward compat attrs
+        if 3 in self.models:
+            self.model = self.models[3].model
+            self.weight_path = self.models[3].weight_path
+        elif self.models:
+            first = next(iter(self.models.values()))
+            self.model = first.model
+            self.weight_path = first.weight_path
 
 
 # ============================================================
@@ -214,6 +339,30 @@ def forward_traced(model, x):
     return {"logits": logits, "layers": layers}
 
 
+@torch.no_grad()
+def forward_traced_model1(model, x):
+    """Segmented forward for Model 1 (BaselineVGG): 6 conv groups + 2 fc."""
+    layers = []
+
+    def _trace(name, fn, inp):
+        t0 = time.perf_counter()
+        out = fn(inp)
+        layers.append({"name": name, "act": out,
+                       "latency_s": time.perf_counter() - t0})
+        return out
+
+    h = _trace("conv1_1", lambda t: torch.relu(model.bn1_1(model.conv1_1(t))), x)
+    h = _trace("conv1_2", lambda t: model.pool1(torch.relu(model.bn1_2(model.conv1_2(t)))), h)
+    h = _trace("conv2_1", lambda t: torch.relu(model.bn2_1(model.conv2_1(t))), h)
+    h = _trace("conv2_2", lambda t: model.pool2(torch.relu(model.bn2_2(model.conv2_2(t)))), h)
+    h = _trace("conv3_1", lambda t: torch.relu(model.bn3_1(model.conv3_1(t))), h)
+    h = _trace("conv3_2", lambda t: model.pool3(torch.relu(model.bn3_2(model.conv3_2(t)))), h)
+    h = model.flatten(h)
+    h = _trace("fc1", lambda t: torch.relu(model.fc1(t)), h)
+    logits = _trace("fc2", lambda t: model.fc2(t), h)
+    return {"logits": logits, "layers": layers}
+
+
 def _encode_act(act_tensor):
     arr = act_tensor.detach().cpu().numpy()[0].astype(np.float16)
     buf = io.BytesIO()
@@ -221,19 +370,38 @@ def _encode_act(act_tensor):
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def run_inference(ctx, image_bytes):
+def _get_layer_meta(model_id):
+    """Return (layer_where, layer_specs) for a given model_id."""
+    if model_id == 1:
+        return MODEL1_LAYER_WHERE, MODEL1_LAYER_SPECS
+    elif model_id == 2:
+        return MODEL2_LAYER_WHERE, MODEL2_LAYER_SPECS
+    else:
+        return LAYER_WHERE, LAYER_SPECS
+
+
+def run_inference(ctx, image_bytes, model_id=3):
     """Full request path: decode → traced forward → PathResult dict."""
+    if model_id not in ctx.models:
+        raise ValueError(f"model {model_id} not loaded")
+    single = ctx.models[model_id]
     img_tensor = decode_image(image_bytes)
-    traced = forward_traced(ctx.model, img_tensor)
+
+    if model_id == 1:
+        traced = forward_traced_model1(single.model, img_tensor)
+    else:
+        traced = forward_traced(single.model, img_tensor)
+
     logits = traced["logits"][0]
     probs = torch.softmax(logits, dim=0)
     order = torch.argsort(probs, descending=True)
     prob_dict = {CLASSES[i]: round(float(probs[i]), 6) for i in order.tolist()}
 
+    layer_where, layer_specs = _get_layer_meta(model_id)
     layers = [{
         "name": l["name"],
-        "where": LAYER_WHERE[l["name"]],
-        "spec": LAYER_SPECS[l["name"]],
+        "where": layer_where[l["name"]],
+        "spec": layer_specs[l["name"]],
         "shape": list(l["act"].shape[1:]),
         "latency_s": round(l["latency_s"], 6),
         "act_b64": _encode_act(l["act"]),
@@ -241,6 +409,7 @@ def run_inference(ctx, image_bytes):
 
     return {
         "engine": ctx.engine_label,
+        "model_id": model_id,
         "pred": CLASSES[int(logits.argmax())],
         "probs": prob_dict,
         "latency_total_s": round(sum(l["latency_s"] for l in layers), 6),
@@ -263,22 +432,32 @@ class OpticHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _parse_query(self):
+        """Parse query string from self.path → dict."""
+        from urllib.parse import urlparse, parse_qs
+        parsed = urlparse(self.path)
+        return parsed.path, parse_qs(parsed.query)
+
     def do_GET(self):
-        if self.path == "/health":
+        path, qs = self._parse_query()
+        if path == "/health":
             ctx = self.server.ctx
             self._send_json(200, {
                 "status": "ok",
                 "engine": ctx.engine_label,
-                "weight": os.path.basename(ctx.weight_path),
+                "models": sorted(ctx.models.keys()),
                 "uptime_s": round(time.time() - ctx.started_at, 3),
             })
         else:
-            self._send_json(404, {"error": f"unknown route {self.path}"})
+            self._send_json(404, {"error": f"unknown route {path}"})
 
     def do_POST(self):
-        if self.path != "/infer":
-            self._send_json(404, {"error": f"unknown route {self.path}"})
+        path, qs = self._parse_query()
+        if path != "/infer":
+            self._send_json(404, {"error": f"unknown route {path}"})
             return
+        # Parse model ID from ?model=N (default 3 for backward compat)
+        model_id = int(qs.get("model", ["3"])[0])
         try:
             length = int(self.headers.get("Content-Length") or 0)
             payload = json.loads(self.rfile.read(length) or b"{}")
@@ -287,7 +466,8 @@ class OpticHandler(BaseHTTPRequestHandler):
             self._send_json(400, {"error": f"bad request body: {e}"})
             return
         try:
-            result = run_inference(self.server.ctx, image_bytes)
+            result = run_inference(self.server.ctx, image_bytes,
+                                  model_id=model_id)
         except ValueError as e:
             self._send_json(400, {"error": str(e)})
         except Exception as e:
@@ -300,13 +480,14 @@ class OpticHandler(BaseHTTPRequestHandler):
         pass
 
 
-def create_server(host="0.0.0.0", port=8765, weight_path=None, fake=None):
-    """Build a ThreadingHTTPServer with the model loaded exactly once."""
-    ctx = ModelContext(weight_path=weight_path, fake=fake)
+def create_server(host="0.0.0.0", port=8765, weight_path=None, fake=None,
+                  model_ids=None):
+    """Build a ThreadingHTTPServer with model(s) loaded once."""
+    ctx = ModelContext(weight_path=weight_path, fake=fake, model_ids=model_ids)
     server = ThreadingHTTPServer((host, port), OpticHandler)
     server.ctx = ctx
     print(f"[optic_server] engine={ctx.engine_label} "
-          f"weight={os.path.basename(ctx.weight_path)} "
+          f"models={sorted(ctx.models.keys())} "
           f"listening on {host}:{server.server_address[1]}", flush=True)
     return server
 
@@ -316,9 +497,12 @@ def main(argv=None):
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--weight", default=None)
+    parser.add_argument("--models", default="1,2,3",
+                        help="comma-separated model IDs to load (default: 1,2,3)")
     args = parser.parse_args(argv)
+    model_ids = [int(x.strip()) for x in args.models.split(",")]
     server = create_server(host=args.host, port=args.port,
-                           weight_path=args.weight)
+                           weight_path=args.weight, model_ids=model_ids)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

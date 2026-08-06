@@ -8,7 +8,7 @@ import os
 
 import httpx
 
-TIMEOUT_S = 30.0
+TIMEOUT_S = 300.0  # Model 1 can take 150+ seconds per image
 DEFAULT_BASE_URL = "http://127.0.0.1:8765"
 
 
@@ -38,6 +38,10 @@ def health(base_url=None):
     return _call("GET", "/health", base_url)
 
 
-def infer(image_b64, base_url=None):
-    """POST /infer with a jpeg/png b64 → PathResult dict (api.md)."""
-    return _call("POST", "/infer", base_url, json={"image_b64": image_b64})
+def infer(image_b64, base_url=None, model_id=None):
+    """POST /infer with a jpeg/png b64 → PathResult dict (api.md).
+
+    If model_id is specified, passes ?model=N to select model on remote server.
+    """
+    path = "/infer" if model_id is None else f"/infer?model={model_id}"
+    return _call("POST", path, base_url, json={"image_b64": image_b64})

@@ -33,7 +33,8 @@ from PIL import Image  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from torchvision import datasets  # noqa: E402
 
-from demo.server import compare, inference_local, remote_client, render  # noqa: E402
+from demo.server import compare, compare_models, inference_local, remote_client, render  # noqa: E402
+from demo.server.compare_models import COMPARE_METRICS  # noqa: E402
 from demo.server.inference_local import CLASSES, DATA_DIR  # noqa: E402
 from demo.server.metrics import METRICS  # noqa: E402
 from demo.server.remote_client import RemoteUnavailable  # noqa: E402
@@ -146,6 +147,31 @@ def infer(req: InferRequest):
 @app.get("/api/metrics")
 def metrics():
     return METRICS
+
+
+# ============================================================
+#  Multi-model comparison endpoints (for /compare.html)
+# ============================================================
+
+class CompareInferRequest(BaseModel):
+    image_b64: str
+    model_id: int
+
+
+@app.post("/api/compare-infer")
+def compare_infer(req: CompareInferRequest):
+    if req.model_id not in (1, 2, 3):
+        raise HTTPException(400, f"model_id must be 1, 2, or 3, got {req.model_id}")
+    try:
+        result = compare_models.infer_model(req.model_id, req.image_b64)
+    except Exception as e:
+        raise HTTPException(503, f"inference failed for model {req.model_id}: {e}")
+    return result
+
+
+@app.get("/api/compare-metrics")
+def compare_metrics_endpoint():
+    return COMPARE_METRICS
 
 
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")

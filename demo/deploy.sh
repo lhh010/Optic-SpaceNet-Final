@@ -10,17 +10,25 @@ CONTAINER="gazelle_sim"
 REMOTE_DIR="/workspace/demo"
 PYBIN="/local/miniconda/envs/moca_llm/bin/python"
 PORT=8765
-WEIGHT="spacenet_v2_phase4_v3_int8.pth"
+WEIGHTS=(
+  "baseline_vgg_phase4_v3_int8.pth"
+  "spacenet_v1_phase4_v3_int8.pth"
+  "spacenet_v2_phase4_v3_int8.pth"
+)
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-echo "[1/4] 打包 optic_server.py + optic_layers.py + 权重, 同步到 ${REMOTE_HOST}:${CONTAINER}:${REMOTE_DIR}"
-tar -cf - \
+echo "[1/4] 打包 optic_server.py + optic_layers.py + 三模型权重, 同步到 ${REMOTE_HOST}:${CONTAINER}:${REMOTE_DIR}"
+WEIGHT_ARGS=""
+for w in "${WEIGHTS[@]}"; do
+  WEIGHT_ARGS="${WEIGHT_ARGS} -C ${REPO_ROOT}/weights ${w}"
+done
+eval tar -cf - \
   -C "${REPO_ROOT}/demo/remote" optic_server.py \
   -C "${REPO_ROOT}/src/core" optic_layers.py \
-  -C "${REPO_ROOT}/weights" "${WEIGHT}" \
+  ${WEIGHT_ARGS} \
 | ssh "${REMOTE_HOST}" "docker exec -i ${CONTAINER} sh -c 'mkdir -p ${REMOTE_DIR} && tar -x -C ${REMOTE_DIR}'"
-echo "      同步完成."
+echo "      同步完成 (${#WEIGHTS[@]} 权重文件)."
 
 echo "[2/4] 重启容器内常驻服务 (先杀旧进程, 幂等)"
 ssh "${REMOTE_HOST}" "docker exec -i ${CONTAINER} sh -c '
@@ -29,7 +37,7 @@ ssh "${REMOTE_HOST}" "docker exec -i ${CONTAINER} sh -c '
     sleep 1
   fi
   cd ${REMOTE_DIR}
-  nohup ${PYBIN} optic_server.py --port ${PORT} > optic_server.log 2>&1 &
+  nohup ${PYBIN} optic_server.py --port ${PORT} --models 1,2,3 > optic_server.log 2>&1 &
   echo \$! > optic_server.pid
   echo \"      pid=\$(cat optic_server.pid)\"'"
 
@@ -49,4 +57,5 @@ CIP="$(ssh "${REMOTE_HOST}" "docker inspect ${CONTAINER} --format '{{range .Netw
 echo "      1) 建立隧道:   ssh -N -L ${PORT}:${CIP}:${PORT} ${REMOTE_HOST}"
 echo "         (容器 IP ${CIP}; 注意: 隧道目标是容器 IP, 不是 localhost — 8765 未发布到宿主机)"
 echo "      2) 起本地后端: cd ${REPO_ROOT} && uvicorn demo.server.app:app --port 8000"
-echo "      3) 打开浏览器: http://localhost:8000"
+echo "      3) 打开浏览器: http://localhost:8000         (Model 3 逐层演示)"
+echo "                      http://localhost:8000/compare.html  (三模型对比)"
