@@ -7,6 +7,16 @@
    2. Gazelle 硬件匹配噪声模型 — DAC/TIA/ADC 真实物理噪声
    3. 首层 FP32 选项 — stem/首层对齐率低, 保留电计算
 
+ v4.1 修复 (训练/推理对齐):
+   4. ★ 激活噪声修复: inject_activation_noise (TIA σ=5.34e-4 + ADC lsb=0.00147)
+      原先已定义但从未被调用 — 训练只注入权重 DAC 噪声, 而 TIA/ADC 正是
+      osimulator 输出噪声 (std=5.31) 的主导来源。现于每个 QAT 层的激活量化
+      路径注入 (训练时)。
+   5. ★ 激活量化对齐修复: 默认激活量化从 per-channel signed int8 改为
+      per-tensor unsigned uint8 + zero_point, 与 osimulator `_matmul_real`
+      输入量化 (`quantize_to_int(signed=False)` / `ufixed_quant`) 完全一致。
+      旧方案可用 act_quant="signed_per_channel" 保留 (对比实验)。
+
  Gazelle 硬件参数 (from GAZELLE_ARCHITECTURE.md):
    - 物理 tile: 8×2 (k=8, n=2)
    - 原生精度: 8-bit activation, 8-bit weight, 12-bit output
@@ -17,6 +27,11 @@
 
  用法:
    from optic_qat_v4 import prepare_model_v4, GazelleNoiseInjector
+
+ TODO (v4.1 修复后, 见 docs/TODO.md §v4.1 重跑清单):
+   - [ ] 重训 M1-M4 phase4_v3 (训练行为已变: 激活噪声注入 + uint8+zp 激活量化),
+         旧权重是旧语义训练, 不重训无法验证修复效果
+   - [ ] 重训后容器内复测 M2/M3 osim gap 是否从 ~1.6pt 收窄 (Bug #12/#13 判据)
 ================================================================================
 """
 
@@ -91,7 +106,8 @@ def fake_quantize_symmetric(x: torch.Tensor, bits: int = 8,
                             per_channel: bool = True, ch_dim: int = 0,
                             inject_noise: bool = False,
                             noise_std_ratio: float = 0.0016,  # ★ 匹配硬件 DAC ENOB=7.5
-                            noise_injector: GazelleNoiseInjector = None
+                            noise_injector: GazelleNoiseInjector = None,
+                            noise_kind: str = "weight"
                             ) -> torch.Tensor:
     """
     对称伪量化 (STE). 支持 int4/int8 权重, int8 激活.
@@ -99,6 +115,9 @@ def fake_quantize_symmetric(x: torch.Tensor, bits: int = 8,
     Args:
         bits: 量化位宽 (4=int4, 8=int8 匹配硬件原生精度)
         noise_std_ratio: 默认 0.0016 匹配 DAC ENOB=7.5 (vs v3 的 0.02)
+        noise_kind: 注入的噪声类型:
+            - "weight":    DAC 权重量化噪声 (inject_weight_noise)
+            - "activation": TIA+ADC 激活/输出噪声 (inject_activation_noise)
     """
     qmax = 2 ** (bits - 1) - 1
     qmin = -qmax
@@ -112,16 +131,72 @@ def fake_quantize_symmetric(x: torch.Tensor, bits: int = 8,
     else:
         scale = (x.abs().max() / qmax).clamp(min=1e-8)
 
-    # 硬件匹配噪声注入
+    # 硬件匹配噪声注入 (权重侧: DAC; 激活侧: TIA+ADC)
     if inject_noise and x.requires_grad and bits <= 8:
         if noise_injector is not None:
-            x = noise_injector.inject_weight_noise(x, scale)
+            if noise_kind == "activation":
+                x = noise_injector.inject_activation_noise(x, scale)
+            else:
+                x = noise_injector.inject_weight_noise(x, scale)
         else:
             noise = torch.randn_like(x) * noise_std_ratio * scale.detach()
             x = x + noise
 
     x_int = (x / scale).round().clamp(qmin, qmax)
     x_dq = x_int * scale
+    return x + (x_dq - x).detach()
+
+
+def fake_quantize_unsigned_affine(x: torch.Tensor, bits: int = 8,
+                                  inject_noise: bool = False,
+                                  noise_injector: GazelleNoiseInjector = None,
+                                  include_zero_min: bool = False
+                                  ) -> torch.Tensor:
+    """
+    无符号仿射伪量化 (STE) — ★ 与 osimulator `_matmul_real` 输入量化完全对齐.
+
+    真实光引擎 (`optic_layers._matmul_real` / 反编译 `oMAC_Matmul.ufixed_quant`)
+    对输入矩阵做 **per-tensor unsigned affine (uint8 + zero_point)** 量化:
+        scale      = (max - min) / (2^bits - 1)
+        zero_point = min
+        x_int      = round((x - zero_point) / scale).clamp(0, 2^bits - 1)
+        x_float    = x_int * scale + zero_point
+    而旧的 QAT 路径用 per-channel signed int8 — 训练/推理不对齐
+    (EXPERIMENTS.md §16.2/§16.6 的 int4 困境根因 #2, int8 下同样存在).
+
+    min/max 语义: 引擎对 im2col 展平 + 补零后的矩阵取全局 min/max
+    (im2col 的元素集合 == x 的元素集合, 补零时另含 0):
+      - include_zero_min=True  (该层展平长度非 8 倍数, 推理时补零):
+        min = min(x.min(), 0)  → 引擎矩阵含补零 0
+      - include_zero_min=False (展平长度已是 8 倍数, 不补零):
+        min = x.min()
+
+    Args:
+        bits: 量化位宽 (默认 8 = uint8, 匹配硬件原生输入精度)
+        inject_noise: 是否注入激活侧硬件噪声 (TIA + ADC)
+        noise_injector: GazelleNoiseInjector 实例
+        include_zero_min: 该层 im2col 展平后是否补零 (由层自身计算后传入)
+    """
+    val_range = 2 ** bits
+    t_min = x.min()
+    if include_zero_min:
+        t_min = t_min.clamp(max=0.0)  # 引擎对补零矩阵取 min, 至少为 0
+    t_max = x.max()
+    scale = ((t_max - t_min) / (val_range - 1)).clamp(min=1e-8)
+    zero_point = t_min
+
+    # 激活侧硬件噪声 (TIA + ADC) — 注入发生在量化之前 (模拟模拟域噪声 → ADC)
+    if inject_noise and x.requires_grad:
+        if noise_injector is not None:
+            x = noise_injector.inject_activation_noise(x, scale)
+        else:
+            # 默认: ADC 量化噪声 (σ = lsb/√12, lsb≈0.00147) + TIA 噪声 (σ≈5.34e-4)
+            tia_noise = torch.randn_like(x) * 5.34e-4
+            adc_noise = torch.randn_like(x) * (0.00147 / np.sqrt(12))
+            x = x + tia_noise + adc_noise
+
+    x_int = ((x - zero_point) / scale).round().clamp(0, val_range - 1)
+    x_dq = x_int * scale + zero_point
     return x + (x_dq - x).detach()
 
 
@@ -137,6 +212,9 @@ class QATConv2d_v4(nn.Module):
       - weight_bits 默认 8 (匹配硬件原生精度)
       - 硬件匹配噪声 (GazelleNoiseInjector)
       - 可配置首层 FP32
+      - 激活量化默认 per-tensor unsigned uint8 + zero_point, 与 osimulator
+        `_matmul_real` 输入量化完全一致 (修复训练/推理激活量化不对齐)
+      - 激活侧 TIA+ADC 噪声训练时注入 (修复 inject_activation_noise 从未被调用)
     """
 
     def __init__(self, conv_layer: nn.Conv2d,
@@ -144,7 +222,8 @@ class QATConv2d_v4(nn.Module):
                  act_bits: int = 8,
                  noise: bool = True,
                  noise_injector: GazelleNoiseInjector = None,
-                 keep_fp32: bool = False):   # 首层保留 FP32
+                 keep_fp32: bool = False,   # 首层保留 FP32
+                 act_quant: str = "uint8_affine"):  # "uint8_affine"=匹配硬件 | "signed_per_channel"=旧行为
         super().__init__()
 
         self.in_channels = conv_layer.in_channels
@@ -165,6 +244,11 @@ class QATConv2d_v4(nn.Module):
         self._noise = noise
         self._noise_injector = noise_injector
         self._keep_fp32 = keep_fp32
+        self._act_quant = act_quant
+        # 引擎 (OpticConv2d pad_to_8=True) 对 im2col 展平补零到 8 的倍数:
+        # 展平长度非 8 倍数 → 引擎矩阵含补零 0 → 训练侧 min 至少为 0
+        self._engine_pads = ((self.in_channels * self.kernel_size[0]
+                              * self.kernel_size[1]) % 8) != 0
 
     @property
     def qat_enabled(self): return self._qat_enabled
@@ -181,13 +265,23 @@ class QATConv2d_v4(nn.Module):
             return F.conv2d(x, self.weight, self.bias,
                            self.stride, self.padding, self.dilation, self.groups)
 
-        # 激活量化 (int8 per-channel)
-        x_q = fake_quantize_symmetric(x, bits=self._act_bits,
-                                      per_channel=True, ch_dim=1,
-                                      inject_noise=False)  # 激活噪声在上一层的 output 端注入
+        inject = self._noise and self.training  # 硬件噪声仅训练时注入
 
-        # 权重量化 + 硬件噪声
-        inject = self._noise and self.training
+        # 激活量化 (默认 per-tensor unsigned uint8 + zp, 与 osimulator 一致)
+        # 激活噪声 (TIA+ADC) 在此注入 → 等价于"上一层的 output 端注入"
+        if self._act_quant == "uint8_affine":
+            x_q = fake_quantize_unsigned_affine(x, bits=self._act_bits,
+                                                inject_noise=inject,
+                                                noise_injector=self._noise_injector,
+                                                include_zero_min=self._engine_pads)
+        else:  # signed_per_channel (旧行为, 仅作对比实验)
+            x_q = fake_quantize_symmetric(x, bits=self._act_bits,
+                                          per_channel=True, ch_dim=1,
+                                          inject_noise=inject,
+                                          noise_injector=self._noise_injector,
+                                          noise_kind="activation")
+
+        # 权重量化 + 硬件 DAC 噪声
         w_q = fake_quantize_symmetric(self.weight, bits=self._weight_bits,
                                       per_channel=True, ch_dim=0,
                                       inject_noise=inject,
@@ -199,7 +293,7 @@ class QATConv2d_v4(nn.Module):
     def extra_repr(self) -> str:
         return (f"{self.in_channels}, {self.out_channels}, "
                 f"kernel_size={self.kernel_size}, "
-                f"w{self._weight_bits}/a{self._act_bits}, "
+                f"w{self._weight_bits}/a{self._act_bits}({self._act_quant}), "
                 f"noise={self._noise}, fp32_first={self._keep_fp32}, "
                 f"bias={self.bias is not None}")
 
@@ -216,7 +310,8 @@ class QATLinear_v4(nn.Module):
                  act_bits: int = 8,
                  noise: bool = True,
                  noise_injector: GazelleNoiseInjector = None,
-                 is_last_layer: bool = False):
+                 is_last_layer: bool = False,
+                 act_quant: str = "uint8_affine"):  # 与 QATConv2d_v4 一致
         super().__init__()
 
         self.in_features = linear_layer.in_features
@@ -232,6 +327,9 @@ class QATLinear_v4(nn.Module):
         self._noise = noise
         self._noise_injector = noise_injector
         self._is_last_layer = is_last_layer
+        self._act_quant = act_quant
+        # 引擎 (OpticLinear pad_to_8=True) 对输入补零到 8 的倍数
+        self._engine_pads = (self.in_features % 8) != 0
 
     @property
     def qat_enabled(self): return self._qat_enabled
@@ -243,12 +341,23 @@ class QATLinear_v4(nn.Module):
         if not self._qat_enabled:
             return F.linear(x, self.weight, self.bias)
 
-        # 末层不量化输入
-        x_q = (x if self._is_last_layer else
-               fake_quantize_symmetric(x, bits=self._act_bits,
-                                       per_channel=True, ch_dim=-1))
+        inject = self._noise and self.training  # 硬件噪声仅训练时注入
 
-        inject = self._noise and self.training
+        # 末层不量化输入 (亦不注入激活噪声, 保持原设计)
+        if self._is_last_layer:
+            x_q = x
+        elif self._act_quant == "uint8_affine":
+            x_q = fake_quantize_unsigned_affine(x, bits=self._act_bits,
+                                                inject_noise=inject,
+                                                noise_injector=self._noise_injector,
+                                                include_zero_min=self._engine_pads)
+        else:  # signed_per_channel (旧行为)
+            x_q = fake_quantize_symmetric(x, bits=self._act_bits,
+                                          per_channel=True, ch_dim=-1,
+                                          inject_noise=inject,
+                                          noise_injector=self._noise_injector,
+                                          noise_kind="activation")
+
         w_q = fake_quantize_symmetric(self.weight, bits=self._weight_bits,
                                       per_channel=True, ch_dim=0,
                                       inject_noise=inject,
@@ -258,7 +367,8 @@ class QATLinear_v4(nn.Module):
 
     def extra_repr(self) -> str:
         return (f"in_features={self.in_features}, out_features={self.out_features}, "
-                f"w{self._weight_bits}/a{self._act_bits}, last={self._is_last_layer}")
+                f"w{self._weight_bits}/a{self._act_bits}({self._act_quant}), "
+                f"last={self._is_last_layer}")
 
 
 # ============================================================
@@ -272,6 +382,7 @@ def prepare_model_v4(model: nn.Module,
                      first_conv_fp32: bool = True,  # 首层对齐率低，保留电计算
                      quantize_linear: bool = True,   # Phase4: Linear 也量化
                      preserve_bn: bool = True,
+                     act_quant: str = "uint8_affine",  # ★ 激活量化: 匹配 osimulator (uint8+zp per-tensor)
                      inplace: bool = True) -> nn.Module:
     """
     将标准模型转换为 QAT v4.
@@ -279,10 +390,14 @@ def prepare_model_v4(model: nn.Module,
     Args:
         weight_bits:      权重量化位宽 (8=int8 匹配硬件, 4=int4)
         act_bits:         激活量化位宽 (8=int8)
-        noise:            是否注入硬件匹配噪声
+        noise:            是否注入硬件匹配噪声 (训练时: 权重 DAC + 激活 TIA/ADC)
         first_conv_fp32:  首层 Conv 是否保持 FP32 (对齐率<50% 的层建议 FP32)
         quantize_linear:  是否量化 Linear 层
         preserve_bn:      保留 BN
+        act_quant:        激活量化方案:
+            - "uint8_affine" (默认): per-tensor unsigned uint8 + zero_point,
+              与 osimulator `_matmul_real` 输入量化完全一致 (修复训练/推理不对齐)
+            - "signed_per_channel": per-channel signed int8 (旧行为, 仅对比实验用)
     """
     if not inplace:
         model = copy.deepcopy(model)
@@ -290,7 +405,7 @@ def prepare_model_v4(model: nn.Module,
     noise_inj = GazelleNoiseInjector() if noise else None
 
     _convert_to_v4(model, weight_bits, act_bits, noise, noise_inj,
-                   first_conv_fp32, quantize_linear, _first=True)
+                   first_conv_fp32, quantize_linear, act_quant, _first=True)
 
     qc_enabled = sum(1 for m in model.modules()
                      if isinstance(m, QATConv2d_v4) and m.qat_enabled)
@@ -300,18 +415,19 @@ def prepare_model_v4(model: nn.Module,
     bn = sum(1 for m in model.modules() if isinstance(m, nn.BatchNorm2d))
 
     w_label = f"int{weight_bits}"
-    print(f"[prepare_model_v4] Gazelle HW-aware QAT: w{w_label}/a{act_bits}")
+    print(f"[prepare_model_v4] Gazelle HW-aware QAT: w{w_label}/a{act_bits}"
+          f" ({act_quant}, 匹配 osimulator uint8+zp)")
     print(f"  QAT Conv: {qc_enabled} enabled + {qc_disabled} fp32 (first layer)")
     print(f"  QAT Linear: {ql}, BN: {bn}")
     if noise:
-        print(f"  硬件噪声: {noise_inj}")
+        print(f"  硬件噪声: {noise_inj} — 训练时注入 权重DAC + 激活TIA/ADC")
     if first_conv_fp32 and qc_disabled > 0:
         print(f"  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)")
     return model
 
 
 def _convert_to_v4(module, weight_bits, act_bits, noise, noise_inj,
-                   first_conv_fp32, quantize_linear, _first=True):
+                   first_conv_fp32, quantize_linear, act_quant, _first=True):
     """递归转换. _first 用单元素列表传递, 避免嵌套调用不更新父级的问题."""
     if not isinstance(_first, list):
         _first = [_first]
@@ -322,20 +438,22 @@ def _convert_to_v4(module, weight_bits, act_bits, noise, noise_inj,
             qat = QATConv2d_v4(child, weight_bits=weight_bits,
                                act_bits=act_bits, noise=noise,
                                noise_injector=noise_inj,
-                               keep_fp32=keep_fp32)
+                               keep_fp32=keep_fp32,
+                               act_quant=act_quant)
             setattr(module, name, qat)
             _first[0] = False  # ★ 可变容器: 真正只有第一个 Conv 受影响
         elif isinstance(child, nn.Linear):
             if quantize_linear:
                 qat = QATLinear_v4(child, weight_bits=weight_bits,
                                    act_bits=act_bits, noise=noise,
-                                   noise_injector=noise_inj)
+                                   noise_injector=noise_inj,
+                                   act_quant=act_quant)
                 setattr(module, name, qat)
         elif isinstance(child, (QATConv2d_v4, QATLinear_v4)):
             continue
         else:
             _convert_to_v4(child, weight_bits, act_bits, noise, noise_inj,
-                          first_conv_fp32, quantize_linear, _first)
+                          first_conv_fp32, quantize_linear, act_quant, _first)
 
 
 def enable_qat(model: nn.Module):
@@ -464,8 +582,34 @@ if __name__ == "__main__":
     print(f"  Unique values: {w_q.unique().numel()} (≤16 for int4)")
     print(f"  [OK]")
 
+    # Test unsigned affine activation quant (matches _matmul_real)
+    print("\n[Test 3b] fake_quantize_unsigned_affine (per-tensor uint8 + zp)")
+    a = torch.randn(2, 8, 16, 16) * 0.5
+    a.requires_grad = True
+    a_q = fake_quantize_unsigned_affine(a, bits=8)
+    loss = a_q.sum(); loss.backward()
+    t_min, t_max = a.min(), a.max()
+    scale = (t_max - t_min.clamp(max=0.0)) / 255.0
+    print(f"  Unique values: {a_q.unique().numel()} (≤256 for uint8)")
+    print(f"  Range: [{a_q.min().item():.4f}, {a_q.max().item():.4f}], "
+          f"expected min≈{t_min.clamp(max=0.0).item():.4f}")
+    print(f"  Act grad norm: {a.grad.norm():.4f} (STE works)")
+    print(f"  [OK]")
+
+    # Test activation noise injection (TIA + ADC) — the previously dead code path
+    print("\n[Test 3c] inject_activation_noise (TIA + ADC) now wired into training")
+    inj2 = GazelleNoiseInjector()
+    a2 = torch.randn(2, 8, 16, 16)
+    a2.requires_grad = True
+    s2 = (a2.max() - a2.min().clamp(max=0.0)) / 255.0
+    a2_noisy = inj2.inject_activation_noise(a2, s2)
+    expect_std = (5.34e-4 ** 2 + (0.00147 / np.sqrt(12)) ** 2) ** 0.5
+    print(f"  Noise std: {(a2_noisy - a2).std():.6f} "
+          f"(expect ~= sqrt(TIA^2 + ADC^2) ~= {expect_std:.6f})")
+    print(f"  [OK]")
+
     # Test QATConv2d_v4 (int8)
-    print("\n[Test 4] QATConv2d_v4 (int8 weight, Gazelle noise)")
+    print("\n[Test 4] QATConv2d_v4 (int8 weight, Gazelle noise + uint8 affine act)")
     conv = nn.Conv2d(3, 8, 3, padding=1, bias=False)
     qat = QATConv2d_v4(conv, weight_bits=8, noise=True,
                        noise_injector=GazelleNoiseInjector())
@@ -473,6 +617,7 @@ if __name__ == "__main__":
     out = qat(torch.randn(2, 3, 32, 32))
     out.sum().backward()
     print(f"  Output shape: {out.shape}, grad norm: {qat.weight.grad.norm():.4f}")
+    print(f"  act_quant: {qat._act_quant} (should be uint8_affine)")
     print(f"  [OK]")
 
     # Test first layer FP32

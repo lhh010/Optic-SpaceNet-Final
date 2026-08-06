@@ -2,6 +2,56 @@
 
 > 📂 **目录重构 (2026-07-16)**: 代码在 `src/` 下 (训练 `src/training/`、推理 `src/scripts/`)，权重在 `weights/`，日志在 `logs/`。**从仓库根运行**: `python src/<子目录>/<脚本>.py`。结构见根目录 `README.md`。
 
+> ⚠️ **v4.1 修复 (2026-08)** — 训练行为已改变, **M1-M4 旧权重必须重训** (详见 EXPERIMENTS.md Bug #12/#13/#14):
+> - Bug #12: 激活噪声 (TIA/ADC) 此前从未注入训练, 现已接入 → 训练时噪声模型变化
+> - Bug #13: 激活量化从 per-channel signed int8 改为 per-tensor unsigned uint8+zp (匹配 osimulator) → 量化方案变化
+> - Bug #14: Model 4 QAT 闭环缺失 + stem 对齐策略 → 已补 `--mode qat|optic` 推理 + `MODEL4_FIRST_CONV_FP32` 开关
+> **重跑顺序**: 先重训 (下节), 再在容器内做 osimulator 验证。判断修复是否生效的关键指标: M2/M3 的 `QAT int8 vs osim` gap 应从 ~1.6 点收窄。
+
+---
+
+## 🔴 v4.1 修复后 — 重跑清单 (2026-08)
+
+### 1. 重训 (本地 CPU/GPU; 训练行为已变, 旧权重作废)
+
+```bash
+cd E:\LT-Simulator\train-test
+# Model 4 (默认 stem FP32; stem 光计算对比用 MODEL4_FIRST_CONV_FP32=0)
+MODEL4_EPOCHS=15 PYTHONIOENCODING=utf-8 python src/training/model4_minivgg_gap_phase4_v3.py
+# Model 1/2/3 (复测 gap 是否收窄)
+python src/training/model1_baseline_phase4_v3.py
+python src/training/model2_spacenet_v1_phase4_v3.py
+python src/training/model3_spacenet_v2_phase4_v3.py
+```
+
+### 2. Model 4 QAT 闭环 (★ 新增, 容器内 osimulator)
+
+```bash
+# 容器内: /local/miniconda/envs/moca_llm/bin/python ...
+# QAT 伪量化 (秒级) + osimulator 真硬件 (小时级); stem 必须与训练一致
+python src/scripts/optic_inference_model4.py --weights weights/minivgg_gap_phase4_v3_int8.pth --mode qat
+python src/scripts/optic_inference_model4.py --weights weights/minivgg_gap_phase4_v3_int8.pth --mode optic --quick 100
+# 若训练用了 MODEL4_FIRST_CONV_FP32=0, 推理加 --first-conv-fp32 0
+```
+
+### 3. Model 2/3 osimulator 复测 (重训后)
+
+```bash
+python src/scripts/optic_inference_int8.py          # M2 (全量 5400, ~4-6h)
+python src/scripts/optic_inference_kd.py            # M3 (int8 test 须走 osimulator)
+```
+
+### 4. (可选) Model 4 stem 光计算消融
+
+```bash
+MODEL4_FIRST_CONV_FP32=0 MODEL4_EPOCHS=15 python src/training/model4_minivgg_gap_phase4_v3.py
+# 配套推理: --first-conv-fp32 0
+```
+
+**判据**: M2/M3 `osim − val` 从 ~−1.6pt 收窄 → Bug #12/#13 修复生效; M4 首次拿到 QAT 权重的 osim 数 → Bug #14 闭环完成。
+
+---
+
 > 背景: test⊂train 泄漏 (Bug #11) 已在代码侧修复 (`eurosat_split.py` 单一数据源, 已 push)。
 > 三模型均已在干净 split (train 16200 / val 5400 / 留出 test 5400) 上**重训完成**;
 > held-out test 的 QAT 交叉验证也已完成: Model 1/2 拿到干净 **int8** test 数 (test≈val, 无泄漏),

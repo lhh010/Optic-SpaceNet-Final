@@ -18,6 +18,10 @@
    python model3_spacenet_v2_phase4_v3.py --wbits 4        # int4+KD 对比
 
  产出权重: weights/spacenet_v2_phase4_v3_int8.pth (或 _int4.pth)
+
+  TODO (v4.1 修复后, 见 docs/TODO.md §v4.1 重跑清单):
+    - [ ] 重训: optic_qat_v4 激活量化改为 uint8+zp 且训练时注入激活噪声,
+          旧权重是旧语义训练, 需重训后复测 osim gap (预期从 ~1.6pt 收窄)
 ================================================================================
 """
 

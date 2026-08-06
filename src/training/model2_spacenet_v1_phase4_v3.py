@@ -10,6 +10,10 @@
  用法:
    python model2_spacenet_v1_phase4_v3.py                # int8 (推荐)
    python model2_spacenet_v1_phase4_v3.py --wbits 4      # int4 对比
+
+  TODO (v4.1 修复后, 见 docs/TODO.md §v4.1 重跑清单):
+    - [ ] 重训: optic_qat_v4 激活量化改为 uint8+zp 且训练时注入激活噪声,
+          旧权重是旧语义训练, 需重训后复测 osim gap (预期从 ~1.6pt 收窄)
 ================================================================================
 """
 

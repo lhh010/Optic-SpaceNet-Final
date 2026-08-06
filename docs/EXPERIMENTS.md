@@ -48,11 +48,11 @@
 
 ### 1.3 精度目标
 
-| 模型 | FP32 基准 | int4 目标 | int8 目标 |
-|---|---|---|---|
-| Model 1 (VGG) | 97.17% | ≥ 95% | ≥ 96% |
-| Model 2 (SN V1) | 90.15% | ≥ 88% | ≥ 90% |
-| Model 3 (SN V2 KD) | 91.44% | ≥ 89% | ≥ 91% |
+| 模型                 | FP32 基准 | int4 目标 | int8 目标 |
+| ------------------ | ------- | ------- | ------- |
+| Model 1 (VGG)      | 97.17%  | ≥ 95%   | ≥ 96%   |
+| Model 2 (SN V1)    | 90.15%  | ≥ 88%   | ≥ 90%   |
+| Model 3 (SN V2 KD) | 91.44%  | ≥ 89%   | ≥ 91%   |
 
 ---
 
@@ -860,6 +860,21 @@ python src/scripts/optic_inference_int8_model1.py --variant B --quick 650  # ~7.
 - **影响 (全模型)**: 三个训练脚本 (Model 1/2/3) 共用 `load_eurosat_data`, 故使用污染 test 段的推理脚本 (int4/int4_v2/int8/int8_model1/kd/lsq) 报的「独立测试集」数字均作废: Model 1 test 99.96%、Model 2 osimulator 93.28%、Model 3 osimulator 93.26%/Quick 96.00%、LSQ+ 92.76%、INT4 87.94%。**例外**: `optic_inference_mixed_model1.py` 用 val 段 (`indices[:sz]`) 评估, 不受影响 (Model 1 Mixed Quick 100=100% 为 val 基)。val 集 (`indices[:val_size]`) 未参与训练, 一律有效 (2026-07-13 当时数; 三模型后已干净重训, 最新 val 见 §11.11/§11.12): Model 1 int8 v3 98.15%、Model 2 v3 93.11%、Model 3 v3 92.35%。
 - **修复 (keystone, 已应用 2026-07-13)**: `train_phase4_runner.py:load_eurosat_data` 改 `train = indices[val_size*2:]` → 三分 **val(5400) / test(5400) / train(16200)**, 三者严格不相交 (已 empirical 验证: test∩train=test∩val=train∩val=0)。推理侧 `load_test_data` 无需改 (本就取 `indices[sz:2*sz]`, 修复后自动 disjoint)。
 - **待办**: 现有权重均见过 test 图, 要拿干净 test 数必须用修复后的 split 重训。历史 osimulator「独立测试集」数字需重训后复测。
+
+### Bug #12: 激活/输出噪声从未注入训练 — `inject_activation_noise` 死代码 (2026-08, v4.1 修复) ⚠️
+- **现象**: `optic_qat_v4.GazelleNoiseInjector.inject_activation_noise` (TIA σ=5.34e-4 + ADC lsb=0.00147) 已定义但**全仓库无任何调用点**; `QATConv2d_v4.forward` 激活量化显式 `inject_noise=False`, 注释「激活噪声在上一层的 output 端注入」为悬空承诺。
+- **后果**: 所有 phase4_v3 训练 (M1-M4) 只注入权重 DAC 噪声; 而 TIA/ADC 恰是 osimulator 真实输出噪声 (模型实例 `...std5.31`) 的主导来源 → 训练从未见过输出侧噪声, 是残留真机 gap 的来源之一。
+- **修复 (v4.1)**: `fake_quantize_symmetric` 增加 `noise_kind` 参数区分权重/激活噪声; 新增激活路径在量化前调用 `inject_activation_noise` (训练时, `self._noise and self.training`), 等价于上一层的 output 端注入。
+
+### Bug #13: QAT 激活量化 per-channel signed int8 vs osimulator per-tensor unsigned uint8 (2026-08, v4.1 修复)
+- **现象**: QAT 训练激活用 `fake_quantize_symmetric(per_channel=True, ch_dim=1)` (signed int8, 每通道独立 scale); `_matmul_real` 用 `quantize_to_int(signed=False)` (per-tensor unsigned uint8 + zero_point, im2col 展平后全局单 scale) — §16.2/§16.6 的 int4 困境根因 #2, **int8 下同样存在** (只是幅度小于 int4)。
+- **修复 (v4.1)**: 新增 `fake_quantize_unsigned_affine` — per-tensor unsigned affine, min/max 语义逐层匹配引擎 (展平长度非 8 倍数 → 补零 → min 钳到 ≤0; 已对齐 → 实际 min), 经数值验证与 `_matmul_real` 量化 **0 误差等价**。`prepare_model_v4` 新增 `act_quant` 参数, 默认 `"uint8_affine"` (匹配硬件); 旧行为保留为 `"signed_per_channel"` 仅供对比。`_matmul_fake` 输入量化同步改为 unsigned affine, 消除 fake/real 路径分歧。
+- **待办**: 修复后 QAT 训练行为改变, 需重训 M1-M4 并复测 (见 SUMMARY 待办)。
+
+### Bug #14: Model 4 QAT 管线闭环缺失 + stem 对齐策略盲抄 (2026-08, v4.1 修复)
+- **现象**: `optic_inference_model4.py` 只评估 FP32 基线 (`minivgg_gap.pth`), QAT int8 权重 (`minivgg_gap_phase4_v3_int8.pth`) 从未在 osimulator 上验证; 且 M4 训练脚本硬编码 `first_conv_fp32=True`, 理由是 M2/M3 的「stem 对齐率低 (37.5%)」, 但 M4 的 3×3 stem 对齐率是 **84.4%** (patch=27→32), 属于不同的决策点。
+- **修复 (v4.1)**: ① 训练脚本新增 `MODEL4_FIRST_CONV_FP32` (默认 1 = FP32 电计算, 与 M2/M3 部署原则一致), 打印 3×3 stem 84.4% vs M2 1×1 37.5% 的决策依据; ② `optic_inference_model4.py` 重写: 支持 `--weights` 加载 QAT int8 权重 + `--mode qat|optic` (QAT 伪量化 + osimulator 真硬件闭环) + `--first-conv-fp32` 与训练一致。
+- **待办**: 在容器内跑 QAT 权重的 osimulator 评估, 补齐 M4 闭环; 如需提高光计算占比可对比 `MODEL4_FIRST_CONV_FP32=0` 方案。
 
 ---
 

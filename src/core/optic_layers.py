@@ -391,11 +391,14 @@ class OpticalEngine:
         k_w, n = weight_matrix.shape
 
         if quantize_inputs:
-            # ★ 使用与真实引擎相同的位宽进行量化
-            #    输入: 对称 intN (signed)
-            #    权重: 对称 intN (signed)
-            input_q = quantize_symmetric(input_matrix.reshape(-1, k),
-                                         bits=input_bit, dim=-1).reshape(b, m, k)
+            # ★ 使用与真实引擎 (_matmul_real) 完全一致的量化语义 (修复双重量化):
+            #    输入: per-tensor unsigned affine (uintN + zero_point)
+            #          (quantize_to_int(signed=False) 与 osimulator ufixed_quant 一致)
+            #    权重: per-channel signed symmetric intN (与 QAT 训练一致)
+            input_int, in_scale, in_zp = quantize_to_int(
+                input_matrix.reshape(-1, k), input_bit, signed=False)
+            input_q = input_int.float() * in_scale + in_zp
+            input_q = input_q.reshape(b, m, k)
             weight_q = quantize_symmetric(weight_matrix,
                                           bits=weight_bit, dim=0)
         else:
