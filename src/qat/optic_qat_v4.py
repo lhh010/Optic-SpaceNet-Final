@@ -57,6 +57,26 @@ class GazelleNoiseInjector:
       dac_enob: 7.5        — DAC 有效位数
       tia_noise_std: ~5.3×10^-^4  — TIA 噪声标准差 (sqrt(MSE))
       adc_lsb: 0.00147     — ADC 量化步长
+
+    默认值来源复核 (gazelle-crossval 真机实测 2026-08,
+    fitted_params.json / CROSSVAL_REPORT.md §7):
+      真机拟合: hw 噪声为**输出端绝对加性底噪**, σ_total ≈ 4.49 counts
+      (= 1144 MAC, uint8; uint4x16 ≈ 3.85 counts), 与信号幅度无关;
+      σ_static ≈ 4.37 counts (慢漂+静态 LUT 误差) 主导, σ_dynamic (短窗
+      快噪声) 仅 ≈ 1.02 counts。crossval 建议 tia_noise_std=0.0392, 但
+      其归一化基准是 σ_total/rms_ideal, rms_ideal=29202 MAC 为 **uint8
+      满值域随机 GEMM (k=8)** 的输出 RMS, 与本模块口径不同, 不可直接替换。
+      换算到本模块口径 (输入激活端 float 单位): σ_act[counts] =
+      σ_out[MAC] / (w_rms_int × √k) — 以 w_rms_int≈40 计, k=32 → ≈5.0
+      counts, k=1024 → ≈0.9 counts, 再乘 in_scale≈0.01 得 float σ≈
+      0.009~0.05, 即当前值的 ~17~90×, 且层间散布 >5×, 无法给出单一
+      可信默认值。更根本的是**结构失配**: 真机噪声在 GEMM 输出端、与
+      信号无关, 而本注入器在输入激活端加噪 (经 GEMM 后变为权重相关),
+      且以 i.i.d. 高斯建模无法表达 σ_static 慢漂。此外 v4 中
+      inject_activation_noise 实际未被调用 (死代码, 见 auto_research/
+      src/qat_v5.py 的修复: 输出端注入 + uint8 affine + 12-bit 输出量化)。
+      结论: 保留 5.34e-4 不动, 仅记录真机实测值; 结构正确的输出端噪声
+      建模应参考 qat_v5 (其 0.0457 与真机 0.0392 同口径, 差 ~14%)。
     """
 
     def __init__(self, dac_enob=7.5, tia_noise_std=5.34e-4, adc_lsb=0.00147):
@@ -105,7 +125,18 @@ class GazelleNoiseInjector:
 def fake_quantize_symmetric(x: torch.Tensor, bits: int = 8,
                             per_channel: bool = True, ch_dim: int = 0,
                             inject_noise: bool = False,
-                            noise_std_ratio: float = 0.0016,  # ★ 匹配硬件 DAC ENOB=7.5
+                            # ★ 匹配硬件 DAC ENOB=7.5。crossval 真机复核 (2026-08,
+                            # fitted_params.json) 建议 noise_std_ratio=0.00894, 但那是
+                            # σ_dynamic/rms_ideal (uint8 满值域随机 GEMM 输出 RMS 口径,
+                            # 且 σ_dynamic=1.02 counts 只是短窗快噪声, 长窗 σ_total≈
+                            # 4.49 counts 不可混用), 与本参数"相对 per-channel 权重
+                            # scale"的口径不同。换算到本口径: 整数域 δw std = ratio
+                            # counts, 输出端 σ_out = ratio × x_rms_int × √k; 要复现真机
+                            # 底噪 1144 MAC 需 ratio ≈ 1144/(60√k) ≈ 0.6 (k=1024) ~
+                            # 3.4 (k=32), 层间散布 5.6×, 无法给出单一可信默认值, 且
+                            # 权重端加噪与真机输出端绝对加性噪声结构不同 (见
+                            # GazelleNoiseInjector docstring)。结论: 保留 0.0016。
+                            noise_std_ratio: float = 0.0016,
                             noise_injector: GazelleNoiseInjector = None,
                             noise_kind: str = "weight"
                             ) -> torch.Tensor:
