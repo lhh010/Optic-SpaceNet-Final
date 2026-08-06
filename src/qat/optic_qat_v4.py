@@ -69,7 +69,8 @@ class GazelleNoiseInjector:
       换算到本模块口径 (输入激活端 float 单位): σ_act[counts] =
       σ_out[MAC] / (w_rms_int × √k) — 以 w_rms_int≈40 计, k=32 → ≈5.0
       counts, k=1024 → ≈0.9 counts, 再乘 in_scale≈0.01 得 float σ≈
-      0.009~0.05, 即当前值的 ~17~90×, 且层间散布 >5×, 无法给出单一
+      0.009~0.05, 即当前值的 ~17~95× (w_rms_int≈40 / in_scale≈0.01 为
+      int8 amax 量化的经验假设), 且层间散布 >5×, 无法给出单一
       可信默认值。更根本的是**结构失配**: 真机噪声在 GEMM 输出端、与
       信号无关, 而本注入器在输入激活端加噪 (经 GEMM 后变为权重相关),
       且以 i.i.d. 高斯建模无法表达 σ_static 慢漂。此外 v4 中
@@ -132,7 +133,8 @@ def fake_quantize_symmetric(x: torch.Tensor, bits: int = 8,
                             # 4.49 counts 不可混用), 与本参数"相对 per-channel 权重
                             # scale"的口径不同。换算到本口径: 整数域 δw std = ratio
                             # counts, 输出端 σ_out = ratio × x_rms_int × √k; 要复现真机
-                            # 底噪 1144 MAC 需 ratio ≈ 1144/(60√k) ≈ 0.6 (k=1024) ~
+                            # 底噪 1144 MAC 需 ratio ≈ 1144/(x_rms_int·√k), 以
+                            # x_rms_int≈60 (int8 amax 经验值) 计 ≈ 0.6 (k=1024) ~
                             # 3.4 (k=32), 层间散布 5.6×, 无法给出单一可信默认值, 且
                             # 权重端加噪与真机输出端绝对加性噪声结构不同 (见
                             # GazelleNoiseInjector docstring)。结论: 保留 0.0016。
