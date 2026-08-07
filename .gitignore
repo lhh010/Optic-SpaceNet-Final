@@ -12,3 +12,7 @@ data/
 初赛文档/
 osimulator/
 demo/remote/__pycache__/
+
+# v4.1 重训临时产物 (不提交)
+*.ckpt
+weights_backup_*/

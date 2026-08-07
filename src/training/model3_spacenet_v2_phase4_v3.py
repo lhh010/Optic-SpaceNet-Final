@@ -174,13 +174,27 @@ class KDPhase4V3Trainer:
         best_acc, best_state = 0.0, None
         total_time = 0.0
 
+        # --- checkpoint 续训 (断点续跑支持, 每 5 epoch 保存) ---
+        fname = cfg.get('save_path', f'weights/spacenet_v2_phase4_v3_int{wbits}.pth')
+        ckpt_path = fname + ".ckpt"
+        start_epoch, ckpt_interval = 1, 5
+        if os.path.exists(ckpt_path):
+            ck = torch.load(ckpt_path, map_location=self.device, weights_only=False)
+            student.load_state_dict(ck["model"])
+            optimizer.load_state_dict(ck["optimizer"])
+            scheduler.current_epoch = ck["scheduler_epoch"]
+            best_acc, best_state = ck["best_acc"], ck["best_state"]
+            start_epoch = ck["epoch"] + 1
+            print(f"\n[resume] 从 checkpoint 恢复: epoch {ck['epoch']}/{epochs} "
+                  f"(best {best_acc:.2%}) → 继续 epoch {start_epoch}")
+
         print("-" * 75)
         print(f"  {'Epoch':>5s} | {'KD Loss':>10s} {'Train Acc':>9s} | "
               f"{'Val Loss':>9s} {'Val Acc':>8s} | {'Best':>8s} | "
               f"{'LR':>8s} | {'Time':>7s}")
         print("  " + "-" * 73)
 
-        for epoch in range(1, epochs + 1):
+        for epoch in range(start_epoch, epochs + 1):
             t0 = time.time()
 
             # 训练
@@ -205,6 +219,15 @@ class KDPhase4V3Trainer:
                       f"{val_loss:>9.4f} {val_acc:>7.2%} | {best_acc:>7.2%} | "
                       f"{optimizer.param_groups[0]['lr']:>7.5f} | {elapsed:>6.1f}s")
 
+            # checkpoint 续训
+            if epoch % ckpt_interval == 0:
+                torch.save({"epoch": epoch, "model": student.state_dict(),
+                            "optimizer": optimizer.state_dict(),
+                            "scheduler_epoch": scheduler.current_epoch,
+                            "best_acc": best_acc, "best_state": best_state},
+                           ckpt_path)
+                print(f"  [ckpt] epoch {epoch} → {ckpt_path}")
+
         # 恢复最佳权重
         student.load_state_dict(best_state)
 
@@ -225,6 +248,9 @@ class KDPhase4V3Trainer:
         fname = cfg.get('save_path', f'weights/spacenet_v2_phase4_v3_int{wbits}.pth')
         torch.save(student.state_dict(), fname)
         print(f"\n  模型已保存: {fname}")
+        if os.path.exists(ckpt_path):
+            os.remove(ckpt_path)
+            print(f"  [ckpt] 已清理 (训练完成, 删除 {ckpt_path})")
 
         print(f"\n{'='*60}")
         print(f"  训练完成 — 结果汇总")

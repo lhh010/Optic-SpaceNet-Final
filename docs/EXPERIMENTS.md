@@ -1231,4 +1231,57 @@ int4→int8 网格转换并非无损 (max/7 → max/127), 必须在训练时就�
 
 ---
 
-*文档版本: v3.1 | 最后更新: 2026-07-18 | Model 1 变体 A/B osimulator **q650**: A **98.15%** (反超 FP32 基准 +0.98%) / B **97.54%** (超 FP32 +0.37%), q650 取代 q50 为 Model 1 真机精度正式数。Model 2/3 osimulator **全量 5400** (干净 test): M2 **90.43%** (反超 FP32 基准 +0.28%) / M3 **90.28%**。详见 §11.13 / §11.14*
+## 17. v4.1 重训 (2026-08-07) — Bug #12/#13/#14 修复的验证 ★
+
+### 17.1 背景
+
+Bug #12 (激活噪声从未注入训练) / #13 (激活量化 per-channel signed int8 vs osimulator per-tensor uint8+zp) / #14 (Model 4 QAT 闭环缺失) 已在 HEAD 提交 `9063682` (2026-08-07, v4.1) 修复于代码侧, 但**所有现有权重 (M1-M4) 均为 v4.0 旧语义训练** (无激活噪声 + signed per-channel 激活量化), 不重训无法验证修复是否收窄 ~1.6pt 真机 gap。
+
+**决策**: 重训全部模型 (M4 → M1-A → M1-B → M2 → M3-KD), **容器 osimulator 验证暂不执行** (用户指示, 待重训完成后再做)。
+
+### 17.2 重训配置 (v4.1 语义)
+
+| 项 | 值 |
+|---|---|
+| QAT 模块 | `optic_qat_v4` v4.1 (HEAD `9063682`) |
+| 激活量化 | `uint8_affine` (per-tensor unsigned uint8 + zero_point, 匹配 `_matmul_real`) |
+| 噪声 | 训练时注入 权重DAC (ENOB 7.5) + 激活TIA (σ=5.34e-4) + ADC (lsb=0.00147) |
+| stem 策略 | M1/M2/M3: FP32 (对齐率低); M4: 3×3 stem patch=27→32 对齐率 84.4%, 默认 FP32 (`MODEL4_FIRST_CONV_FP32=1`) |
+| epochs | M4=15, M1-A/B=100, M2=100, M3-KD=100 |
+| 环境 | Windows Python 3.9.13 + torch 2.8.0+cpu, 16 线程, 与用户其他任务共享 CPU |
+
+### 17.3 结果 (v4.0 旧权重 vs v4.1 重训)
+
+| 模型 | v4.0 val (QAT int8) | v4.1 val (QAT int8) | Δ | v4.1 int8 test | 状态 |
+|---|---|---|---|---|---|
+| Model 4 MiniVGG-GAP | 95.59% | **96.06%** | **+0.47pt** | **96.17%** (v4.0: 95.50%) | ✅ 完成 (14:02) |
+| Model 1 变体 A | 97.87% | 待填 | — | 待填 | ⏳ 训练中 |
+| Model 1 变体 B | 98.02% | 待填 | — | 待填 | ⏳ 排队 |
+| Model 2 SpaceNet V1 | 92.06% | 待填 | — | 待填 | ⏳ 排队 |
+| Model 3 SpaceNet V2 KD | 91.83% | 待填 | — | 待填 (osim 旧值 90.28%) | ⏳ 排队 |
+
+**M4 首个完成 (2026-08-07 14:02)**: v4.1 重训 val **96.06%** (v4.0 95.59%, **+0.47pt**), int8 test **96.17%** (v4.0 95.50%, **+0.67pt**), 量化损失仅 0.06%。v4.1 语义 (激活噪声 + uint8+zp) 在 M4 上不仅未伤 val 反而反超。详见 `logs/retrain_v41_summary.md`。
+
+### 17.4 结论 (重训完成后填写)
+
+- [ ] 待 M1-M4 全部重训完成后填写: val 是否持平/下降 (激活噪声注入会使 val 略降属预期), 以及 osimulator gap 是否收窄 (判据, 容器验证暂缓)
+
+### 17.5 续跑说明 (新会话无缝衔接)
+
+- 状态文件: `logs/retrain_v41_state.txt` — 每任务 START/DONE/FAIL 时间戳与结果 (source of truth)
+- 完成标记: `logs/retrain_v41_<job>.done` — 已完成的 job 自动跳过
+- **任务内断点续训 (2026-08-07 新增)**: M1/M2/M3 训练脚本已加 checkpoint (每 5 epoch
+  存 `<权重>.pth.ckpt`, 含 model+optimizer+scheduler+best_acc), 任务被杀后重跑脚本自动
+  `[resume]` 从断点继续, 无需重头训练 (M4 已跑完, 未加); 训练成功自动删除 .ckpt
+- 续跑命令 (任何会话, WSL):
+  ```bash
+  cd /mnt/e/LT-Simulator/train-test && bash _retrain_v41_runner.sh
+  ```
+  建议后台: `bash _retrain_v41_runner.sh > logs/retrain_v41_pipeline.log 2>&1 &`
+- 原始日志: `logs/retrain_v41_{m4,m1a,m1b,m2,m3}.log` (UTF-8, `python -u` 实时写入)
+- 汇总: `logs/retrain_v41_summary.md`; 权重备份 (v4.0): `weights_backup_v40_20260807/`
+- 任务被杀 → 无 `.done` → 重跑该任务安全 (脚本仅在结尾 save 权重; 中途靠 .ckpt 续训)
+
+---
+
+*文档版本: v3.2 | 最后更新: 2026-08-07 | §17 新增 v4.1 重训记录与续跑说明; 重训结果待填写*

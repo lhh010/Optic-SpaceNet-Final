@@ -1,0 +1,42 @@
+设备: cpu
+
+============================================================
+  Model 1 Phase4 v3: Baseline VGG int8 + Gazelle 硬件噪声
+  变体 A: 首层 conv1_1 FP32, 其余 Conv+Linear int8
+============================================================
+训练: 16200, 验证: 5400, 留出测试: 5400 (见 eurosat_split)
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+
+参数量: 2,387,168
+
+[Step 1] 转换为 QAT v4 (int8 权重, Gazelle 噪声, 首层 conv1_1 FP32)
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8 (uint8_affine, 匹配 osimulator uint8+zp)
+  QAT Conv: 5 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 6
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015) — 训练时注入 权重DAC + 激活TIA/ADC
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [Baseline VGG (v4, 变体 A)] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] conv1_1                      3   3×3        27        32   84.4%  w8
+  [QATConv2d_v4 QAT  ] conv1_2                     32   3×3       288       288  100.0%  w8
+  [QATConv2d_v4 QAT  ] conv2_1                     32   3×3       288       288  100.0%  w8
+  [QATConv2d_v4 QAT  ] conv2_2                     64   3×3       576       576  100.0%  w8
+  [QATConv2d_v4 QAT  ] conv3_1                     64   3×3       576       576  100.0%  w8
+  [QATConv2d_v4 QAT  ] conv3_2                    128   3×3      1152      1152  100.0%  w8
+  综合硬件对齐率: 100.0% (展平总长度 11355 → 补零后 11360)
+
+[Step 2] 训练 (100 epochs, lr=0.001, wd=0.0005, label_smoothing=0.05)
+  int8 权重 (硬件原生精度) | GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-4)
+  光计算层 (int8 QAT): conv1_2/conv2_1/conv2_2/conv3_1/conv3_2 + fc1/fc2
+  电计算层 (FP32): conv1_1
+----------------------------------------------------------------------
+  Epoch | Train Loss Train Acc |  Val Loss  Val Acc |     Best |       LR |    Time
+  --------------------------------------------------------------------
+      1  |     1.5227   51.40% |    1.2115  66.69% |  66.69% | 0.00020 |  322.6s
+      5  |     0.9352   76.97% |    0.8601  78.76% |  79.11% | 0.00100 |  335.2s
+  [ckpt] epoch 5 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     10  |     0.7061   86.91% |    0.5256  92.02% |  92.02% | 0.00099 |  375.0s
+  [ckpt] epoch 10 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     15  |     0.5955   90.92% |    0.5558  90.20% |  92.02% | 0.00097 |  299.7s
+  [ckpt] epoch 15 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
