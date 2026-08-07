@@ -1284,6 +1284,13 @@ Bug #12 (激活噪声从未注入训练) / #13 (激活量化 per-channel signed 
   cd /mnt/e/LT-Simulator/train-test && bash _retrain_v41_runner.sh
   ```
   建议后台: `bash _retrain_v41_runner.sh > logs/retrain_v41_pipeline.log 2>&1 &`
+- **双通道并行 (2026-08-07 晚起)**: M2/M3 走并行通道 `bash _retrain_v41_parallel.sh <m2|m3>`
+  (16 核双进程各 8 线程)。**明日续跑 = 两个命令并行**:
+  通道 A 顺序跑 M1-B (自动 skip m4/m1a/m2), 通道 B 跑 M3:
+  ```bash
+  bash _retrain_v41_runner.sh &          # 通道 A: m1b
+  bash _retrain_v41_parallel.sh m3 &     # 通道 B: m3
+  ```
 - 原始日志: `logs/retrain_v41_{m4,m1a,m1b,m2,m3}.log` (UTF-8, `python -u` 实时写入)
 - 汇总: `logs/retrain_v41_summary.md`; 权重备份 (v4.0): `weights_backup_v40_20260807/`
 - 任务被杀 → 无 `.done` → 重跑该任务安全 (脚本仅在结尾 save 权重; 中途靠 .ckpt 续训)
