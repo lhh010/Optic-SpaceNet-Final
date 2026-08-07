@@ -1,0 +1,99 @@
+设备: cpu
+
+============================================================
+  Model 2 Phase4 v3: int8 权重 + Gazelle 硬件噪声
+  首层 stem FP32 (对齐率 37.5%), 其余 Conv+Linear int8
+============================================================
+训练: 16200, 验证: 5400, 留出测试: 5400 (见 eurosat_split)
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+
+参数量: 267,944
+
+[Step 1] 转换为 QAT v4 (int8 权重, Gazelle 噪声)
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8 (uint8_affine, 匹配 osimulator uint8+zp)
+  QAT Conv: 3 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 4
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015) — 训练时注入 权重DAC + 激活TIA/ADC
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+  [SpaceNet V1 (v4)] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] stem.0                       3   1×1         3         8   37.5%  w8
+  [QATConv2d_v4 QAT  ] stage1.0                     8   2×2        32        32  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage2.0                    16   2×2        64        64  100.0%  w8
+  [QATConv2d_v4 QAT  ] stage3.0                    32   1×1        32        32  100.0%  w8
+  综合硬件对齐率: 99.6% (展平总长度 1411 → 补零后 1416)
+
+[Step 2] 训练 (100 epochs, lr=0.001, wd=0.0005)
+  int8 权重 (硬件原生精度)
+  GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-4) — 硬件匹配噪声
+----------------------------------------------------------------------
+  Epoch | Train Loss Train Acc |  Val Loss  Val Acc |     Best |       LR |    Time
+  --------------------------------------------------------------------
+      1  |     1.2793   62.41% |    0.9912  71.93% |  71.93% | 0.00020 |   87.6s
+      5  |     0.9258   77.01% |    0.7941  80.67% |  80.67% | 0.00100 |   91.4s
+  [ckpt] epoch 5 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     10  |     0.8226   81.01% |    0.6928  85.46% |  85.46% | 0.00099 |   89.1s
+  [ckpt] epoch 10 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     15  |     0.7649   83.50% |    0.6517  86.87% |  86.87% | 0.00097 |   85.7s
+  [ckpt] epoch 15 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     20  |     0.7315   85.16% |    0.6277  87.85% |  87.85% | 0.00094 |   90.6s
+  [ckpt] epoch 20 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     25  |     0.6845   86.36% |    0.6476  86.30% |  88.13% | 0.00090 |   90.1s
+  [ckpt] epoch 25 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     30  |     0.6624   87.31% |    0.6266  87.39% |  89.22% | 0.00084 |   86.4s
+  [ckpt] epoch 30 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     35  |     0.6402   88.48% |    0.5720  89.43% |  89.81% | 0.00078 |   90.7s
+  [ckpt] epoch 35 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     40  |     0.6236   89.27% |    0.5690  90.02% |  90.43% | 0.00070 |   87.8s
+  [ckpt] epoch 40 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     45  |     0.6113   89.51% |    0.5668  90.11% |  90.43% | 0.00063 |   93.8s
+  [ckpt] epoch 45 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     50  |     0.5924   90.66% |    0.5477  90.98% |  90.98% | 0.00055 |   79.4s
+  [ckpt] epoch 50 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     55  |     0.5798   91.19% |    0.5500  90.94% |  91.13% | 0.00046 |   80.3s
+  [ckpt] epoch 55 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     60  |     0.5705   91.22% |    0.5497  90.94% |  91.13% | 0.00038 |   84.5s
+  [ckpt] epoch 60 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     65  |     0.5634   91.08% |    0.5478  90.80% |  91.13% | 0.00031 |   84.2s
+  [ckpt] epoch 65 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     70  |     0.5537   91.77% |    0.5348  91.69% |  91.69% | 0.00023 |  105.9s
+  [ckpt] epoch 70 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     75  |     0.5471   92.21% |    0.5337  91.65% |  91.70% | 0.00017 |   90.3s
+  [ckpt] epoch 75 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     80  |     0.5388   92.25% |    0.5338  91.67% |  92.00% | 0.00011 |  114.2s
+  [ckpt] epoch 80 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     85  |     0.5387   92.50% |    0.5509  90.69% |  92.00% | 0.00007 |  111.8s
+  [ckpt] epoch 85 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     90  |     0.5309   92.52% |    0.5219  91.65% |  92.00% | 0.00004 |  120.1s
+  [ckpt] epoch 90 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+     95  |     0.5318   92.65% |    0.5212  92.07% |  92.07% | 0.00002 |  108.5s
+  [ckpt] epoch 95 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+    100  |     0.5271   92.80% |    0.5256  91.87% |  92.07% | 0.00001 |  118.0s
+  [ckpt] epoch 100 → weights/spacenet_v1_phase4_v3_int8.pth.ckpt
+
+[Step 3] 最终评估
+[enable_qat] Enabled QAT on 6 layers
+  Int8 模式 (光计算模拟) 准确率: 92.07%
+[disable_qat] Disabled QAT on 6 layers
+  Float32 模式准确率:              92.06%
+  Int8 量化损失:             -0.02%
+
+  模型已保存: weights/spacenet_v1_phase4_v3_int8.pth
+  [ckpt] 已清理 (训练完成, 删除 weights/spacenet_v1_phase4_v3_int8.pth.ckpt)
+
+============================================================
+  训练完成 — 结果汇总
+============================================================
+  模型:              SpaceNet V1 (bias=False)
+  参数量:            267,944
+  权重量化:          int8 (硬件原生 8-bit)
+  噪声模型:          Gazelle (DAC 7.5 + TIA)
+  首层:              FP32 (对齐率 37.5%)
+  训练总耗时:        9409.7s (156.8min)
+  硬件对齐率:        99.6%
+  Int8 最佳准确率: 92.07%
+  Float32 准确率:    92.06%
+  旧版 int4 参考:    74.35% (Phase4, Conv QAT 全关)
+  FP32 基准:         90.15%
+============================================================

@@ -40,3 +40,64 @@
   [ckpt] epoch 10 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
      15  |     0.5955   90.92% |    0.5558  90.20% |  92.02% | 0.00097 |  299.7s
   [ckpt] epoch 15 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     20  |     0.5315   93.69% |    0.5001  92.96% |  93.33% | 0.00094 |  313.0s
+  [ckpt] epoch 20 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     25  |     0.4961   94.94% |    0.5961  89.48% |  95.28% | 0.00090 |  313.8s
+  [ckpt] epoch 25 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     30  |     0.4859   95.12% |    0.4268  95.43% |  95.54% | 0.00084 |  339.5s
+  [ckpt] epoch 30 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     35  |     0.4547   96.22% |    0.4237  95.56% |  96.59% | 0.00078 |  331.0s
+  [ckpt] epoch 35 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     40  |     0.4434   96.80% |    0.3971  96.70% |  96.70% | 0.00070 |  233.6s
+  [ckpt] epoch 40 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     45  |     0.4223   97.43% |    0.3976  96.54% |  97.15% | 0.00063 |  229.4s
+  [ckpt] epoch 45 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     50  |     0.4123   98.00% |    0.3917  96.78% |  97.15% | 0.00055 |  234.3s
+  [ckpt] epoch 50 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     55  |     0.3962   98.41% |    0.3762  97.09% |  97.31% | 0.00046 |  238.8s
+  [ckpt] epoch 55 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     60  |     0.3871   98.74% |    0.3826  97.00% |  97.31% | 0.00038 |  238.1s
+  [ckpt] epoch 60 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     65  |     0.3808   99.00% |    0.3760  97.37% |  97.50% | 0.00031 |  258.8s
+  [ckpt] epoch 65 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     70  |     0.3735   99.12% |    0.3652  97.37% |  97.72% | 0.00023 |  257.4s
+  [ckpt] epoch 70 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     75  |     0.3676   99.45% |    0.3599  97.72% |  97.78% | 0.00017 |  261.9s
+  [ckpt] epoch 75 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     80  |     0.3652   99.46% |    0.3602  97.85% |  97.89% | 0.00011 |  252.8s
+  [ckpt] epoch 80 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     85  |     0.3630   99.53% |    0.3598  97.69% |  97.98% | 0.00007 |  309.7s
+  [ckpt] epoch 85 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     90  |     0.3623   99.60% |    0.3584  97.67% |  97.98% | 0.00004 |  303.0s
+  [ckpt] epoch 90 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+     95  |     0.3593   99.56% |    0.3585  97.76% |  97.98% | 0.00002 |  282.1s
+  [ckpt] epoch 95 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+    100  |     0.3572   99.70% |    0.3587  97.78% |  97.98% | 0.00001 |  296.2s
+  [ckpt] epoch 100 → weights/baseline_vgg_phase4_v3_int8.pth.ckpt
+
+[Step 3] 最终评估 (val set)
+[enable_qat] Enabled QAT on 8 layers
+  Int8 模式 (光计算模拟) 准确率: 97.98%
+[disable_qat] Disabled QAT on 8 layers
+  Float32 模式准确率:          97.96%
+  Int8 量化损失:               -0.02%
+
+  模型已保存: weights/baseline_vgg_phase4_v3_int8.pth
+  [ckpt] 已清理 (训练完成, 删除 weights/baseline_vgg_phase4_v3_int8.pth.ckpt)
+
+============================================================
+  训练完成 — 结果汇总 (变体 A)
+============================================================
+  模型:              Baseline VGG (flat+BN, bias=False)
+  参数量:            2,387,168
+  权重量化:          int8 (硬件原生 8-bit)
+  噪声模型:          Gazelle (DAC 7.5 + TIA)
+  电计算层 (FP32):   conv1_1
+  训练总耗时:        28345.4s (472.4min)
+  硬件对齐率:        100.0%
+  Int8 最佳准确率:   97.98%
+  Float32 准确率:    97.96%
+  量化损失:          -0.02%
+  参考: FP32 基准 97.17% | int4 Mixed 98.26% | int4 STE 96.46%
+  推理脚本:          python optic_inference_int8_model1.py --variant A
+============================================================
