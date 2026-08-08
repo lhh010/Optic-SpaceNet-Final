@@ -14,3 +14,8 @@
 2026-08-08 12:12:08 START m3 (parallel lane)
 2026-08-08 12:12:08 START m1b
 2026-08-08 13:11:58 DONE m3 (parallel) exit=0 | Int8 最佳准确率: 91.46% | Int8 模式 (光计算模拟) 准确率: 91.46% | 
+2026-08-08 14:51:37 PAUSED by user request (DSH web restart) | M1-B ckpt=epoch60 (14:48, best 97.50%) | resume: bash _retrain_v41_resume_all.sh (runner 通道 A 自动接 m1b; m2/m3/m4/m1a 均 done)
+2026-08-08 14:59:00 START m1b
+2026-08-08 15:01:29 PAUSED again (user second web restart) | M1-B ckpt=epoch60 (14:48) 仍为最新, 恢复尝试 14:53 已中止, 无损失 | resume: bash _retrain_v41_resume_all.sh
+2026-08-08 17:12:26 START m1b
+2026-08-08 19:44:59 DONE m1b (manual entry; runner 被 web 重启清理, 训练本身正常完成于 19:43, 权重已保存) | Int8 最佳准确率: 97.87% | Float32 97.91%

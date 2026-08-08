@@ -1,0 +1,84 @@
+设备: cpu
+
+============================================================
+  Model 1 Phase4 v3: Baseline VGG int8 + Gazelle 硬件噪声
+  变体 B: 首层 conv1_1 FP32 + conv3_2 FP32, 其余 Conv+Linear int8
+============================================================
+训练: 16200, 验证: 5400, 留出测试: 5400 (见 eurosat_split)
+类别: ['AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 'River', 'SeaLake']
+
+参数量: 2,387,168
+
+[Step 1] 转换为 QAT v4 (int8 权重, Gazelle 噪声, 首层 conv1_1 FP32)
+[prepare_model_v4] Gazelle HW-aware QAT: wint8/a8 (uint8_affine, 匹配 osimulator uint8+zp)
+  QAT Conv: 5 enabled + 1 fp32 (first layer)
+  QAT Linear: 2, BN: 6
+  硬件噪声: GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-04, ADC_lsb=0.0015) — 训练时注入 权重DAC + 激活TIA/ADC
+  首层 Conv 保留 FP32 (对齐率低, 电计算更高效)
+
+[Step 1b] 变体 B: conv3_2 也保持 FP32 (电计算)
+  [Variant B] conv3_2 保持 FP32 (电计算): 128→128
+
+  [Baseline VGG (v4, 变体 B)] 层名                           C_in      K      展平长度       补零后      对齐率
+  ------------------------------------------------------------------------
+  [QATConv2d_v4 FP32 ] conv1_1                      3   3×3        27        32   84.4%  w8
+  [QATConv2d_v4 QAT  ] conv1_2                     32   3×3       288       288  100.0%  w8
+  [QATConv2d_v4 QAT  ] conv2_1                     32   3×3       288       288  100.0%  w8
+  [QATConv2d_v4 QAT  ] conv2_2                     64   3×3       576       576  100.0%  w8
+  [QATConv2d_v4 QAT  ] conv3_1                     64   3×3       576       576  100.0%  w8
+  [QATConv2d_v4 FP32 ] conv3_2                    128   3×3      1152      1152  100.0%  w8
+  综合硬件对齐率: 100.0% (展平总长度 11355 → 补零后 11360)
+
+[Step 2] 训练 (100 epochs, lr=0.001, wd=0.0005, label_smoothing=0.05)
+  int8 权重 (硬件原生精度) | GazelleNoise(DAC_ENOB=7.5, TIA_σ=5.3e-4)
+  光计算层 (int8 QAT): conv1_2/conv2_1/conv2_2/conv3_1 + fc1/fc2
+  电计算层 (FP32): conv1_1 + conv3_2
+
+[resume] 从 checkpoint 恢复: epoch 60/100 (best 97.50%) → 继续 epoch 61
+----------------------------------------------------------------------
+  Epoch | Train Loss Train Acc |  Val Loss  Val Acc |     Best |       LR |    Time
+  --------------------------------------------------------------------
+     65  |     0.3777   99.07% |    0.3711  97.37% |  97.70% | 0.00031 |  213.1s
+  [ckpt] epoch 65 → weights/baseline_vgg_phase4_v3_int8_vB.pth.ckpt
+     70  |     0.3727   99.23% |    0.3662  97.43% |  97.70% | 0.00023 |  213.1s
+  [ckpt] epoch 70 → weights/baseline_vgg_phase4_v3_int8_vB.pth.ckpt
+     75  |     0.3660   99.46% |    0.3637  97.61% |  97.70% | 0.00017 |  214.5s
+  [ckpt] epoch 75 → weights/baseline_vgg_phase4_v3_int8_vB.pth.ckpt
+     80  |     0.3638   99.56% |    0.3624  97.67% |  97.87% | 0.00011 |  213.7s
+  [ckpt] epoch 80 → weights/baseline_vgg_phase4_v3_int8_vB.pth.ckpt
+     85  |     0.3601   99.67% |    0.3608  97.78% |  97.87% | 0.00007 |  214.1s
+  [ckpt] epoch 85 → weights/baseline_vgg_phase4_v3_int8_vB.pth.ckpt
+     90  |     0.3568   99.74% |    0.3607  97.67% |  97.87% | 0.00004 |  223.5s
+  [ckpt] epoch 90 → weights/baseline_vgg_phase4_v3_int8_vB.pth.ckpt
+     95  |     0.3572   99.64% |    0.3592  97.74% |  97.87% | 0.00002 |  215.1s
+  [ckpt] epoch 95 → weights/baseline_vgg_phase4_v3_int8_vB.pth.ckpt
+    100  |     0.3559   99.73% |    0.3574  97.81% |  97.87% | 0.00001 |  226.0s
+  [ckpt] epoch 100 → weights/baseline_vgg_phase4_v3_int8_vB.pth.ckpt
+
+[Step 3] 最终评估 (val set)
+[enable_qat] Enabled QAT on 8 layers
+  [Variant B] conv3_2 保持 FP32 (电计算): 128→128
+  Int8 模式 (光计算模拟) 准确率: 97.87%
+[disable_qat] Disabled QAT on 8 layers
+  Float32 模式准确率:          97.91%
+  Int8 量化损失:               0.04%
+
+  模型已保存: weights/baseline_vgg_phase4_v3_int8_vB.pth
+  [ckpt] 已清理 (训练完成, 删除 weights/baseline_vgg_phase4_v3_int8_vB.pth.ckpt)
+
+============================================================
+  训练完成 — 结果汇总 (变体 B)
+============================================================
+  模型:              Baseline VGG (flat+BN, bias=False)
+  参数量:            2,387,168
+  权重量化:          int8 (硬件原生 8-bit)
+  噪声模型:          Gazelle (DAC 7.5 + TIA)
+  电计算层 (FP32):   conv1_1 + conv3_2
+  训练总耗时:        8956.9s (149.3min)
+  硬件对齐率:        100.0%
+  Int8 最佳准确率:   97.87%
+  Float32 准确率:    97.91%
+  量化损失:          +0.04%
+  参考: FP32 基准 97.17% | int4 Mixed 98.26% | int4 STE 96.46%
+  推理脚本:          python optic_inference_int8_model1.py --variant B
+============================================================
