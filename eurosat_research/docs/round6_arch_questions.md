@@ -36,5 +36,5 @@ stem 输出（16ch@16×16）→ AvgPool4× → Flatten(256) → Linear→ReLU �
 
 - models.py 新增：`pool_mode`(max/avg/stride1x1/patchify)、`stem_kernel`、`stage_depths`、`bypass_dim`，全部后向兼容
 - 旁路 Linear 与 head 一样吃 v5 QAT（全层口径一致）
-- 容器双 A800 两队列跑批，日志 auto_research/logs/r6_*.log
+- 容器双 A800 两队列跑批，日志 eurosat_research/logs/r6_*.log
 - 后续 R7：综合 findings 设计 ≤2M（目标 ~1.4M）改进架构 1-2 个，80ep 筛选 + 160ep 冲刺

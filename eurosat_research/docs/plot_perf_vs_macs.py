@@ -96,6 +96,6 @@ ax.grid(True, which="both", alpha=0.25)
 ax.legend(loc="lower right", fontsize=9, framealpha=0.9)
 
 fig.tight_layout()
-out = "/Users/ms.chen/Projects/2607-ciciec/Ltsimulator-test/auto_research/docs/perf_vs_macs_qat.png"
+out = __file__.replace(".py", ".png")
 fig.savefig(out, dpi=160)
 print("saved:", out)

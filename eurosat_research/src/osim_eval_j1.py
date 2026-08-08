@@ -5,8 +5,8 @@
  J1 = MiniVGG-GAP 变体: stem s2 + 全 1×1 + fast_downsample, 全层光计算 (无 stem 特判)
 
  用法 (容器内):
-   python auto_research/src/osim_eval_j1.py --weight <path> --quick 500
-   python auto_research/src/osim_eval_j1.py --weight <path> --qat      # QAT 伪量化对照
+   python eurosat_research/src/osim_eval_j1.py --weight <path> --quick 500
+   python eurosat_research/src/osim_eval_j1.py --weight <path> --qat      # QAT 伪量化对照
 ===============================================================================
 """
 import os

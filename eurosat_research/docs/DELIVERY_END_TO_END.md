@@ -1,7 +1,7 @@
 # Auto-Research 探索交付：光计算最优端到端方案
 
 > 队伍 CICC1003564 · 第十届集创赛曦智 Gazelle 命题 · 2026-08
-> 探索目录：`Ltsimulator-test/auto_research/`（代码 + runs + docs）
+> 探索目录：`Ltsimulator-test/eurosat_research/`（代码 + runs + docs）
 
 ---
 
@@ -89,15 +89,15 @@ QAT v5: activation_style=osim(per-tensor uint8+zp), output_quant=12bit
 ### 关键文件
 | 文件 | 作用 |
 |---|---|
-| `auto_research/src/qat_v5.py` | QAT v5（量化原语 + 层实现） |
-| `auto_research/src/models.py` | 可参数化 MiniVGG（J1 构建） |
-| `auto_research/src/runner.py` | config-driven 训练引擎 |
-| `auto_research/configs/r3_J1_long.json` | 冠军配方 |
-| `auto_research/runs/r3_J1_long_3b6c03f6/best.pth` | 冠军权重 |
+| `eurosat_research/src/qat_v5.py` | QAT v5（量化原语 + 层实现） |
+| `eurosat_research/src/models.py` | 可参数化 MiniVGG（J1 构建） |
+| `eurosat_research/src/runner.py` | config-driven 训练引擎 |
+| `eurosat_research/configs/r3_J1_long.json` | 冠军配方 |
+| `eurosat_research/runs/r3_J1_long_3b6c03f6/best.pth` | 冠军权重 |
 | `Gazelle-national/mnist/export_j1.py` | 真机权重导出 |
 | `Gazelle-national/mnist/run_j1_gazelle.py` | 真机推理（FAKE/HW） |
 | `Gazelle-national/mnist/calibrate_j1.py` | per-layer 校准（随机/真实激活） |
-| `auto_research/docs/round1-4_notes.md` | 各轮探索记录 |
+| `eurosat_research/docs/round1-4_notes.md` | 各轮探索记录 |
 
 ---
 

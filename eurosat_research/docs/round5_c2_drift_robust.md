@@ -85,14 +85,14 @@ resid 来自 calib_j1_real.json，n=1000 × 3 seeds）：
     domain randomization 训练
 - 后续叠加：c2c 邻域细扫（gain 1.5-2%/off 400-500/iid 260，每点 hw 验证）。
 - 板端文件注意：`~/j1/weights_c2c` 被误覆盖为 c2j 权重（c2c 权重在
-  `auto_research/runs/c2c_J1_split_8f8d7be7/best.pth` + `/tmp/weights_c2c_J1_split_8f8d7be7`，
+  `eurosat_research/runs/c2c_J1_split_8f8d7be7/best.pth` + `/tmp/weights_c2c_J1_split_8f8d7be7`，
   需要时重新 export 上传）
 
 ## 4. 产出物
 
-- `auto_research/src/qat_v6.py`：QATConv2d_v6（per-layer raw 域噪声 + gain/off 抖动，
+- `eurosat_research/src/qat_v6.py`：QATConv2d_v6（per-layer raw 域噪声 + gain/off 抖动，
   stem/head FP32）+ `prepare_model_v6`；runner 支持 `qat_version=v6` + `init_from`
-- `auto_research/configs/c2*.json`：v6 全量 iid（崩）/ iid260 / split / resid/3 四臂
+- `eurosat_research/configs/c2*.json`：v6 全量 iid（崩）/ iid260 / split / resid/3 四臂
 - `run_j1_gazelle.py`：bias 修复 + `J1_HEAD_ELEC` + `J1_OFFSET`；`export_j1.py`：导出
   head bias + float head 权重；`sim_noise_proxy.py`：numpy 噪声代理基准
 - 训练：gazelle_sim 容器 A800，`runs/c2*_*/`（c2c = c2c_J1_split_8f8d7be7）
@@ -148,11 +148,11 @@ resid 来自 calib_j1_real.json，n=1000 × 3 seeds）：
   整跑一次采样）+ iid 260。标定：c2c proxy **89.24** vs hw 3 跑均值 **88.07±1.3** — 模型复现真机。
   （若把不可分解残余也当 iid 全量注入则 79.0%，再次实证"结构化≠iid"。）
 - v7 权重在 proxy_v8 下复测：c3a 86.86 / c3b 88.00 < c2c 89.24 → v7（错误结构+过量偏移）确实有害。
-- **qat_v8**（`auto_research/src/qat_v8.py`）：训练时 per-batch 重采样上述三组分 + iid 260，
+- **qat_v8**（`eurosat_research/src/qat_v8.py`）：训练时 per-batch 重采样上述三组分 + iid 260，
   幅度全部取 probe 实测值。c3c=1.0× 实测 / c3d=1.5× 余量（覆盖未建模非线性分量）。
 - 训练（60ep，init=c2c best）：c3c test 95.85 / c3d 95.30。
 - proxy_v8 预检（9 seeds）：c3c 90.12 / **c3d 93.00**（c2c 89.24）→ c3d 上板验证。
-- **qat_v9**（`auto_research/src/qat_v9.py`）：v8 + RFF 随机非线性残差
+- **qat_v9**（`eurosat_research/src/qat_v9.py`）：v8 + RFF 随机非线性残差
   （eps(x)=A·cos(Bx+φ)，per-batch 重采样 B/A/φ，幅度 sqrt(RESID_AL²-260²)），
   覆盖 probe 分解不掉的 50-75% "确定性非线性" 分量。c3e=v9 全组分：clean test 91.70
   （噪声重，clean 掉 4.7pt，预期内）。
@@ -185,5 +185,5 @@ resid 来自 calib_j1_real.json，n=1000 × 3 seeds）：
   proxy_v8 预选（复现 hw）→ hw 同窗验证。proxy 与 hw 的排名/量级一致性已三次验证。
 - 残余 gap（1.8-2.7pt）≈ iid 快噪声 + 未建模非线性的不可约分量 + 模型固有错误；
   进一步收益需更大模型容量或片上 LUT 修正，超出本轮范围。
-- 冠军工件：`auto_research/runs/c3d_J1_v8probe15_local/`（best.pth + 部署权重 + hw/fake logits）；
+- 冠军工件：`eurosat_research/runs/c3d_J1_v8probe15_local/`（best.pth + 部署权重 + hw/fake logits）；
   板上 `~/j1/weights_c3d` + `calib_c3d.json`。
