@@ -7,3 +7,10 @@
 2026-08-07 21:47:35 START m3 (parallel lane)
 2026-08-07 22:09:46 DONE m1a exit=0 | Int8 最佳准确率:   97.98% | Int8 模式 (光计算模拟) 准确率: 97.98% | 
 2026-08-07 22:09:46 START m1b
+2026-08-07 22:59:00 PAUSED by user request (web restart) | M1-B ckpt=epoch10 (22:55) | M3 ckpt=epoch40 (22:58) | resume: bash _retrain_v41_runner.sh + bash _retrain_v41_parallel.sh m3
+2026-08-08 09:56:38 START m3 (parallel lane)
+2026-08-08 09:56:38 START m1b
+2026-08-08 10:41:51 PAUSED by user request (DSH web restart) | M1-B ckpt=epoch20 | M3 ckpt=epoch65 | resume: bash _retrain_v41_resume_all.sh
+2026-08-08 12:12:08 START m3 (parallel lane)
+2026-08-08 12:12:08 START m1b
+2026-08-08 13:11:58 DONE m3 (parallel) exit=0 | Int8 最佳准确率: 91.46% | Int8 模式 (光计算模拟) 准确率: 91.46% | 

@@ -33,6 +33,50 @@
   教师: ResNet-18 (fp32, 97.83%)
   学生: stem FP32 + Conv/Linear int8 + Gazelle 噪声
   int8 权重 (硬件原生精度, 匹配 osimulator)
+
+[resume] 从 checkpoint 恢复: epoch 65/100 (best 90.85%) → 继续 epoch 66
 ---------------------------------------------------------------------------
   Epoch |    KD Loss Train Acc |  Val Loss  Val Acc |     Best |       LR |    Time
   -------------------------------------------------------------------------
+     70  |     3.2342   91.20% |    0.9263  90.91% |  90.91% | 0.00023 |   99.3s
+  [ckpt] epoch 70 → weights/spacenet_v2_phase4_v3_int8.pth.ckpt
+     75  |     3.1553   91.51% |    0.9325  90.69% |  91.00% | 0.00017 |   95.5s
+  [ckpt] epoch 75 → weights/spacenet_v2_phase4_v3_int8.pth.ckpt
+     80  |     3.0718   91.85% |    0.9229  91.09% |  91.30% | 0.00011 |   95.1s
+  [ckpt] epoch 80 → weights/spacenet_v2_phase4_v3_int8.pth.ckpt
+     85  |     3.0368   92.28% |    0.9360  90.83% |  91.44% | 0.00007 |   93.5s
+  [ckpt] epoch 85 → weights/spacenet_v2_phase4_v3_int8.pth.ckpt
+     90  |     3.0087   92.31% |    0.9129  91.44% |  91.44% | 0.00004 |   97.7s
+  [ckpt] epoch 90 → weights/spacenet_v2_phase4_v3_int8.pth.ckpt
+     95  |     3.0994   91.66% |    0.9211  91.33% |  91.44% | 0.00002 |   95.9s
+  [ckpt] epoch 95 → weights/spacenet_v2_phase4_v3_int8.pth.ckpt
+    100  |     3.0819   91.83% |    0.9135  91.46% |  91.46% | 0.00001 |   96.5s
+  [ckpt] epoch 100 → weights/spacenet_v2_phase4_v3_int8.pth.ckpt
+
+[Step 3] 最终评估
+[enable_qat] Enabled QAT on 6 layers
+  Int8 模式 (光计算模拟) 准确率: 91.46%
+[disable_qat] Disabled QAT on 6 layers
+  Float32 模式准确率:              91.44%
+  Int8 量化损失:             -0.02%
+
+  模型已保存: weights/spacenet_v2_phase4_v3_int8.pth
+  [ckpt] 已清理 (训练完成, 删除 weights/spacenet_v2_phase4_v3_int8.pth.ckpt)
+
+============================================================
+  训练完成 — 结果汇总
+============================================================
+  学生模型:          OpticSpaceNet (bias=False)
+  教师模型:          ResNet-18 (fp32, 97.83%)
+  参数量:            267,944
+  权重量化:          int8 (匹配 osimulator 原生 8-bit)
+  噪声模型:          Gazelle (DAC 7.5 + TIA)
+  首层:              FP32 (对齐率 37.5%, 匹配 osimulator)
+  蒸馏:              T=4.0, α=0.7
+  训练总耗时:        3562.8s (59.4min)
+  硬件对齐率:        99.6%
+  Int8 最佳准确率: 91.46%
+  Float32 准确率:    91.44%
+  FP32 KD 基准:      91.44% (全 fp32 KD)
+  osimulator 预期:   ~91.5%% (训练推理配置对齐, 应接近训练精度)
+============================================================
