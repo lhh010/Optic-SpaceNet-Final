@@ -1,1 +1,1 @@
-fix: R7 final-epoch verification - M6 pure J1 (head256 is -0.23pt at 160ep), M7 w075 no head256, M8 rf_stem5 (C0<=14 breaks)
+refactor: unified training code in src/ (runner.py), model variants as configs/*.json; remove per-model scripts; README documents M5-M8 usage

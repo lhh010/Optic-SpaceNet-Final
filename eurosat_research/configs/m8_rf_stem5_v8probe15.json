@@ -64,5 +64,5 @@
   "head_fp32": true,
   "warmup_epochs": 2,
   "name": "m8_rf_stem5_v8probe15",
-  "init_from": "runs/m8_rf_stem5_clean_best.pth"
+  "init_from": "weights/m8_rf_stem5_clean.pth"
 }

@@ -47,7 +47,7 @@ eurosat_research/
 ## 用法
 
 ```bash
-# 训练（需 GPU；原运行在容器 gazelle_sim / A800）
+# 训练（需 GPU；原运行在容器 gazelle_sim / A800；本地 CPU 亦可跑）
 python src/runner.py --config configs/r3_J1_long.json --gpu 0
 
 # 可视化 runs 目录
@@ -59,6 +59,24 @@ python docs/plot_perf_vs_macs.py
 # 复现真机上板实验 Pareto 图（docs/pareto_hw_acc.png：MACs vs Gazelle 真机 acc，
 # 覆盖 MNIST MLP / OpticSpaceNet Model 1a-4 / J1 QAT 系列，数据源见脚本头注释）
 python docs/plot_pareto_hw.py
+```
+
+## Model 5-8（决赛新模型，J1 家族，2026-08-08 起训练）
+
+代码结构：**共用训练代码在 `src/`（runner.py + qat_v5-v9 + models.py），模型变体在 `configs/` 一个 JSON 一个变体**（R7 决赛口径核查后定稿，避免 80ep 假阳性）。
+
+| 模型 | 架构 | MACs | 干净阶段 | 漂移鲁棒阶段 | 设计依据 |
+|---|---|---|---|---|---|
+| **M5** | rf_s2k3 + stem k5（C0=16）| 5.31M | `configs/m5_j1rf_stem5_v5clean.json`（160ep）| `m5_j1rf_stem5_v8probe15.json`（60ep）| R6/R8：RF 路线 160ep 96.93 + stem5 最高效率 |
+| **M6** | 纯 J1（head128，**无 head256**）| 1.38M | `configs/m6_j1_v5clean.json` | `m6_j1_v8probe15.json` | R7 决赛口径：head256 在 160ep 是负优化（−0.23pt）|
+| **M7** | w075（C0=12，无 head256）| 0.86M | `configs/m7_j1w075_v5clean.json` | `m7_j1w075_v8probe15.json` | R6/R8：w075 微型档（95.30@170ep）|
+| **M8** | rf_stem5（C0=16 k5）| 2.16M | `configs/m8_rf_stem5_v5clean.json` | `m8_rf_stem5_v8probe15.json` | R6：MACs 效率第一改动；**C0≤14 即崩**（R7）|
+
+```bash
+# M5 干净阶段 (160ep) → v8 漂移鲁棒阶段 (60ep, init_from weights/m5_j1rf_stem5_clean.pth)
+python src/runner.py --config configs/m5_j1rf_stem5_v5clean.json
+python src/runner.py --config configs/m5_j1rf_stem5_v8probe15.json
+# 输出: runs/<name>_<hash8>/{best.pth, last.pth, metrics.jsonl, summary.json}
 ```
 
 ## J1 架构（小档 SOTA）

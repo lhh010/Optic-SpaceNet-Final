@@ -64,5 +64,5 @@
   "head_fp32": true,
   "warmup_epochs": 2,
   "name": "m6_j1_v8probe15",
-  "init_from": "runs/m6_j1_clean_best.pth"
+  "init_from": "weights/m6_j1_clean.pth"
 }

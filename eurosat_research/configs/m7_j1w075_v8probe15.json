@@ -64,5 +64,5 @@
   "head_fp32": true,
   "warmup_epochs": 2,
   "name": "m7_j1w075_v8probe15",
-  "init_from": "runs/m7_j1w075_clean_best.pth"
+  "init_from": "weights/m7_j1w075_clean.pth"
 }

@@ -1,7 +1,7 @@
 {
   "name": "m5_j1rf_stem5_v8probe15",
   "epochs": 60,
-  "init_from": "runs/m5_clean_best.pth",
+  "init_from": "weights/m5_j1rf_stem5_clean.pth",
   "qat": true,
   "qat_version": "v8",
   "stem_fp32": true,
@@ -45,10 +45,21 @@
   "label_smoothing": 0.05,
   "stem_stride": 2,
   "fast_downsample": true,
-  "kernels": [1, 3, 1],
+  "kernels": [
+    1,
+    3,
+    1
+  ],
   "stem_kernel": 5,
-  "channels": [16, 32, 64, 128],
-  "head_dims": [128],
+  "channels": [
+    16,
+    32,
+    64,
+    128
+  ],
+  "head_dims": [
+    128
+  ],
   "macs_ok": true,
   "data_dir": "E:/LT-Simulator/train-test/data/EuroSAT_RGB",
   "num_workers": 2
