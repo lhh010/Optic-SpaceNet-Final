@@ -1,0 +1,15 @@
+==============================================================================
+  Model 6 (J1+head256): ≤2M 严格预算 | 光计算 QAT | phase=clean
+  链路: v5 干净 → v8 漂移鲁棒 → 容器 osim 验证 → 真机验证
+  日志: runs/m6_j1_clean\metrics.jsonl
+==============================================================================
+params=50,330 | MACs=1,377,536 (1.38M)
+[prepare_model_v5] HW-aligned QAT: w8/a8/o12, out_noise=True(r=0.0392), out_quant=True, act=osim, 8 QAT layers
+
+[训练] 160 ep | lr=0.05 warmup=5 | SGD+momentum | batch=64 workers=0
+------------------------------------------------------------------------------
+  Epoch | Train loss/acc        | Val loss/acc         | Best     | LR      | Time
+------------------------------------------------------------------------------
+C:\Users\lhh\AppData\Local\Programs\Python\Python39\lib\site-packages\torch\utils\data\dataloader.py:666: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+      1 | 1.0849  67.38%        | 0.7823  71.72%         |  71.72% | 0.01000 |    57s

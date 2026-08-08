@@ -39,7 +39,7 @@ from metrics import evaluate_full
 DATA_DIR = "E:/LT-Simulator/train-test/data/EuroSAT_RGB"
 SEED = 42
 NUM_CLASSES = 10
-NAME = "m7_j1w075_head256"
+NAME = "m7_j1w075"
 
 # ---- Model 6 架构 (J1 + head256) ----
 ARCH = dict(
@@ -48,7 +48,7 @@ ARCH = dict(
     fast_downsample=True,
     kernels=[1, 1, 1],        # 全 1×1 (与 8×2 tile 天然对齐, 展平=通道数)
     stem_kernel=3,
-    head_dims=[256],          # head 免费 (FP32 电计算)
+    head_dims=[128],          # head 免费 (FP32 电计算)
     bias=False,
 )
 

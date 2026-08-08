@@ -39,7 +39,7 @@ from metrics import evaluate_full
 DATA_DIR = "E:/LT-Simulator/train-test/data/EuroSAT_RGB"
 SEED = 42
 NUM_CLASSES = 10
-NAME = "m6_j1_head256"
+NAME = "m6_j1"
 
 # ---- Model 6 架构 (J1 + head256) ----
 ARCH = dict(
@@ -48,7 +48,7 @@ ARCH = dict(
     fast_downsample=True,
     kernels=[1, 1, 1],        # 全 1×1 (与 8×2 tile 天然对齐, 展平=通道数)
     stem_kernel=3,
-    head_dims=[256],          # head 免费 (FP32 电计算)
+    head_dims=[128],          # R7 决赛口径: head256 在 160ep 是负优化 (-0.23pt), 纯 J1 最优
     bias=False,
 )
 
