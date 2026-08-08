@@ -2,6 +2,23 @@
 2026-08-07 13:36:18 START m4
 2026-08-07 14:02:09 DONE m4 exit=0 | Int8 最佳 val:  96.06% | Int8 模式 (光计算模拟) val 准确率: 96.06% | Int8 模式 test 准确率 (独立 5400 张): 96.17%
 2026-08-07 14:02:09 START m1a
+2026-08-07 14:16:18 START m1a
+2026-08-07 19:06:33 START m2 (parallel lane)
+2026-08-07 21:43:52 DONE m2 (parallel) exit=0 | Int8 最佳准确率: 92.07% | Int8 模式 (光计算模拟) 准确率: 92.07% | 
+2026-08-07 21:47:35 START m3 (parallel lane)
+2026-08-07 22:09:46 DONE m1a exit=0 | Int8 最佳准确率:   97.98% | Int8 模式 (光计算模拟) 准确率: 97.98% | 
+2026-08-07 22:09:46 START m1b
+2026-08-07 22:59:00 PAUSED by user request (web restart) | M1-B ckpt=epoch10 (22:55) | M3 ckpt=epoch40 (22:58) | resume: bash _retrain_v41_runner.sh + bash _retrain_v41_parallel.sh m3
+2026-08-08 09:56:38 START m3 (parallel lane)
+2026-08-08 09:56:38 START m1b
+2026-08-08 10:41:51 PAUSED by user request (DSH web restart) | M1-B ckpt=epoch20 | M3 ckpt=epoch65 | resume: bash _retrain_v41_resume_all.sh
+2026-08-08 12:12:08 START m3 (parallel lane)
+2026-08-08 12:12:08 START m1b
+2026-08-08 13:11:58 DONE m3 (parallel) exit=0 | Int8 最佳准确率: 91.46% | Int8 模式 (光计算模拟) 准确率: 91.46% | 
+2026-08-08 14:51:37 PAUSED by user request (DSH web restart) | M1-B ckpt=epoch60 (14:48, best 97.50%) | resume: bash _retrain_v41_resume_all.sh (runner 通道 A 自动接 m1b; m2/m3/m4/m1a 均 done)
+2026-08-08 14:59:00 START m1b
+2026-08-08 15:01:29 PAUSED again (user second web restart) | M1-B ckpt=epoch60 (14:48) 仍为最新, 恢复尝试 14:53 已中止, 无损失 | resume: bash _retrain_v41_resume_all.sh
 ==================================================================
 ===== SKIP m4 (already done: DONE 2026-08-07 14:02:09 | Int8 最佳 val:  96.06% | Int8 模式 (光计算模拟) val 准确率: 96.06% | Int8 模式 test 准确率 (独立 5400 张): 96.17%) =====
-===== [2026-08-07 14:16:18] START m1a =====
+===== SKIP m1a (already done: DONE 2026-08-07 22:09:46 | Int8 最佳准确率:   97.98% | Int8 模式 (光计算模拟) 准确率: 97.98% | ) =====
+===== [2026-08-08 17:12:26] START m1b =====

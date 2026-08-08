@@ -1283,29 +1283,19 @@ osimulator gap 是否收窄 (~1.6pt 判据) 与 int8 test 数待容器复测 (�
 另注意: 真机侧存在 ~1h 量级硬件漂移 (见 contest-national 真机文档 §6 坑③), 与模拟器
 IID 噪声不同, 长批推理需分段再校准。
 
-### 17.5 续跑说明 (新会话无缝衔接)
+### 17.5 过程记录与清理 (2026-08-08)
 
+- **重训已全部完成** (五模型 ✅); 期间使用的临时续跑 runner (`_retrain_v41_*.sh`)
+  与漂移分析脚本 (`_drift_analysis.py`) 已于 2026-08-08 清理删除 (训练完成, 不再需要;
+  如需复现, 可在 git 历史中找回: `git show <提交>:_retrain_v41_runner.sh`)
+- 断点续训机制 (训练脚本内每 5 epoch 存 `<权重>.pth.ckpt`, 自动 `[resume]`) 保留在
+  M1/M2/M3 训练脚本中, 与重训无关的日常重跑仍可用
 - 状态文件: `logs/retrain_v41_state.txt` — 每任务 START/DONE/FAIL 时间戳与结果 (source of truth)
-- 完成标记: `logs/retrain_v41_<job>.done` — 已完成的 job 自动跳过
-- **任务内断点续训 (2026-08-07 新增)**: M1/M2/M3 训练脚本已加 checkpoint (每 5 epoch
-  存 `<权重>.pth.ckpt`, 含 model+optimizer+scheduler+best_acc), 任务被杀后重跑脚本自动
-  `[resume]` 从断点继续, 无需重头训练 (M4 已跑完, 未加); 训练成功自动删除 .ckpt
-- 续跑命令 (任何会话, WSL):
-  ```bash
-  cd /mnt/e/LT-Simulator/train-test && bash _retrain_v41_runner.sh
-  ```
-  建议后台: `bash _retrain_v41_runner.sh > logs/retrain_v41_pipeline.log 2>&1 &`
-- **双通道并行 (2026-08-07 晚起)**: M2/M3 走并行通道 `bash _retrain_v41_parallel.sh <m2|m3>`
-  (16 核双进程各 8 线程)。**明日续跑 = 两个命令并行**:
-  通道 A 顺序跑 M1-B (自动 skip m4/m1a/m2), 通道 B 跑 M3:
-  ```bash
-  bash _retrain_v41_runner.sh &          # 通道 A: m1b
-  bash _retrain_v41_parallel.sh m3 &     # 通道 B: m3
-  ```
-- 原始日志: `logs/retrain_v41_{m4,m1a,m1b,m2,m3}.log` (UTF-8, `python -u` 实时写入)
+- 完成标记: `logs/retrain_v41_<job>.done` — 各任务完成记录
+- 原始日志: `logs/retrain_v41_{m4,m1a,m1b,m2,m3}.log` (UTF-8)
 - 汇总: `logs/retrain_v41_summary.md`; 权重备份 (v4.0): `weights_backup_v40_20260807/`
 - 任务被杀 → 无 `.done` → 重跑该任务安全 (脚本仅在结尾 save 权重; 中途靠 .ckpt 续训)
 
 ---
 
-*文档版本: v3.2 | 最后更新: 2026-08-07 | §17 新增 v4.1 重训记录与续跑说明; 重训结果待填写*
+*文档版本: v3.3 | 最后更新: 2026-08-08 | §17.3/§17.4 五模型 v4.1 重训结果与最终结论; §17.5 过程记录 (临时 runner 已清理)*
