@@ -11,7 +11,7 @@ eurosat_research/
 ├── configs/    # R1/R2/R3/R6/R7/R8 全部实验配置（46 个 JSON）
 ├── scripts/    # 可视化（plot_runs.py）+ 容器跑批（run_queue.sh）+ 汇总（collect_r6.py）
 ├── docs/       # 各轮探索记录 + 1×1/BagNet 讨论 + perf vs MACs 图
-└── weights/    # R1-R3 两个参数档位的 SOTA 权重（R6-R8 权重未归档，存本地 auto_research/runs/）
+└── runs/       # 训练输出 + 全部权重（gitignore，仅本地；R6-R8 在 runs/r6_*/r7_*/r8_*/）
 ```
 
 ## 两个参数档位的 SOTA 权重
@@ -42,7 +42,7 @@ eurosat_research/
 - **R7（13 runs，≤2M 严格预算，160ep 决赛 + 多种子）**：**7 个候选全部未能超过 J1**（160ep 96.30/96.24，稳健局部最优）；head256 的 80ep 优势在 160ep 反转 −0.23——架构对比必须在最终训练时长口径下做。详见 `docs/round7_notes.md`
 - **R8（scaling ladder，160ep）**：rf_s2k3（4.52M）**96.93** / w200（4.62M）96.39——预算外架构长训后确认超越 J1_long；rf_s2k3 距 Model 4 E（17.04M, 97.43，80ep 口径）仅 0.5pt 而 MACs 仅 1/4
 - 架构旋钮（`src/models.py`）：`pool_mode`(max/avg/stride1x1/patchify)、`stem_kernel`、`stage_depths`、`bypass_dim`，全部后向兼容
-- R6-R8 权重不进本仓库：存 `Ltsimulator-test/auto_research/runs/r6_*/r7_*/r8_*/`
+- R6-R8 权重不进 git：存本地 `eurosat_research/runs/r6_*/r7_*/r8_*/`（runs/ 已 gitignore）
 
 ## 用法
 

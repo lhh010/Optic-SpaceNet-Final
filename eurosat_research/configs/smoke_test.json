@@ -1,0 +1,13 @@
+{
+  "name": "smoke_test",
+  "data_dir": "data/EuroSAT_RGB",
+  "batch_size": 32,
+  "num_workers": 0,
+  "epochs": 2,
+  "tier": "T0",
+  "t0_epochs": 2,
+  "channels": [8, 12, 18, 24],
+  "qat": false,
+  "aug": "none",
+  "seed": 42
+}

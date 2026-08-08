@@ -74,7 +74,7 @@ class GazelleNoiseInjector:
       可信默认值。更根本的是**结构失配**: 真机噪声在 GEMM 输出端、与
       信号无关, 而本注入器在输入激活端加噪 (经 GEMM 后变为权重相关),
       且以 i.i.d. 高斯建模无法表达 σ_static 慢漂。此外 v4 中
-      inject_activation_noise 实际未被调用 (死代码, 见 auto_research/
+      inject_activation_noise 实际未被调用 (死代码, 见 eurosat_research/
       src/qat_v5.py 的修复: 输出端注入 + uint8 affine + 12-bit 输出量化)。
       结论: 保留 5.34e-4 不动, 仅记录真机实测值; 结构正确的输出端噪声
       建模应参考 qat_v5 (其 0.0457 与真机 0.0392 同口径, 差 ~14%)。

@@ -2,7 +2,7 @@
 
 日期：2026-08-08 · 状态：**完成** · 指标 QAT clean (test 5400)，统一 r2_J1 配方（SGD lr0.05, 80ep, QAT v5, seed 42）
 对照 `r6_ctrl` = r2_J1 复刻，test **95.52%** 与历史值逐位一致（链路/seed 复现性确认）。
-方案见 `round6_arch_questions.md`；run 档案在 `auto_research/runs/r6_*/`。
+方案见 `round6_arch_questions.md`；run 档案在 `eurosat_research/runs/r6_*/`。
 
 ## 总表（按 Δ vs ctrl 排序）
 

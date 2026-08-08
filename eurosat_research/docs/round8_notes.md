@@ -39,4 +39,4 @@
 3. 若未来放宽部署预算到 ~4.5M，rf_s2k3（J1 + stage2 3×3，RF 49px）是首选架构；
    严格 ≤2M 仍 J1。
 
-权重：本地 `auto_research/runs/r8_*/best.pth`（未入 national 仓库）。
+权重：本地 `eurosat_research/runs/r8_*/best.pth`（runs/ 被 gitignore，仅本地保留）。
