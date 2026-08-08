@@ -55,6 +55,10 @@ python scripts/plot_runs.py <runs_dir> --curves val_acc
 
 # 复现 perf vs MACs 图
 python docs/plot_perf_vs_macs.py
+
+# 复现真机上板实验 Pareto 图（docs/pareto_hw_acc.png：MACs vs Gazelle 真机 acc，
+# 覆盖 MNIST MLP / OpticSpaceNet Model 1a-4 / J1 QAT 系列，数据源见脚本头注释）
+python docs/plot_pareto_hw.py
 ```
 
 ## J1 架构（小档 SOTA）

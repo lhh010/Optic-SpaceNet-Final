@@ -45,6 +45,7 @@ points = [
     ("R6 rf_s2k3 (80ep)",            4.52, 96.44, "R6 消融 (80ep)", (-40, -14)),
     ("R6 w200 (80ep)",               4.62, 96.54, "R6 消融 (80ep)", (8, -4)),
     # auto_research R7/R8: 160ep 决赛 (test 5400)
+    ("R8 w075 (160ep)",              0.86, 95.56, "R7/R8 (160ep)", (8, -10)),
     ("R7 head256",                   1.40, 96.04, "R7/R8 (160ep)", (-12, -14)),  # 2 seeds mean
     ("R7 J1 s43",                    1.38, 96.24, "R7/R8 (160ep)", (-70, -2)),
     (None,                           1.68, 96.02, "R7/R8 (160ep)", (0, 0)),   # w110
@@ -77,10 +78,10 @@ for label, x, y, gname, off in points:
     ax.annotate(label, (x, y), textcoords="offset points", xytext=off,
                 fontsize=8, color=groups[gname]["color"], zorder=4)
 
-# 2M 严格预算线 + Pareto 前沿 (160ep 口径)
+# 2M 严格预算线 + Pareto 前沿 (160ep 口径; Model 2 被 w075 严格支配, 不在前沿上)
 ax.axvline(2.0, color="gray", ls="--", lw=1, alpha=0.6)
 ax.annotate("≤2M 严格预算", (2.05, 91.4), fontsize=8, color="gray")
-pareto = [(1.05, 92.20), (1.38, 96.30), (4.52, 96.93), (17.04, 97.43), (156.6, 97.89)]
+pareto = [(0.86, 95.56), (1.38, 96.30), (4.52, 96.93), (17.04, 97.43), (156.6, 97.89)]
 ax.plot([p[0] for p in pareto], [p[1] for p in pareto], "k--", lw=1.2,
         alpha=0.5, zorder=2, label="Pareto 前沿 (160ep/最终口径)")
 
