@@ -1,0 +1,20 @@
+{
+  "name": "r1_v5_strong_aug",
+  "channels": [
+    32,
+    48,
+    72,
+    96
+  ],
+  "epochs": 80,
+  "qat": true,
+  "qat_version": "v5",
+  "activation_style": "osim",
+  "output_noise": true,
+  "output_noise_ratio": 0.0392,
+  "output_quant": true,
+  "weight_noise": false,
+  "optimizer": "adamw",
+  "aug": "strong",
+  "label_smoothing": 0.05
+}

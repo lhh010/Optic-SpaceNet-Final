@@ -1,0 +1,14 @@
+{
+  "name": "r1_v5_no_noise",
+  "channels": [32, 48, 72, 96],
+  "epochs": 80,
+  "qat": true,
+  "qat_version": "v5",
+  "activation_style": "osim",
+  "output_noise": false,
+  "output_quant": true,
+  "weight_noise": false,
+  "optimizer": "adamw",
+  "aug": "standard",
+  "label_smoothing": 0.05
+}

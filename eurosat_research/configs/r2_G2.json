@@ -1,0 +1,28 @@
+{
+  "epochs": 80,
+  "qat": true,
+  "qat_version": "v5",
+  "activation_style": "osim",
+  "output_noise": true,
+  "output_noise_ratio": 0.0392,
+  "output_quant": true,
+  "weight_noise": false,
+  "optimizer": "sgd",
+  "lr": 0.05,
+  "aug": "standard",
+  "label_smoothing": 0.05,
+  "name": "r2_G2",
+  "channels": [
+    16,
+    32,
+    128,
+    256
+  ],
+  "stem_stride": 4,
+  "fast_downsample": true,
+  "kernels": [
+    3,
+    1,
+    1
+  ]
+}
