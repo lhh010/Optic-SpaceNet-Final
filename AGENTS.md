@@ -73,3 +73,15 @@ docker exec -it gazelle_sim bash -c "
 - 容器内默认 Python 找不到 `osimulator`，必须使用 `/local/miniconda/envs/moca_llm/bin/python`。
 - 第二个 simulator 容器无 license，需要重新用 SN 激活才能使用。
 - 模型权重文件较大，同步或复制到容器时需注意空间。
+
+## 真机共享板 SOP（2026-08-09 抢占事件后增补）
+
+Gazelle 真机（`ssh -J huadong3564@140.206.121.211:2036 uisrc@10.102.13.37`）为多队常态共享，无错峰机制。每次开实验窗口前必须执行：
+
+1. **他人使用侦测**：`who` + `ps aux | grep -i gazelle` + 检查 :8000 等端口占用；他队（10.102.12.4，password 认证，root 跑 server_gazelle.py）会未校准直写器件寄存器抢占光器件。发现占用→保存日志、等待释放，不动对方进程。
+2. **放行判据（旧判据已失效，必须按新判据）**：EBR≥8 和 MNIST canary 对"他队负载后的物理瞬态"均不敏感（实例：EBR 9.69 + canary 98% 时窗口仍是坏的）。新判据四项**全部达标**才开窗：EBR≥8；error_std 对基线偏差 <±2%；MNIST canary 对基线 <0.5pt；EuroSAT 200 样本 mini-run 正常。
+3. **被他人使用后**：物理瞬态约 40 min 自行恢复，但必须 fresh `compass_cali` + 新判据验证全部通过才重开窗；calib→跑批背靠背。
+4. **窗口内对照实验用 ABA 设计**（scalar→col→scalar 各 1000），第三次重复跑专门检测窗口内漂移，单 AB 对照在窗口劣化时会拿到不可判读的数字。
+5. 板端 sudo 密码 5182 已被他队现场试出（其以 root 跑 server 可直接抢占器件），建议更换并同步本文件。
+
+事件完整归因：`eurosat_research/x0/results/C1_incident_analysis.md` + `C1_board_forensics.md`。
