@@ -29,9 +29,9 @@ x0_single = [
 
 # X0 多 seed 臂: (label, MACs M, [acc per seed], annotation offset)
 x0_multiseed = [
-    ("x0_w075ds3", 1.522, [95.87, 95.69], (10, -26)),
+    ("M9 (w075ds3)", 1.522, [95.87, 95.69], (10, -26)),
     ("x0_dsconv3", 2.557, [96.22, 96.67], (-90, -20)),
-    ("x0_ds3pool3", 2.557, [96.76, 96.56], (-104, 12)),
+    ("M10 (ds3pool3)", 2.557, [96.76, 96.56], (-104, 12)),
 ]
 
 # M5-M8 两阶段 v8 (clean 160ep -> v8 60ep); 数值为 X0 独立复测值 (x0/results/M_validate.md)
