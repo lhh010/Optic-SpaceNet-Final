@@ -4,6 +4,37 @@ params=51,098 MACs=2,163,968 (2.16M)
 [prepare_model_v5] HW-aligned QAT: w8/a8/o12, out_noise=True(r=0.0392), out_quant=True, act=osim, 8 QAT layers
 C:\Users\lhh\AppData\Local\Programs\Python\Python39\lib\site-packages\torch\utils\data\dataloader.py:666: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
   warnings.warn(warn_msg)
-  ep   1 | tr 1.095/67.15% | val 0.998/69.54% | lr 1.00e-02 | 39s
-  ep   5 | tr 0.757/81.20% | val 1.106/71.13% | lr 5.00e-02 | 38s
-  ep  10 | tr 0.636/86.52% | val 1.836/50.30% | lr 4.99e-02 | 42s
+  ep   1 | tr 1.095/67.15% | val 0.998/69.54% | lr 1.00e-02 | 36s
+  ep   5 | tr 0.757/81.20% | val 1.106/71.13% | lr 5.00e-02 | 33s
+  ep  10 | tr 0.636/86.52% | val 1.836/50.30% | lr 4.99e-02 | 35s
+  ep  15 | tr 0.612/87.47% | val 1.460/57.91% | lr 4.95e-02 | 34s
+  ep  20 | tr 0.583/88.54% | val 0.767/81.56% | lr 4.89e-02 | 46s
+  ep  25 | tr 0.563/89.31% | val 1.229/75.15% | lr 4.80e-02 | 35s
+  ep  30 | tr 0.562/89.12% | val 1.100/75.06% | lr 4.69e-02 | 36s
+  ep  35 | tr 0.538/90.23% | val 1.205/69.43% | lr 4.56e-02 | 33s
+  ep  40 | tr 0.548/90.10% | val 1.009/76.54% | lr 4.40e-02 | 36s
+  ep  45 | tr 0.531/90.50% | val 0.637/87.07% | lr 4.23e-02 | 34s
+  ep  50 | tr 0.528/90.48% | val 1.386/69.07% | lr 4.04e-02 | 36s
+  ep  55 | tr 0.523/90.89% | val 2.087/62.65% | lr 3.83e-02 | 31s
+  ep  60 | tr 0.517/91.11% | val 0.692/83.93% | lr 3.61e-02 | 31s
+  ep  65 | tr 0.511/91.31% | val 1.608/69.33% | lr 3.38e-02 | 33s
+  ep  70 | tr 0.502/91.73% | val 1.338/65.41% | lr 3.15e-02 | 29s
+  ep  75 | tr 0.487/92.35% | val 2.415/58.39% | lr 2.90e-02 | 30s
+  ep  80 | tr 0.483/92.64% | val 0.816/81.81% | lr 2.65e-02 | 30s
+  ep  85 | tr 0.479/92.62% | val 0.552/90.15% | lr 2.40e-02 | 31s
+  ep  90 | tr 0.467/93.01% | val 0.573/88.22% | lr 2.15e-02 | 33s
+  ep  95 | tr 0.460/93.48% | val 0.748/83.50% | lr 1.90e-02 | 30s
+  ep 100 | tr 0.453/93.73% | val 0.509/91.48% | lr 1.67e-02 | 31s
+  ep 105 | tr 0.441/94.30% | val 0.477/92.91% | lr 1.44e-02 | 99s
+  ep 110 | tr 0.437/94.38% | val 1.092/78.89% | lr 1.22e-02 | 32s
+  ep 115 | tr 0.430/94.48% | val 0.594/88.37% | lr 1.01e-02 | 31s
+  ep 120 | tr 0.415/95.30% | val 0.538/89.80% | lr 8.20e-03 | 30s
+  ep 125 | tr 0.405/95.75% | val 0.431/94.59% | lr 6.47e-03 | 29s
+  ep 130 | tr 0.402/95.87% | val 0.932/79.93% | lr 4.94e-03 | 28s
+  ep 135 | tr 0.391/96.48% | val 0.474/93.07% | lr 3.61e-03 | 28s
+  ep 140 | tr 0.385/96.72% | val 0.400/95.80% | lr 2.51e-03 | 29s
+  ep 145 | tr 0.382/96.81% | val 0.402/95.67% | lr 1.64e-03 | 32s
+  ep 150 | tr 0.373/97.21% | val 0.397/96.04% | lr 1.01e-03 | 31s
+  ep 155 | tr 0.370/97.34% | val 0.395/95.94% | lr 6.27e-04 | 32s
+  ep 160 | tr 0.367/97.35% | val 0.405/95.69% | lr 5.00e-04 | 31s
+[DONE] m8_rf_stem5_v5clean best_val=96.04% test_acc=96.17% test_f1=96.03% ece=0.0430
