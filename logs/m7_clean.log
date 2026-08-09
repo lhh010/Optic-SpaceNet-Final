@@ -1,0 +1,40 @@
+run_dir: runs\m7_j1w075_v5clean_cc74bc58
+[m7_j1w075_v5clean] device=cpu run_dir=runs\m7_j1w075_v5clean_cc74bc58
+params=32,246 MACs=861,440 (0.86M)
+[prepare_model_v5] HW-aligned QAT: w8/a8/o12, out_noise=True(r=0.0392), out_quant=True, act=osim, 8 QAT layers
+C:\Users\lhh\AppData\Local\Programs\Python\Python39\lib\site-packages\torch\utils\data\dataloader.py:666: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+  ep   1 | tr 1.065/68.35% | val 2.498/54.94% | lr 1.00e-02 | 88s
+  ep   5 | tr 0.721/83.00% | val 1.230/67.98% | lr 5.00e-02 | 36s
+  ep  10 | tr 0.622/86.70% | val 0.676/85.46% | lr 4.99e-02 | 36s
+  ep  15 | tr 0.598/87.90% | val 0.801/80.15% | lr 4.95e-02 | 35s
+  ep  20 | tr 0.581/88.84% | val 3.947/44.30% | lr 4.89e-02 | 33s
+  ep  25 | tr 0.573/88.91% | val 0.782/79.96% | lr 4.80e-02 | 33s
+  ep  30 | tr 0.562/89.09% | val 0.760/82.87% | lr 4.69e-02 | 32s
+  ep  35 | tr 0.560/89.54% | val 1.616/65.20% | lr 4.56e-02 | 32s
+  ep  40 | tr 0.547/89.95% | val 0.952/75.67% | lr 4.40e-02 | 32s
+  ep  45 | tr 0.541/89.93% | val 1.083/73.22% | lr 4.23e-02 | 32s
+  ep  50 | tr 0.537/90.10% | val 1.068/76.06% | lr 4.04e-02 | 32s
+  ep  55 | tr 0.535/90.04% | val 0.556/89.96% | lr 3.83e-02 | 33s
+  ep  60 | tr 0.531/90.57% | val 0.593/88.83% | lr 3.61e-02 | 39s
+  ep  65 | tr 0.512/91.40% | val 1.564/66.46% | lr 3.38e-02 | 34s
+  ep  70 | tr 0.516/91.40% | val 0.975/77.80% | lr 3.15e-02 | 37s
+  ep  75 | tr 0.510/91.36% | val 0.580/88.67% | lr 2.90e-02 | 32s
+  ep  80 | tr 0.501/91.80% | val 0.543/90.04% | lr 2.65e-02 | 33s
+  ep  85 | tr 0.501/91.82% | val 0.621/86.80% | lr 2.40e-02 | 36s
+  ep  90 | tr 0.487/92.19% | val 0.879/79.72% | lr 2.15e-02 | 36s
+  ep  95 | tr 0.481/92.59% | val 1.504/75.83% | lr 1.90e-02 | 43s
+  ep 100 | tr 0.467/93.24% | val 0.537/89.96% | lr 1.67e-02 | 34s
+  ep 105 | tr 0.469/93.15% | val 0.514/91.74% | lr 1.44e-02 | 29s
+  ep 110 | tr 0.457/93.72% | val 1.151/76.70% | lr 1.22e-02 | 30s
+  ep 115 | tr 0.452/93.86% | val 0.636/87.96% | lr 1.01e-02 | 29s
+  ep 120 | tr 0.439/94.38% | val 0.506/91.72% | lr 8.20e-03 | 33s
+  ep 125 | tr 0.431/94.58% | val 0.458/93.65% | lr 6.47e-03 | 29s
+  ep 130 | tr 0.425/94.90% | val 0.732/83.11% | lr 4.94e-03 | 36s
+  ep 135 | tr 0.420/95.14% | val 0.483/92.26% | lr 3.61e-03 | 32s
+  ep 140 | tr 0.408/95.71% | val 0.430/94.81% | lr 2.51e-03 | 32s
+  ep 145 | tr 0.401/96.04% | val 0.445/94.56% | lr 1.64e-03 | 33s
+  ep 150 | tr 0.399/96.17% | val 0.425/94.78% | lr 1.01e-03 | 29s
+  ep 155 | tr 0.396/96.27% | val 0.425/94.83% | lr 6.27e-04 | 27s
+  ep 160 | tr 0.392/96.49% | val 0.427/94.65% | lr 5.00e-04 | 31s
+[DONE] m7_j1w075_v5clean best_val=95.44% test_acc=95.56% test_f1=95.37% ece=0.0388

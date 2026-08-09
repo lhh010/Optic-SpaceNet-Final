@@ -4,7 +4,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-plt.rcParams["font.family"] = ["Hiragino Sans GB", "Heiti TC", "Arial Unicode MS", "sans-serif"]
+plt.rcParams["font.family"] = ["Microsoft YaHei", "SimHei", "Hiragino Sans GB", "Heiti TC", "Arial Unicode MS", "sans-serif"]
 plt.rcParams["axes.unicode_minus"] = False
 
 # (label, MACs in millions, QAT clean acc %, group, annotation offset)
