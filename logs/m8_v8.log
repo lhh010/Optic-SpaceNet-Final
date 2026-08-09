@@ -1,0 +1,27 @@
+run_dir: runs\m8_rf_stem5_v8probe15_14e75e08
+[m8_rf_stem5_v8probe15] device=cpu run_dir=runs\m8_rf_stem5_v8probe15_14e75e08
+params=51,098 MACs=2,163,968 (2.16M)
+  init_from weights/m8_rf_stem5_clean.pth: 40/40 tensors loaded
+[prepare_model_v8] stem.0: iid=0.0 col_off=0.0 col_gain=0.0000 dw=0.00 fp32=True
+[prepare_model_v8] stage1.0: iid=260.0 col_off=421.5 col_gain=0.0377 dw=5.58 fp32=False
+[prepare_model_v8] stage2.0: iid=260.0 col_off=717.0 col_gain=0.0360 dw=9.73 fp32=False
+[prepare_model_v8] stage2.3: iid=260.0 col_off=688.5 col_gain=0.0180 dw=7.50 fp32=False
+[prepare_model_v8] stage3.0: iid=260.0 col_off=1308.0 col_gain=0.0236 dw=7.00 fp32=False
+[prepare_model_v8] stage3.3: iid=260.0 col_off=396.0 col_gain=0.0189 dw=10.85 fp32=False
+[prepare_model_v8] 6 conv converted
+C:\Users\lhh\AppData\Local\Programs\Python\Python39\lib\site-packages\torch\utils\data\dataloader.py:666: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+  ep   1 | tr 0.473/93.02% | val 0.824/80.15% | lr 5.00e-03 | 28s
+  ep   5 | tr 0.462/93.20% | val 0.712/85.61% | lr 9.93e-03 | 27s
+  ep  10 | tr 0.452/93.72% | val 0.490/92.20% | lr 9.54e-03 | 27s
+  ep  15 | tr 0.440/94.27% | val 0.522/90.30% | lr 8.82e-03 | 26s
+  ep  20 | tr 0.434/94.43% | val 0.618/87.67% | lr 7.83e-03 | 25s
+  ep  25 | tr 0.423/94.92% | val 0.446/93.94% | lr 6.63e-03 | 27s
+  ep  30 | tr 0.416/95.20% | val 0.433/94.72% | lr 5.32e-03 | 27s
+  ep  35 | tr 0.414/95.43% | val 0.578/88.67% | lr 3.99e-03 | 27s
+  ep  40 | tr 0.405/95.72% | val 0.553/89.17% | lr 2.73e-03 | 27s
+  ep  45 | tr 0.399/95.90% | val 0.409/95.37% | lr 1.65e-03 | 27s
+  ep  50 | tr 0.391/96.35% | val 0.403/95.74% | lr 8.09e-04 | 27s
+  ep  55 | tr 0.391/96.29% | val 0.411/95.33% | lr 2.80e-04 | 27s
+  ep  60 | tr 0.386/96.68% | val 0.401/95.89% | lr 1.00e-04 | 27s
+[DONE] m8_rf_stem5_v8probe15 best_val=95.94% test_acc=96.26% test_f1=96.15% ece=0.0446
