@@ -83,7 +83,8 @@ Gazelle 真机（`ssh -J huadong3564@140.206.121.211:2036 uisrc@10.102.13.37`）
 3. **被他人使用后**：物理瞬态约 40 min 自行恢复，但必须 fresh `compass_cali` + 新判据验证全部通过才重开窗；calib→跑批背靠背。
 4. **窗口内对照实验用 ABA 设计**（scalar→col→scalar 各 1000），第三次重复跑专门检测窗口内漂移，单 AB 对照在窗口劣化时会拿到不可判读的数字。
 5. 板端 sudo 密码 5182 已被他队现场试出（其以 root 跑 server 可直接抢占器件），建议更换并同步本文件。
-6. **20 分钟校准节奏（2026-08-09 用户指示，硬性）**：器件时漂比此前认知更快（坑③ 的 ~1h 量级不适用）——**连续跑批每 ~20 min 必须重新校准，否则准确率显著下降**。所有跑批段 ≤20 min/段，段间背靠背 fresh 校准再继续：路径 A（opticspacenet HTTP）= `run_calib.sh MODEL=modelX LIMIT=40 BATCH=8 REP=4 CALIB_OUT=calib_<ts>.npz` 后立即 `run_client.sh ... CORRECTION=calib_<ts>.npz`；路径 B（J1/ds3 板端）= probe pairs 重采 → `calibrate_col.py` → 跑批，calib json 同窗口不可复用。上板配置对照与缺口清单：`docs/Board_Deploy_Config.md`。
+6. **20 分钟校准节奏（2026-08-09 用户指示，硬性）**：器件时漂比此前认知更快（坑③ 的 ~1h 量级不适用）——**连续跑批每 ~20 min 必须重新校准，否则准确率显著下降**。所有跑批段 ≤20 min/段，段间背靠背 fresh 校准再继续：路径 A（opticspacenet HTTP）= `run_calib.sh MODEL=modelX LIMIT=40 BATCH=8 REP=1 CALIB_OUT=calib_<ts>.npz` 后立即 `run_client.sh ... CORRECTION=calib_<ts>.npz`；路径 B（J1/ds3 板端）= probe pairs 重采 → `calibrate_col.py` → 跑批，calib json 同窗口不可复用。上板配置对照与缺口清单：`docs/Board_Deploy_Config.md`。
+7. **循环节奏（2026-08-09 用户指示）**：每循环 = **fresh 校准 → 器件运行 15-20 min → 冷却 5 min（器件空闲）→ 新循环**。冷却让器件状态恢复，减缓连续运行的持续劣化（实测 fresh 校准下段序精度 95.0→93.5→93.5→92.0 缓降）；stale 校准（超 20 min 不重校）实测掉点 −12.5pt（82.5%，同批样本 fresh 重跑可回升 ~+11pt）。路径 A 传输已优化：板上 `server_gazelle.py` 支持 `act_b64/weight_b64`（base64 二进制，校准 503s→141s、跑批提速 ~3×，JSON 回退保留，板上备份 `server_gazelle.py.bak_json`）；客户端 `gazelle_engine.py` `HttpBackend._b64_body` 配套；`run_eval.py` REF 段已修（原硬编码 model2，现随 MODEL）。
 
 事件完整归因：`eurosat_research/x0/results/C1_incident_analysis.md` + `C1_board_forensics.md`。
 
