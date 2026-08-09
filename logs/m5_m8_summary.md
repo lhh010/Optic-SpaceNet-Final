@@ -15,12 +15,12 @@
 
 ## v8 漂移鲁棒阶段（60ep, probe 组分噪声 ×1.5 余量）
 
-| 模型 | 配置 | 状态 |
-|---|---|---|
-| M5 | `configs/m5_j1rf_stem5_v8probe15.json`（init weights/m5_j1rf_stem5_clean.pth）| ⏳ 等干净阶段后 |
-| M6 | `configs/m6_j1_v8probe15.json`（init weights/j1_r3_J1_long_best.pth）| ⏳ |
-| M7 | `configs/m7_j1w075_v8probe15.json` | ⏳ |
-| M8 | `configs/m8_rf_stem5_v8probe15.json` | ⏳ |
+| 模型 | init 起点 | best val | **test acc** | test_f1 | ece | 完成时间 | 状态 |
+|---|---|---|---|---|---|---|---|
+| M5 | 自训 clean (96.81%) | 96.57% | **96.65%**（−0.16pt 几乎无损）| 96.57% | 0.0380 | 2026-08-09 12:04 | ✅ 完成 |
+| M6 | **官方 J1 long (96.39%)** | 95.61% | **95.22%**（c3d 同口径 clean 95.60）| 95.04% | 0.0350 | 2026-08-09 13:01 | ✅ 完成 |
+| M7 | 待 M7 clean 完成 | — | 待填 | — | — | — | ⏳ 等 M7 clean |
+| M8 | 暂停 | — | — | — | — | — | ⏸️ 用户指示今天不训 |
 
 ## 架构依据（R2-R8 探索，已核查）
 
