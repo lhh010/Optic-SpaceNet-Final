@@ -1,0 +1,24 @@
+C1-board: IN_PROGRESS
+start: 2026-08-09T05:08Z
+step0: 本地文档已读 (design/calibrate_col/patch/DEPLOY_LOG/round4)
+step1 done 05:20Z: 备份 run_j1_gazelle.py.bak_c1; patch hunk4 手动适配(板上版 optical_fc 多 bias 支持); py_compile OK; FAKE 对拍 logits 逐位一致
+step2 start: compass_cali
+step2 done 05:33Z: compass_cali exit0; EBR 9.78/9.83 (>=8); error_std 4.67/4.50; MNIST canary 94.70% (ref 94.40, gap 0.3pt) 正常
+step3 start: probe_dump_c3d (s1a 16384 / s2a 4096 / s2b 4096 / s3a 1024 / s3b 8192 rows)
+step3 done 05:42Z: probe_c3d 五层完成 (s1a 16384/s2a 4096/s2b 4096/s3a 1024/s3b 8192 行; resid_std 768/1148/1291/2208/1560)
+step4 start: calibrate_col
+step4 done 05:44Z: calib_col_c3d.json; 留出 var 改善 s1a -24.4/s2a -17.3/s2b -10.8/s3a -14.7/s3b -4.1%; SNR 5-83 全 >1
+step5 start: 背靠背跑批 scalar -> col (1000 样本)
+step5 BLOCKED 05:46Z: 他人在 05:44 启动 /home/uisrc/opticspacenet/server_gazelle.py (HTTP :8000, root, 来源 10.102.12.4 ssh 隧道), 抢占光器件; 我方 scalar 跑批 56/1000 处 "device busy" 中止 (彼时 acc 94.64%), col 跑批即败. 不动对方进程, 监控等待板释放
+step5 retry 06:00Z: 设备恢复可用(对方 HTTP 无活跃连接); 发现标量 calib 跨窗口漂移 (beta 最大偏移 ~200 counts), 按"同窗口"原则新造 calib_scalar_c3d_fresh.json (5层取今日 pairs 标量拟合 + h1/h2 沿用 calib_c3d); 快速 canary 200样本 98.00% 正常; 启动背靠背: fresh-scalar -> col
+note 06:10Z: 他人 server_gazelle 已退出; 但其后硬件窗口状态偏差 (scalar 轨迹 93.3@104 -> 84.1@208, 对比昨日同窗 c2c 轨迹 91.5@200; 昨日同形状 run 前段也会下探后回升, 非纯漂移). 对照两跑同窗口背对背, 相对比较仍有效, 绝对值预计低于昨日 93.80
+scene_saved 06:46Z: 全部现场拉回 x0/data/incident_20260809/ (pairs_c3d_w1/pairs_c2c_old/probe_post/calib/runs/server + MANIFEST.md); probe_post_s2a 2048行已采(06:43, resid_std 1158.4 vs 05:42批1148.1); v2 col 已停(392/1000@92.60存档不采信); 归因交本地 subagent
+step2 start: 恢复验证 (fresh compass_cali)
+step2 attempt1 06:59Z: cali exit0; EBR 9.39/9.48 (>=8 ✓); error_std 6.09/5.73 vs 基线 4.67/4.50 = +30%/+27% (>10% ✗); MNIST canary 94.90 (Δ+0.2 ✓); 200样本 97.00 (vs 98.00); 判据未全达标 → 等10min重试
+step2 attempt2 07:21Z RECOVERED: cali exit0; EBR 9.70/9.77 ✓; error_std 4.92/4.70 (+5.3%/+4.5% <10% ✓); MNIST canary 94.70 (Δ0.0 ✓); 200样本 97.50 (vs 98.00, ~噪声内); 全部达标放行
+step3 start 07:23Z: w2 全链路 (probe_c3d_w2_ 五层 s3b=8192)
+step3a done 07:33Z: probe_c3d_w2 五层 (resid_std 756/1206/1315/2261/1590); calib_col_c3d_w2.json 留出 var -7.8/-14.2/-6.0/-12.3/-3.6% (全正, 幅度<w1); calib_scalar_c3d_w2.json 已造
+step3b start: ABA 跑批 scalar->col->scalar 各1000
+step3b done 08:50Z: ABA 完成 scalarA 92.60 / col 94.60 / scalarB 93.60 (col-mean(scalar)=+1.50pt, A'-A=+1.0pt); col 94.60 真机历史最佳
+step4 done 08:55Z: w2 全部产物 scp 回 x0/data/c1_w2/ + x0/data/probe_pairs_c3d/; logits 错误级分析 col 修A 26增6 / 修B 19增9
+C1-board: DONE 2026-08-09T08:58Z (结果 x0/results/C1_board_results.md)

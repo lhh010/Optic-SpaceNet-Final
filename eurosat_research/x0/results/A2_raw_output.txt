@@ -1,0 +1,776 @@
+/Users/ms.chen/Projects/2607-ciciec/Ltsimulator-test/eurosat_research/x0/scripts/a2_nonlinear.py:307: RuntimeWarning: invalid value encountered in sqrt
+  results["predictable_std"] = float(np.sqrt(best * var_Rnl_te))
+
+===== s1a: N=16384 K=16 C=32 =====
+hw integer-valued: True
+global fit: alpha=1.048510 beta=185.95 resid_std=752.71
+after col offset+gain: resid_std=698.23 (var removed 14.0%)
+after linear dW removal: test resid_std=667.66 (cumul var removed 21.3%)
+M0 lookup(col x 32bins): holdout R2=0.0043, in-bin sigma=664.07
+M1 RFF(ideal, 64feat): holdout R2=0.0043
+M2 MLP(ideal) per-col: holdout R2=-0.0006 (3s)
+M3 MLP(ideal+x摘要) per-col: holdout R2=0.0015 (6s)
+M4 MLP(ideal+x全量) per-col: holdout R2=0.0054 (12s)
+M5 全局共享MLP(ideal+x摘要+onehot): holdout R2=0.0000 (3s)
+M6 配对行ridge(even~partner x,ideal): med holdout R2=-0.0003
+配对行残差相关 med=0.1987
+M7 跨列ridge(R_nl~ideal全列): med holdout R2=-0.0001
+run-order: rowmean lag-1 autocorr=0.1020, head-tail mean diff=-21.15
+cond-mean curve explains var (in-sample, med/p90 over cols): 0.009/0.023
+BEST holdout R2=0.0054 -> predictable_std=48.94, residual(iid?)_std=665.86
+
+===== s2a: N=4096 K=32 C=64 =====
+hw integer-valued: True
+global fit: alpha=1.048366 beta=433.20 resid_std=1132.16
+after col offset+gain: resid_std=1060.26 (var removed 12.3%)
+after linear dW removal: test resid_std=978.84 (cumul var removed 25.3%)
+M0 lookup(col x 32bins): holdout R2=-0.0035, in-bin sigma=964.03
+M1 RFF(ideal, 64feat): holdout R2=0.0001
+M2 MLP(ideal) per-col: holdout R2=-0.0025 (2s)
+M3 MLP(ideal+x摘要) per-col: holdout R2=-0.0047 (3s)
+M4 MLP(ideal+x全量) per-col: holdout R2=-0.0022 (4s)
+M5 全局共享MLP(ideal+x摘要+onehot): holdout R2=0.0001 (4s)
+M6 配对行ridge(even~partner x,ideal): med holdout R2=-0.0248
+配对行残差相关 med=0.1940
+M7 跨列ridge(R_nl~ideal全列): med holdout R2=-0.0004
+run-order: rowmean lag-1 autocorr=0.1011, head-tail mean diff=83.23
+cond-mean curve explains var (in-sample, med/p90 over cols): 0.011/0.017
+BEST holdout R2=0.0001 -> predictable_std=11.61, residual(iid?)_std=978.77
+
+===== s2b: N=4096 K=64 C=64 =====
+hw integer-valued: True
+global fit: alpha=1.054215 beta=798.21 resid_std=1394.47
+after col offset+gain: resid_std=1313.81 (var removed 11.2%)
+after linear dW removal: test resid_std=1234.74 (cumul var removed 21.6%)
+M0 lookup(col x 32bins): holdout R2=-0.0049, in-bin sigma=1199.81
+M1 RFF(ideal, 64feat): holdout R2=0.0006
+M2 MLP(ideal) per-col: holdout R2=-0.0028 (2s)
+M3 MLP(ideal+x摘要) per-col: holdout R2=-0.0046 (3s)
+M4 MLP(ideal+x全量) per-col: holdout R2=-0.0017 (4s)
+M5 全局共享MLP(ideal+x摘要+onehot): holdout R2=-0.0000 (4s)
+M6 配对行ridge(even~partner x,ideal): med holdout R2=-0.0324
+配对行残差相关 med=0.1675
+M7 跨列ridge(R_nl~ideal全列): med holdout R2=-0.0004
+run-order: rowmean lag-1 autocorr=0.0673, head-tail mean diff=-24.71
+cond-mean curve explains var (in-sample, med/p90 over cols): 0.008/0.015
+BEST holdout R2=0.0006 -> predictable_std=30.57, residual(iid?)_std=1234.36
+
+===== s3a: N=1024 K=64 C=128 =====
+hw integer-valued: True
+global fit: alpha=1.050359 beta=1203.19 resid_std=1800.08
+after col offset+gain: resid_std=1653.48 (var removed 15.6%)
+after linear dW removal: test resid_std=1396.46 (cumul var removed 39.8%)
+M0 lookup(col x 32bins): holdout R2=-0.0267, in-bin sigma=1242.13
+M1 RFF(ideal, 64feat): holdout R2=-0.0005
+M2 MLP(ideal) per-col: holdout R2=-0.0138 (2s)
+M3 MLP(ideal+x摘要) per-col: holdout R2=-0.0138 (2s)
+M4 MLP(ideal+x全量) per-col: holdout R2=-0.0147 (3s)
+M5 全局共享MLP(ideal+x摘要+onehot): holdout R2=-0.0001 (6s)
+M6 配对行ridge(even~partner x,ideal): med holdout R2=-0.1875
+配对行残差相关 med=0.1186
+M7 跨列ridge(R_nl~ideal全列): med holdout R2=-0.0029
+run-order: rowmean lag-1 autocorr=-0.0626, head-tail mean diff=-18.88
+cond-mean curve explains var (in-sample, med/p90 over cols): 0.031/0.042
+BEST holdout R2=-0.0001 -> predictable_std=nan, residual(iid?)_std=1396.56
+
+===== s3b: N=1024 K=128 C=128 =====
+hw integer-valued: True
+global fit: alpha=1.053870 beta=749.12 resid_std=1341.79
+after col offset+gain: resid_std=1314.46 (var removed 4.0%)
+after linear dW removal: test resid_std=1350.78 (cumul var removed -1.3%)
+M0 lookup(col x 32bins): holdout R2=-0.0242, in-bin sigma=1097.20
+M1 RFF(ideal, 64feat): holdout R2=-0.0042
+M2 MLP(ideal) per-col: holdout R2=-0.0082 (1s)
+M3 MLP(ideal+x摘要) per-col: holdout R2=-0.0051 (2s)
+M4 MLP(ideal+x全量) per-col: holdout R2=-0.0067 (2s)
+M5 全局共享MLP(ideal+x摘要+onehot): holdout R2=0.0000 (4s)
+M6 配对行ridge(even~partner x,ideal): med holdout R2=-0.5636
+配对行残差相关 med=0.2152
+M7 跨列ridge(R_nl~ideal全列): med holdout R2=-0.0029
+run-order: rowmean lag-1 autocorr=0.0331, head-tail mean diff=32.06
+cond-mean curve explains var (in-sample, med/p90 over cols): 0.028/0.040
+BEST holdout R2=0.0000 -> predictable_std=2.12, residual(iid?)_std=1350.77
+
+===== JSON =====
+[
+ {
+  "layer": "s1a",
+  "N": 16384,
+  "K": 16,
+  "C": 32,
+  "alpha": 1.0485100908282652,
+  "beta": 185.9534963980577,
+  "std_R": 752.7086380385241,
+  "std_after_colfit": 696.8250130172474,
+  "std_Rnl": 667.6599812936693,
+  "col_gain_abs_med": 0.022683040975062428,
+  "M0_lookup_R2": 0.0042508979772878375,
+  "sigma_iid_lookup": 664.0707255370379,
+  "M1_rff_R2": 0.004280339356221741,
+  "M2_mlp_ideal_R2": -0.000601281310185886,
+  "M3_mlp_ideal_xsum_R2": 0.001520985196763358,
+  "M4_mlp_ideal_xfull_R2": 0.005372218990276512,
+  "M5_mlp_global_R2": 3.8982096312145664e-05,
+  "M6_partner_ridge_R2_med": -0.0003305242857681856,
+  "pair_resid_corr_med": 0.19865677751354968,
+  "M7_crosscol_ridge_R2_med": -0.00013207132928616527,
+  "runorder_autocorr1": 0.10198473863292642,
+  "runorder_head_tail_diff": -21.149272441496898,
+  "shape": {
+   "E[Rnl|ideal]_explained_var_frac_med": 0.008848296060262884,
+   "E[Rnl|ideal]_explained_var_frac_p90": 0.022724851509205286
+  },
+  "example_curve": {
+   "col": 19,
+   "centers": [
+    -11992.3,
+    -11101.0,
+    -10209.6,
+    -9318.3,
+    -8427.0,
+    -7535.6,
+    -6644.3,
+    -5752.9,
+    -4861.6,
+    -3970.2,
+    -3078.9,
+    -2187.5,
+    -1296.2,
+    -404.9,
+    486.5,
+    1377.8,
+    2269.2,
+    3160.5,
+    4051.9,
+    4943.2,
+    5834.5,
+    6725.9,
+    7617.2,
+    8508.6,
+    9399.9,
+    10291.3,
+    11182.6,
+    12074.0,
+    12965.3,
+    13856.6,
+    14748.0,
+    15639.3
+   ],
+   "means": [
+    284.11,
+    -1117.31,
+    -28.93,
+    -109.66,
+    -47.32,
+    -200.3,
+    31.79,
+    56.97,
+    88.35,
+    -9.52,
+    -58.16,
+    -93.97,
+    -132.26,
+    62.57,
+    199.88,
+    31.11,
+    -99.41,
+    56.92,
+    11.4,
+    102.32,
+    165.9,
+    176.22,
+    208.11,
+    -14.29,
+    -585.0,
+    -239.95,
+    -806.58,
+    -540.7,
+    -737.73,
+    -768.12,
+    -712.32,
+    -669.38
+   ],
+   "counts": [
+    1,
+    1,
+    8,
+    23,
+    53,
+    62,
+    580,
+    272,
+    715,
+    1426,
+    1930,
+    1821,
+    976,
+    885,
+    1021,
+    1107,
+    1109,
+    638,
+    814,
+    887,
+    660,
+    444,
+    328,
+    249,
+    129,
+    58,
+    44,
+    52,
+    41,
+    32,
+    16,
+    2
+   ]
+  },
+  "best_holdout_R2": 0.005372218990276512,
+  "predictable_std": 48.93642055564748,
+  "unpredictable_std": 665.8641583418224
+ },
+ {
+  "layer": "s2a",
+  "N": 4096,
+  "K": 32,
+  "C": 64,
+  "alpha": 1.0483656039835643,
+  "beta": 433.2017980936106,
+  "std_R": 1132.1640194199483,
+  "std_after_colfit": 1064.442929793396,
+  "std_Rnl": 978.8391320585883,
+  "col_gain_abs_med": 0.021872119816441556,
+  "M0_lookup_R2": -0.003548480918417196,
+  "sigma_iid_lookup": 964.0274262735988,
+  "M1_rff_R2": 0.00014066275136415118,
+  "M2_mlp_ideal_R2": -0.002524374340894253,
+  "M3_mlp_ideal_xsum_R2": -0.004703115094905064,
+  "M4_mlp_ideal_xfull_R2": -0.002170097275834948,
+  "M5_mlp_global_R2": 0.00010815415426779218,
+  "M6_partner_ridge_R2_med": -0.024813559592043344,
+  "pair_resid_corr_med": 0.19404846030280476,
+  "M7_crosscol_ridge_R2_med": -0.0004114113917744744,
+  "runorder_autocorr1": 0.10105946391145225,
+  "runorder_head_tail_diff": 83.23251533514627,
+  "shape": {
+   "E[Rnl|ideal]_explained_var_frac_med": 0.010884861659619216,
+   "E[Rnl|ideal]_explained_var_frac_p90": 0.016809353216063794
+  },
+  "example_curve": {
+   "col": 35,
+   "centers": [
+    -17163.9,
+    -15565.6,
+    -13967.4,
+    -12369.1,
+    -10770.9,
+    -9172.6,
+    -7574.4,
+    -5976.1,
+    -4377.9,
+    -2779.6,
+    -1181.4,
+    416.9,
+    2015.1,
+    3613.4,
+    5211.6,
+    6809.9,
+    8408.1,
+    10006.4,
+    11604.6,
+    13202.9,
+    14801.1,
+    16399.4,
+    17997.6,
+    19595.9,
+    21194.1,
+    22792.4,
+    24390.6,
+    25988.9,
+    27587.1,
+    29185.4,
+    30783.6,
+    32381.9
+   ],
+   "means": [
+    -436.18,
+    -280.44,
+    -32.44,
+    3.25,
+    121.58,
+    75.0,
+    51.57,
+    -19.61,
+    164.43,
+    57.07,
+    41.62,
+    -27.13,
+    -80.35,
+    10.02,
+    -114.4,
+    -74.77,
+    35.34,
+    -6.57,
+    243.12,
+    45.85,
+    -189.57,
+    -142.91,
+    -148.33,
+    -91.91,
+    308.1,
+    -309.12,
+    464.06,
+    788.5,
+    -152.13,
+    611.49,
+    -458.52,
+    101.89
+   ],
+   "counts": [
+    41,
+    193,
+    294,
+    288,
+    281,
+    338,
+    345,
+    332,
+    228,
+    218,
+    210,
+    213,
+    180,
+    210,
+    155,
+    168,
+    104,
+    42,
+    30,
+    14,
+    18,
+    34,
+    39,
+    43,
+    29,
+    13,
+    10,
+    4,
+    5,
+    7,
+    4,
+    6
+   ]
+  },
+  "best_holdout_R2": 0.00014066275136415118,
+  "predictable_std": 11.609162150956566,
+  "unpredictable_std": 978.770286534774
+ },
+ {
+  "layer": "s2b",
+  "N": 4096,
+  "K": 64,
+  "C": 64,
+  "alpha": 1.0542146489398847,
+  "beta": 798.2111597992604,
+  "std_R": 1394.470818887821,
+  "std_after_colfit": 1325.4981870919717,
+  "std_Rnl": 1234.7354241726748,
+  "col_gain_abs_med": 0.01229781757805432,
+  "M0_lookup_R2": -0.004916885122607573,
+  "sigma_iid_lookup": 1199.8108071673935,
+  "M1_rff_R2": 0.000612846840369996,
+  "M2_mlp_ideal_R2": -0.002759220211700608,
+  "M3_mlp_ideal_xsum_R2": -0.004557938101354075,
+  "M4_mlp_ideal_xfull_R2": -0.0017015217499589674,
+  "M5_mlp_global_R2": -2.8332574179001924e-05,
+  "M6_partner_ridge_R2_med": -0.03236722811746007,
+  "pair_resid_corr_med": 0.16749493754821684,
+  "M7_crosscol_ridge_R2_med": -0.00041005304276453547,
+  "runorder_autocorr1": 0.06733215939995774,
+  "runorder_head_tail_diff": -24.71161424351997,
+  "shape": {
+   "E[Rnl|ideal]_explained_var_frac_med": 0.008483180812961011,
+   "E[Rnl|ideal]_explained_var_frac_p90": 0.015154522722779888
+  },
+  "example_curve": {
+   "col": 60,
+   "centers": [
+    -44122.0,
+    -42602.1,
+    -41082.2,
+    -39562.2,
+    -38042.3,
+    -36522.3,
+    -35002.4,
+    -33482.5,
+    -31962.5,
+    -30442.6,
+    -28922.7,
+    -27402.7,
+    -25882.8,
+    -24362.8,
+    -22842.9,
+    -21323.0,
+    -19803.0,
+    -18283.1,
+    -16763.2,
+    -15243.2,
+    -13723.3,
+    -12203.3,
+    -10683.4,
+    -9163.5,
+    -7643.5,
+    -6123.6,
+    -4603.7,
+    -3083.7,
+    -1563.8,
+    -43.8,
+    1476.1,
+    2996.0
+   ],
+   "means": [
+    -1683.1,
+    -709.16,
+    -373.44,
+    -242.37,
+    -414.94,
+    -264.94,
+    -615.74,
+    -38.91,
+    161.85,
+    256.5,
+    197.98,
+    332.57,
+    34.03,
+    416.29,
+    298.78,
+    146.7,
+    -8.78,
+    -39.72,
+    -57.19,
+    -97.85,
+    -32.7,
+    -22.46,
+    -42.95,
+    -30.5,
+    -5.43,
+    -91.7,
+    47.41,
+    15.22,
+    -21.04,
+    23.86,
+    52.59,
+    100.54
+   ],
+   "counts": [
+    1,
+    1,
+    9,
+    12,
+    37,
+    87,
+    70,
+    93,
+    99,
+    111,
+    102,
+    114,
+    91,
+    75,
+    98,
+    102,
+    123,
+    124,
+    128,
+    127,
+    160,
+    146,
+    190,
+    194,
+    217,
+    231,
+    293,
+    356,
+    366,
+    254,
+    66,
+    19
+   ]
+  },
+  "best_holdout_R2": 0.000612846840369996,
+  "predictable_std": 30.56679355423283,
+  "unpredictable_std": 1234.3570143352724
+ },
+ {
+  "layer": "s3a",
+  "N": 1024,
+  "K": 64,
+  "C": 128,
+  "alpha": 1.050358971460637,
+  "beta": 1203.1941837458278,
+  "std_R": 1800.0804863066414,
+  "std_after_colfit": 1684.663896678715,
+  "std_Rnl": 1396.4595801102244,
+  "col_gain_abs_med": 0.012887672542345751,
+  "M0_lookup_R2": -0.026739261394523428,
+  "sigma_iid_lookup": 1242.126841600099,
+  "M1_rff_R2": -0.0005433403394892178,
+  "M2_mlp_ideal_R2": -0.0138004291779934,
+  "M3_mlp_ideal_xsum_R2": -0.013751406978135483,
+  "M4_mlp_ideal_xfull_R2": -0.014693403375334757,
+  "M5_mlp_global_R2": -0.00013898891630681476,
+  "M6_partner_ridge_R2_med": -0.1875414095661373,
+  "pair_resid_corr_med": 0.11855738773349851,
+  "M7_crosscol_ridge_R2_med": -0.00289139648834591,
+  "runorder_autocorr1": -0.0625923164312652,
+  "runorder_head_tail_diff": -18.877511218404152,
+  "shape": {
+   "E[Rnl|ideal]_explained_var_frac_med": 0.031077348812554195,
+   "E[Rnl|ideal]_explained_var_frac_p90": 0.04177806333660559
+  },
+  "example_curve": {
+   "col": 74,
+   "centers": [
+    -37147.3,
+    -33710.0,
+    -30272.7,
+    -26835.4,
+    -23398.1,
+    -19960.8,
+    -16523.5,
+    -13086.2,
+    -9648.8,
+    -6211.5,
+    -2774.2,
+    663.1,
+    4100.4,
+    7537.7,
+    10975.0,
+    14412.3,
+    17849.7,
+    21287.0,
+    24724.3,
+    28161.6,
+    31598.9,
+    35036.2,
+    38473.5,
+    41910.8,
+    45348.2,
+    48785.5,
+    52222.8,
+    55660.1,
+    59097.4,
+    62534.7,
+    65972.0,
+    69409.3
+   ],
+   "means": [
+    2075.12,
+    -120.76,
+    51.95,
+    -303.37,
+    -25.91,
+    -31.13,
+    -92.73,
+    124.11,
+    -137.43,
+    65.27,
+    -402.04,
+    -267.2,
+    457.9,
+    217.77,
+    -21.82,
+    121.51,
+    -75.58,
+    -76.45,
+    -118.45,
+    58.76,
+    64.52,
+    38.63,
+    -168.2,
+    -29.36,
+    227.45,
+    1405.16,
+    -649.55,
+    -1054.42,
+    -444.23,
+    1364.77,
+    -474.47,
+    -639.12
+   ],
+   "counts": [
+    3,
+    9,
+    18,
+    27,
+    46,
+    49,
+    46,
+    47,
+    63,
+    44,
+    37,
+    51,
+    60,
+    61,
+    45,
+    44,
+    46,
+    64,
+    41,
+    51,
+    41,
+    30,
+    30,
+    13,
+    16,
+    5,
+    12,
+    10,
+    7,
+    3,
+    3,
+    2
+   ]
+  },
+  "best_holdout_R2": -0.00013898891630681476,
+  "predictable_std": NaN,
+  "unpredictable_std": 1396.556622940225
+ },
+ {
+  "layer": "s3b",
+  "N": 1024,
+  "K": 128,
+  "C": 128,
+  "alpha": 1.0538704897784987,
+  "beta": 749.1188051284233,
+  "std_R": 1341.7886339346423,
+  "std_after_colfit": 1327.4461594114623,
+  "std_Rnl": 1350.77621725483,
+  "col_gain_abs_med": 0.012859846093801511,
+  "M0_lookup_R2": -0.02416634069273993,
+  "sigma_iid_lookup": 1097.20487530162,
+  "M1_rff_R2": -0.004244960262686837,
+  "M2_mlp_ideal_R2": -0.008248967715299704,
+  "M3_mlp_ideal_xsum_R2": -0.005075010172824745,
+  "M4_mlp_ideal_xfull_R2": -0.006660711318948964,
+  "M5_mlp_global_R2": 2.4621732551688424e-06,
+  "M6_partner_ridge_R2_med": -0.5635582793978764,
+  "pair_resid_corr_med": 0.21515764307107335,
+  "M7_crosscol_ridge_R2_med": -0.002904727668217366,
+  "runorder_autocorr1": 0.033052439304704646,
+  "runorder_head_tail_diff": 32.06331647175722,
+  "shape": {
+   "E[Rnl|ideal]_explained_var_frac_med": 0.02829467127942531,
+   "E[Rnl|ideal]_explained_var_frac_p90": 0.04014657452332339
+  },
+  "example_curve": {
+   "col": 7,
+   "centers": [
+    -47626.7,
+    -44976.0,
+    -42325.3,
+    -39674.6,
+    -37023.9,
+    -34373.2,
+    -31722.5,
+    -29071.8,
+    -26421.2,
+    -23770.5,
+    -21119.8,
+    -18469.1,
+    -15818.4,
+    -13167.7,
+    -10517.0,
+    -7866.3,
+    -5215.7,
+    -2565.0,
+    85.7,
+    2736.4,
+    5387.1,
+    8037.8,
+    10688.5,
+    13339.2,
+    15989.8,
+    18640.5,
+    21291.2,
+    23941.9,
+    26592.6,
+    29243.3,
+    31894.0,
+    34544.7
+   ],
+   "means": [
+    514.57,
+    0.0,
+    -333.77,
+    0.0,
+    -139.28,
+    317.75,
+    -324.79,
+    60.29,
+    -12.72,
+    113.13,
+    -107.52,
+    403.31,
+    -211.61,
+    247.69,
+    -111.13,
+    -282.9,
+    -249.43,
+    241.78,
+    91.87,
+    590.48,
+    393.02,
+    -757.61,
+    204.29,
+    -978.6,
+    -349.31,
+    -944.91,
+    651.95,
+    1008.21,
+    -2058.83,
+    0.0,
+    0.0,
+    -249.56
+   ],
+   "counts": [
+    1,
+    0,
+    1,
+    0,
+    8,
+    20,
+    23,
+    43,
+    69,
+    112,
+    91,
+    67,
+    80,
+    82,
+    80,
+    79,
+    62,
+    39,
+    39,
+    29,
+    24,
+    18,
+    14,
+    13,
+    10,
+    5,
+    7,
+    5,
+    1,
+    0,
+    0,
+    2
+   ]
+  },
+  "best_holdout_R2": 2.4621732551688424e-06,
+  "predictable_std": 2.1195453358498337,
+  "unpredictable_std": 1350.7745543312685
+ }
+]

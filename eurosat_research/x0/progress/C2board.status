@@ -1,0 +1,1 @@
+RUNNING — 17:44 四项放行判据全过（EBR 9.769/9.839；error_std 4.694/4.473 优于 C1w2 基准；MNIST canary 1000: 96.90 vs ref 96.80 gap 0.10；mini-run 200: 96.50=ref gap 0.00；无他队进程）。同窗口开始：probe w075ds3 → probe ds3pool3 → calib ×2 → col 跑批 ×2

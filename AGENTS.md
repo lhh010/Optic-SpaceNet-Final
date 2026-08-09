@@ -85,3 +85,10 @@ Gazelle 真机（`ssh -J huadong3564@140.206.121.211:2036 uisrc@10.102.13.37`）
 5. 板端 sudo 密码 5182 已被他队现场试出（其以 root 跑 server 可直接抢占器件），建议更换并同步本文件。
 
 事件完整归因：`eurosat_research/x0/results/C1_incident_analysis.md` + `C1_board_forensics.md`。
+
+## Round X0（2026-08-09，首轮架构-硬件联合设计）
+
+- 总结文档：`eurosat_research/docs/round_x0_arch_hw_codesign.md`（理论框架、A/B/C 组结论、上板 SOP、模型注册表）；过程报告 `eurosat_research/x0/results/`。
+- **模型注册表 M5-M10**（`eurosat_research/weights/`，git 强制入库）：M5-M8 = 队友两阶段 v8（X0 已复测确认，无新信息量）；**M9 = `m9_j1w075ds3_v8probe15.pth`（J1 w0.75+conv3s2，1.52M，≤2M 冠军）、M10 = `m10_ds3pool3_v8probe15.pth`（+stem max3，2.56M，总冠军 96.66）——上板评测进行中（C2）**。
+- v8 单阶段 160ep 为当前标准训练口径（`configs/x0*_160.json`）；Pareto 前沿与判读见 `docs/plot_pareto_v8.png`。关键反转：v8 噪声下 w200 反超 rf_s2k3，J1 已非甜点，2.5-4.6M 为甜点区间。
+- 真机 SOTA：c3d + 逐列校准 **94.60%**（C1，+1.5pt）；ds3 系板端部署用 `x0/scripts/run_ds3_gazelle.py`（conv3s2 光计算），上板前必须本地 FAKE 对拍。

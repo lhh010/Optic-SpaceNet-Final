@@ -18,6 +18,7 @@
 """
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 def compute_macs(model, input_size=(3, 64, 64)):
@@ -50,12 +51,31 @@ def compute_macs(model, input_size=(3, 64, 64)):
     return total
 
 
+class BlurPool(nn.Module):
+    """X0: 固定 3×3 二项式核 [1,2,1]⊗[1,2,1]/16 抗混叠下采样。
+    stride=1 滤波 (padding=1 保尺寸) + stride=2 子采样, 等价于 stride=2 卷积。
+    电侧算子 (不进光计算路径); 核注册为 buffer → 固定不可学, 且随 .pth 落盘可复现。"""
+
+    def __init__(self, channels):
+        super().__init__()
+        k = torch.tensor([1.0, 2.0, 1.0])
+        kernel = (k[:, None] * k[None, :]) / 16.0
+        self.register_buffer("kernel", kernel.expand(channels, 1, 3, 3).contiguous())
+        self.channels = channels
+
+    def forward(self, x):
+        return F.conv2d(x, self.kernel, stride=2, padding=1, groups=self.channels)
+
+
 def make_downsample(channels, mode):
-    """下采样算子 (R6 Q1):
+    """下采样算子 (R6 Q1 + X0):
        max       — MaxPool2d(2), 零 MACs
        avg       — AvgPool2d(2), 零 MACs
        stride1x1 — 1×1 conv s2 (可学习, 丢 3/4 位置)
-       patchify  — PixelUnshuffle(2) + 1×1 mix 4C→C (保全位置 + 通道混合)"""
+       patchify  — PixelUnshuffle(2) + 1×1 mix 4C→C (保全位置 + 通道混合)
+       max3      — MaxPool2d(3, s2, p1), 零 MACs, 每步 RF 贡献 (k−1)·j 翻倍 [X0]
+       blur      — BlurPool 固定二项式核抗混叠, 电侧, 零 (光侧) MACs [X0]
+       conv3s2   — 3×3 conv s2 + BN + ReLU (可学习, 光计算层, 花 MACs) [X0]"""
     if mode == "max":
         return nn.MaxPool2d(2)
     if mode == "avg":
@@ -69,6 +89,16 @@ def make_downsample(channels, mode):
         return nn.Sequential(
             nn.PixelUnshuffle(2),
             nn.Conv2d(channels * 4, channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(channels), nn.ReLU(inplace=True),
+        )
+    if mode == "max3":
+        return nn.MaxPool2d(3, stride=2, padding=1)
+    if mode == "blur":
+        return BlurPool(channels)
+    if mode == "conv3s2":
+        return nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=3, stride=2, padding=1,
+                      bias=False),
             nn.BatchNorm2d(channels), nn.ReLU(inplace=True),
         )
     raise ValueError(f"Unknown pool_mode: {mode}")
@@ -102,17 +132,32 @@ class MiniVGG(nn.Module):
       stem_kernel   — stem conv 核大小 (RF 臂)
       stage_depths  — (d1,d2,d3) 每 stage conv 层数, 覆盖 fast_downsample 逻辑
       bypass_dim    — >0 时启用 GlobalBypass (stem 输出 → 分类头前 concat)
+
+    X0 扩展 (全部后向兼容):
+      pool_mode 新增 max3 / blur / conv3s2 (见 make_downsample)。
+        max3/blur 为电侧池化, 不进光计算路径; conv3s2 是 Conv2d, 会被
+        prepare_model_v8 自动转为光计算层 (替代的原 1×1 也在光路, 行为一致)。
+        注意 conv3s2 只替换 stage 的下采样点, stem 下采样仍用 MaxPool2d(2)
+        (stem 保持全 FP32 电计算, 避免 stem.3.0 被无光刻标定地 QAT 化)。
+      extra_pool    — True 时 stage3 末尾 (GAP 前) 追加一次 MaxPool2d(2),
+        4×4→2×2, j=32, 每位置 RF 贡献 +(k−1)·j; 电侧, 零 MACs
+      stem_pool_mode — 独立控制 stem 池化 (默认 None = 沿用 pool_mode 推导逻辑),
+        用于组合臂如 pool_mode=conv3s2 + stem_pool_mode=max3
     """
 
     def __init__(self, channels=(32, 48, 72, 96), num_classes=10,
                  stem_stride=2, head_dims=(96,), bias=False,
                  fast_downsample=False, kernels=(3, 3, 3),
                  pool_mode="max", stem_kernel=3, stage_depths=None,
-                 bypass_dim=0):
+                 bypass_dim=0, extra_pool=False, stem_pool_mode=None):
         super().__init__()
         C0, C1, C2, C3 = channels
         k1, k2, k3 = kernels
         self.bypass_dim = bypass_dim
+        self.extra_pool = extra_pool
+        # X0: conv3s2 只替换 stage 下采样点, stem 保持 MaxPool (全 FP32 电计算)
+        if stem_pool_mode is None:
+            stem_pool_mode = "max" if pool_mode == "conv3s2" else pool_mode
 
         def stage(cin, cout, k, depth, pool):
             layers = []
@@ -136,11 +181,14 @@ class MiniVGG(nn.Module):
             nn.Conv2d(3, C0, kernel_size=stem_kernel, stride=stem_stride,
                       padding=stem_kernel // 2, bias=bias),
             nn.BatchNorm2d(C0), nn.ReLU(inplace=True),
-            make_downsample(C0, pool_mode),
+            make_downsample(C0, stem_pool_mode),
         )
         self.stage1 = stage(C0, C1, k1, d1, pool=True)
         self.stage2 = stage(C1, C2, k2, d2, pool=True)
         self.stage3 = stage(C2, C3, k3, d3, pool=False)
+        if extra_pool:
+            # X0: 第 4 次下采样, stage3 末尾 (GAP 前), 电侧零 MACs
+            self.stage3_pool = nn.MaxPool2d(2)
 
         if bypass_dim > 0:
             self.bypass = GlobalBypass(C0, bypass_dim)
@@ -179,6 +227,8 @@ class MiniVGG(nn.Module):
         x = self.stage1(x)
         x = self.stage2(x)
         x = self.stage3(x)
+        if self.extra_pool:
+            x = self.stage3_pool(x)
         if self.bypass_dim > 0:
             x = self.head(torch.cat([self.gap(x), bypass_feat], dim=1))
         else:
@@ -202,5 +252,7 @@ def build_model(cfg):
             stem_kernel=cfg.get("stem_kernel", 3),
             stage_depths=tuple(cfg["stage_depths"]) if cfg.get("stage_depths") else None,
             bypass_dim=cfg.get("bypass_dim", 0),
+            extra_pool=cfg.get("extra_pool", False),
+            stem_pool_mode=cfg.get("stem_pool_mode"),
         )
     raise ValueError(f"Unknown arch: {arch}")
