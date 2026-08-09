@@ -1,1 +1,0 @@
-refactor: unified training code in src/ (runner.py), model variants as configs/*.json; remove per-model scripts; README documents M5-M8 usage

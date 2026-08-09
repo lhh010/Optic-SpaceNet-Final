@@ -1,0 +1,9 @@
+run_dir: runs\m8_rf_stem5_v5clean_9c8917fd
+[m8_rf_stem5_v5clean] device=cpu run_dir=runs\m8_rf_stem5_v5clean_9c8917fd
+params=51,098 MACs=2,163,968 (2.16M)
+[prepare_model_v5] HW-aligned QAT: w8/a8/o12, out_noise=True(r=0.0392), out_quant=True, act=osim, 8 QAT layers
+C:\Users\lhh\AppData\Local\Programs\Python\Python39\lib\site-packages\torch\utils\data\dataloader.py:666: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+  ep   1 | tr 1.095/67.15% | val 0.998/69.54% | lr 1.00e-02 | 39s
+  ep   5 | tr 0.757/81.20% | val 1.106/71.13% | lr 5.00e-02 | 38s
+  ep  10 | tr 0.636/86.52% | val 1.836/50.30% | lr 4.99e-02 | 42s
