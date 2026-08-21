@@ -1,0 +1,1 @@
+DONE — ds3pool3 col 96.40%（新真机 SOTA，+1.80pt vs c3d 94.60；GPU 96.76 gap −0.36）、w075ds3 col 94.90%（+0.30，GPU 95.87 gap −0.97）。四项判据全过（EBR 9.77/9.84、error_std 4.69/4.47、canary gap 0.10、mini gap 0.00），单窗口无抢占。产物 x0/data/c2_ds3/ + x0/results/C2_ds3_board.md。scalar ABA 与 s43 未跑（收窗优先）。

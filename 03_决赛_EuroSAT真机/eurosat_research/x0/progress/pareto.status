@@ -1,0 +1,14 @@
+X0-pareto DONE 2026-08-09
+任务: 6 个 R 系模型 v8 单阶段 160ep 重测 (x0r_*) + v8 口径 Pareto 图
+GPU 状态: 开跑前 nvidia-smi 双卡空闲 (0 MiB)
+队列: GPU0 = x0r_w075, x0r_w150, x0r_w200 | GPU1 = x0r_rf_s2k3, x0r_rf_stem5, x0r_model4e
+x0r_w075_160    MACs=858048   test=94.65  (v5: 95.56)
+x0r_rf_s2k3_160 MACs=4523264  test=96.39  (v5: 96.93)
+x0r_rf_stem5_160 MACs=2163968 test=95.89  (v5: 96.04@80ep)
+x0r_w150_160    MACs=2766720 test=96.20  (v5: 96.06@80ep)
+x0r_w200_160    MACs=4622848 test=96.74  (v5: 96.39)
+x0r_model4e_160 MACs=17041344 test=96.81 (v5: 97.43@80ep)
+ALL 6 RUNS DONE 2026-08-09 (~09:30 UTC), 双队列 ALL DONE, 无中断无他人任务冲突
+Pareto 前沿(v8 单阶段): w075 94.65 -> J1 95.57 -> w075ds3 95.78(mean) -> rf_stem5 95.89 -> ds3pool3 96.66(mean) -> w200 96.74 -> model4e 96.81
+产物: docs/pareto_v8.png + docs/plot_pareto_v8.py + x0/results/pareto_v8.md + configs/x0r_*_160.json (本地+容器)
+DONE 2026-08-09

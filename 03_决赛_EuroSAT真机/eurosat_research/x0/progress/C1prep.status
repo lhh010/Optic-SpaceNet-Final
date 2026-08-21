@@ -1,0 +1,9 @@
+DONE C1-prep: 逐列校准完成（未上板，未提交 git）
+finished: 2026-08-09
+产物:
+- Gazelle-national/mnist/j1_board/calibrate_col.py (逐列拟合+SE+结构SNR+留出验证, 纯env)
+- Gazelle-national/mnist/j1_board/run_j1_gazelle_colcalib.patch (J1_CALIB_COL 折叠进反量化, patch -p1 已验证)
+- Ltsimulator-test/eurosat_research/x0/results/C1_col_calib_design.md (设计文档)
+- Ltsimulator-test/eurosat_research/x0/results/calib_col_local.json (本地 pairs 产物)
+本地留出验证(标量->逐列 残差方差): s1a -16.4% / s2a -19.9% / s2b -12.5% / s3a -25.2% / s3b -4.5%
+验证: patch 干净应用+py_compile; 折叠公式数值等价(2e-15); FAKE J1_CALIB_COL 结果与原版逐位一致

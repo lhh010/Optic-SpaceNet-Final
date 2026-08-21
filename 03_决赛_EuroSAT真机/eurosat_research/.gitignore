@@ -1,0 +1,9 @@
+
+# 训练输出 (runs 含权重, 不入库)
+runs/
+
+# Python 缓存
+__pycache__/
+
+# 权重文件不入库 (本地保留)
+weights/

@@ -1,0 +1,14 @@
+[optic_layers] [WARN] osimulator not installed, using FakeOpticalEngine
+EuroSAT total=27000 test window=[0:40] (limit=40)
+[OpticalEngine] Real simulator unavailable, fallback to fake mode
+[load_state] 44/44 tensors loaded from minivgg_gap_phase4_v3_int8.pth
+HW raw accuracy on 40 calib images: 50.00% (20/40)  [462s]
+
+layer stage1.0 (10240,288)@(288, 48)  exact|.|mean=   18402  raw_err std=    2866  a_mean=0.9887 b_mean=    1767  corr_err std=    2610 (1.10x reduction)
+layer stage1.3 (10240,432)@(432, 48)  exact|.|mean=   24149  raw_err std=    3473  a_mean=1.0199 b_mean=    2817  corr_err std=    3195 (1.09x reduction)
+layer stage2.0 (2560,432)@(432, 72)  exact|.|mean=   52078  raw_err std=    4849  a_mean=1.0115 b_mean=    2845  corr_err std=    3854 (1.26x reduction)
+layer stage2.3 (2560,648)@(648, 72)  exact|.|mean=   35056  raw_err std=    3952  a_mean=1.0149 b_mean=    2965  corr_err std=    3550 (1.11x reduction)
+layer stage3.0 ( 640,648)@(648, 96)  exact|.|mean=   66728  raw_err std=    6074  a_mean=1.0278 b_mean=    4087  corr_err std=    4656 (1.30x reduction)
+layer stage3.3 ( 640,864)@(864, 96)  exact|.|mean=   81715  raw_err std=    6126  a_mean=1.0197 b_mean=    2968  corr_err std=    4601 (1.33x reduction)
+layer head    (  40, 96)@( 96, 10)  exact|.|mean=   12833  raw_err std=    1916  a_mean=1.0114 b_mean=     356  corr_err std=    1660 (1.15x reduction)
+calibration saved -> calib_m4_20260810k.npz (7 layers)

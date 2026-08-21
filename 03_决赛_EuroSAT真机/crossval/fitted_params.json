@@ -1,0 +1,78 @@
+{
+  "model": "out = alpha*ideal + beta + eps, eps~N(0, sigma_static^2+sigma_dynamic^2)",
+  "units": "raw = FPGA counts * 255 (alpha-normalized MAC units); *_counts = raw / 255",
+  "regimes": {
+    "uint4": {
+      "alpha": 0.36410201521202046,
+      "beta": 99.74855100463678,
+      "sigma_total": 712.6679792135493,
+      "sigma_dynamic": 260.9276837887086,
+      "sigma_static": 663.1835284662789,
+      "sigma_total_counts": 2.794776389072742,
+      "sigma_static_counts": 2.6007197194756033,
+      "sigma_dynamic_short_window_counts": 1.0232458187792492,
+      "rms_ideal": 111.13136168516968,
+      "noise_structure": "absolute_additive",
+      "noise_structure_note": "E5 hw σ_total 在 uint8/uint4x16 下≈恒定绝对加性底噪（4.49/3.85 counts），与 EVB 长窗 4.4 counts 吻合；σ_static = sqrt(σ_total²−σ_dynamic²) 为慢漂+静态 LUT 误差的slow/static 分量，σ_dynamic 仅为短窗快噪声。",
+      "warning": "signal below noise floor; alpha/fit not physically meaningful"
+    },
+    "uint8": {
+      "alpha": 1.0229626549137127,
+      "beta": -355.0166961785841,
+      "sigma_total": 1143.8570163847724,
+      "sigma_dynamic": 260.9276837887086,
+      "sigma_static": 1113.6990696616986,
+      "sigma_total_counts": 4.485713789744206,
+      "sigma_static_counts": 4.367447332006661,
+      "sigma_dynamic_short_window_counts": 1.0232458187792492,
+      "rms_ideal": 29201.75808650825,
+      "noise_structure": "absolute_additive",
+      "noise_structure_note": "E5 hw σ_total 在 uint8/uint4x16 下≈恒定绝对加性底噪（4.49/3.85 counts），与 EVB 长窗 4.4 counts 吻合；σ_static = sqrt(σ_total²−σ_dynamic²) 为慢漂+静态 LUT 误差的slow/static 分量，σ_dynamic 仅为短窗快噪声。"
+    },
+    "uint4x16": {
+      "alpha": 0.9898616228923051,
+      "beta": 603.3404612866501,
+      "sigma_total": 981.7418917189545,
+      "sigma_dynamic": 260.9276837887086,
+      "sigma_static": 946.4321876334147,
+      "sigma_total_counts": 3.8499682028194298,
+      "sigma_static_counts": 3.711498775032999,
+      "sigma_dynamic_short_window_counts": 1.0232458187792492,
+      "rms_ideal": 29986.30765420778,
+      "noise_structure": "absolute_additive",
+      "noise_structure_note": "E5 hw σ_total 在 uint8/uint4x16 下≈恒定绝对加性底噪（4.49/3.85 counts），与 EVB 长窗 4.4 counts 吻合；σ_static = sqrt(σ_total²−σ_dynamic²) 为慢漂+静态 LUT 误差的slow/static 分量，σ_dynamic 仅为短窗快噪声。"
+    }
+  },
+  "noise_vs_power": {
+    "hw": {
+      "a": 144167.5827301027,
+      "b": 0.0003818301451809411
+    },
+    "sim": {
+      "a": 70563.43200118159,
+      "b": 1.246965297008512e-05
+    }
+  },
+  "e6_sim_max_run_to_run_diff": 1220.0,
+  "sim_characterization": {
+    "type": "stochastic_per_call",
+    "structure": "floor + signal-dependent",
+    "e5_uint4": {
+      "alpha": 1.0430606329109733,
+      "mean": 0.07215201088353344,
+      "std": 1.087772282367014,
+      "mae": 0.8338567420692897,
+      "max_abs": 3.7615111273790554,
+      "std_ci": [
+        0.9550208759591742,
+        1.210267625583228
+      ]
+    }
+  },
+  "qat_suggestion": {
+    "tia_noise_std": 0.03917082707815648,
+    "noise_std_ratio": 0.00893534159880812,
+    "sigma_dynamic_short_window_counts": 1.0232458187792492,
+    "note": "tia_noise_std=σ_total/rms_ideal; noise_std_ratio=σ_dynamic/rms_ideal; rms_ideal 为 uint8 值域 E5 ideal 的 RMS。注意：σ_dynamic 来自 E6 短窗（100 repeats < 1s）快噪声测量，长窗总噪声以 σ_total（uint8 ≈4.49 counts）为准，两者不可混用。"
+  }
+}

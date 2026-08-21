@@ -1,0 +1,74 @@
+[optic_layers] [WARN] osimulator not installed, using FakeOpticalEngine
+EuroSAT total=27000 test window=[0:80] (limit=80)
+[OpticalEngine] Real simulator unavailable, fallback to fake mode
+[load_state] 40/40 tensors loaded from m7_j1w075_v8probe15.pth
+Traceback (most recent call last):
+  File "E:\LT-Simulator\contest-national\opticspacenet\analyze_layers.py", line 133, in <module>
+    main()
+    ~~~~^^
+  File "E:\LT-Simulator\contest-national\opticspacenet\analyze_layers.py", line 68, in main
+    out = model(x)
+  File "E:\anaconda3\Lib\site-packages\torch\nn\modules\module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "E:\anaconda3\Lib\site-packages\torch\nn\modules\module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "E:\LT-Simulator\contest-national\opticspacenet\gazelle_engine.py", line 445, in forward
+    x = self.stage1(x)
+  File "E:\anaconda3\Lib\site-packages\torch\nn\modules\module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "E:\anaconda3\Lib\site-packages\torch\nn\modules\module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "E:\anaconda3\Lib\site-packages\torch\nn\modules\container.py", line 253, in forward
+    input = module(input)
+  File "E:\anaconda3\Lib\site-packages\torch\nn\modules\module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "E:\anaconda3\Lib\site-packages\torch\nn\modules\module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "E:\LT-Simulator\train-test\src\core\optic_layers.py", line 715, in forward
+    result = self.engine.matmul(x_mat, w_mat,
+                                input_bit=self.input_bit,
+                                weight_bit=self.weight_bit,
+                                quantize_inputs=use_real)
+  File "E:\LT-Simulator\train-test\src\core\optic_layers.py", line 360, in matmul
+    result = self._matmul_real(input_matrix, weight_matrix,
+                               input_bit, weight_bit)
+  File "E:\LT-Simulator\contest-national\opticspacenet\gazelle_engine.py", line 192, in _matmul_real
+    raw = self.backend.matmul_2d(x_np, w_np)           # (b*m, n) MAC units
+  File "E:\LT-Simulator\contest-national\opticspacenet\analyze_layers.py", line 41, in matmul_2d
+    y_hw = super(RecorderBackend, self).matmul_2d(x_int, w_int)
+  File "E:\LT-Simulator\contest-national\opticspacenet\gazelle_engine.py", line 113, in matmul_2d
+    self._post(self._b64_body(
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^
+        np.zeros((1, k), dtype=np.uint8), w_i8=w_int.astype(np.int8)))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\LT-Simulator\contest-national\opticspacenet\gazelle_engine.py", line 89, in _post
+    with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\anaconda3\Lib\urllib\request.py", line 189, in urlopen
+    return opener.open(url, data, timeout)
+           ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "E:\anaconda3\Lib\urllib\request.py", line 489, in open
+    response = self._open(req, data)
+  File "E:\anaconda3\Lib\urllib\request.py", line 506, in _open
+    result = self._call_chain(self.handle_open, protocol, protocol +
+                              '_open', req)
+  File "E:\anaconda3\Lib\urllib\request.py", line 466, in _call_chain
+    result = func(*args)
+  File "E:\anaconda3\Lib\urllib\request.py", line 1348, in http_open
+    return self.do_open(http.client.HTTPConnection, req)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\anaconda3\Lib\urllib\request.py", line 1323, in do_open
+    r = h.getresponse()
+  File "E:\anaconda3\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "E:\anaconda3\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "E:\anaconda3\Lib\http\client.py", line 300, in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+                             " response")
+http.client.RemoteDisconnected: Remote end closed connection without response

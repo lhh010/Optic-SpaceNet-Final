@@ -1,0 +1,16 @@
+Optic-SpaceNet 四模型真机小量验证结果 (2026-08-07)
+=====================================================
+Model 2 (SpaceNet V1, spacenet_v1_phase4_v3_int8.pth):
+  200 张 | 真机 86.00% | 干净参考 89.00% | gap -3.00pt
+  (REP=4 + 新鲜逐通道校准；另时刻 88.5%, gap -0.5pt)
+Model 3 (SpaceNet V2 KD, spacenet_v2_phase4_v3_int8.pth):
+  200 张 | 真机 89.00% | 干净参考 89.00% | gap 0.00pt
+Model 1a (Baseline VGG, baseline_vgg_phase4_v3_int8.pth):
+  20 张 (计算量大, 单图~94s) | 真机 100% | 干净参考 95.00% | gap +5.0pt (n=20 仅流程验证)
+Model 1b (变体 B, conv3_2 电计算): MODEL=model1b 一键可跑
+Model 4 (MiniVGG-GAP, minivgg_gap_phase4_v3_int8.pth, 本地新训):
+  50 张 | 真机 96.00% | 干净参考 92.00% | gap +4.0pt
+  (7 个光计算层, 单图~7s@REP1; 本地 QAT int8 test 95.50%)
+=====================================================
+方法: 光电分离 HTTP (server_gazelle.py) + REP=4 噪声平均 + 逐通道仿射修正(分段再校准)
+复现: cd contest-national/opticspacenet && MODEL=modelX N=200 bash run_small.sh

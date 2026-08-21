@@ -1,0 +1,5 @@
+DONE
+task: C1-incident 2026-08-09 真机抢占事件本地归因
+finished: 2026-08-09
+verdict: 主因=(ii) 物理瞬态(热/工作点漂移)~40min自行恢复；(i) 校准态改写=否(他队未跑cali,仅+56counts残留偏移,fresh cali可吸收)；(iii) 软件残留=否(init全量重编程)
+outputs: results/C1_incident_analysis.md, results/c1_incident.json, scripts/c1_incident.py

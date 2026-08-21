@@ -1,0 +1,9 @@
+[optic_layers] [WARN] osimulator not installed, using FakeOpticalEngine
+==================================================================
+  Optic-SpaceNet Model 2 -> REAL Gazelle (compass_matmul)
+  backend=http  limit=600  batch=8
+  weight=E:\LT-Simulator\train-test\weights\spacenet_v1_phase4_v3_int8.pth
+  correction=seg_calib_0.npz
+==================================================================
+EuroSAT total=27000 test window=[0:600] (limit=600)
+correction loaded: 5 weight keys

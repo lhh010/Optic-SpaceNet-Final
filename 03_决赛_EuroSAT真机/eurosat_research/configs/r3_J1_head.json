@@ -1,0 +1,20 @@
+{
+  "name": "r3_J1_head",
+  "channels": [16, 32, 64, 128],
+  "head_dims": [128, 256, 128],
+  "stem_stride": 2,
+  "fast_downsample": true,
+  "kernels": [1, 1, 1],
+  "epochs": 120,
+  "qat": true,
+  "qat_version": "v5",
+  "activation_style": "osim",
+  "output_noise": true,
+  "output_noise_ratio": 0.0392,
+  "output_quant": true,
+  "weight_noise": false,
+  "optimizer": "sgd",
+  "lr": 0.05,
+  "aug": "standard",
+  "label_smoothing": 0.05
+}

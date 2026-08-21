@@ -1,0 +1,12 @@
+[optic_layers] [WARN] osimulator not installed, using FakeOpticalEngine
+EuroSAT total=27000 test window=[0:40] (limit=40)
+[OpticalEngine] Real simulator unavailable, fallback to fake mode
+[load_state] 40/40 tensors loaded from m6_j1_v8probe15.pth
+HW raw accuracy on 40 calib images: 62.50% (25/40)  [24s]
+
+layer stage1.0 (10240, 16)@( 16, 32)  exact|.|mean=    6250  raw_err std=     922  a_mean=1.0326 b_mean=     232  corr_err std=     859 (1.07x reduction)
+layer stage2.0 (2560, 32)@( 32, 64)  exact|.|mean=   15454  raw_err std=    1360  a_mean=1.0111 b_mean=     439  corr_err std=    1270 (1.07x reduction)
+layer stage2.3 (2560, 64)@( 64, 64)  exact|.|mean=   13897  raw_err std=    1585  a_mean=1.0248 b_mean=     689  corr_err std=    1411 (1.12x reduction)
+layer stage3.0 ( 640, 64)@( 64,128)  exact|.|mean=   27347  raw_err std=    2070  a_mean=1.0398 b_mean=     842  corr_err std=    1873 (1.11x reduction)
+layer stage3.3 ( 640,128)@(128,128)  exact|.|mean=   13582  raw_err std=    1659  a_mean=1.0294 b_mean=     826  corr_err std=    1524 (1.09x reduction)
+calibration saved -> calib_m6_20260811k_off4200.npz (5 layers)

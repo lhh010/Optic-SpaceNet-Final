@@ -1,0 +1,28 @@
+{
+  "epochs": 160,
+  "qat": true,
+  "qat_version": "v5",
+  "activation_style": "osim",
+  "output_noise": true,
+  "output_noise_ratio": 0.0392,
+  "output_quant": true,
+  "weight_noise": false,
+  "optimizer": "sgd",
+  "lr": 0.05,
+  "aug": "standard",
+  "label_smoothing": 0.05,
+  "stem_stride": 2,
+  "fast_downsample": true,
+  "kernels": [
+    1,
+    1,
+    1
+  ],
+  "channels": [
+    18,
+    36,
+    72,
+    144
+  ],
+  "name": "r7_h_w110_160"
+}

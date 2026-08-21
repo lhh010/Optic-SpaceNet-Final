@@ -1,0 +1,41 @@
+{
+  "gain": [
+    1000.0,
+    1000.0
+  ],
+  "offset": [
+    2048.0,
+    2048.0
+  ],
+  "offset_error": [
+    0.0011856148485094309,
+    -0.14899303019046783
+  ],
+  "noise_mse": [
+    2.8460499379434623e-07,
+    2.8460499379434623e-07
+  ],
+  "real_lsb": [
+    0.0014651297824457288,
+    0.0014652013778686523
+  ],
+  "scaling_factor": [
+    406.47454833984375,
+    406.47454833984375
+  ],
+  "physical_k_dimension": 8,
+  "physical_n_dimension": 2,
+  "k_dimension": 8,
+  "n_dimension": 2,
+  "repeat_n": 1,
+  "repeat_k": 1,
+  "input_precision": 8,
+  "weight_precision": 8,
+  "output_precision": 12,
+  "mapping_factor_int2bit": 4096,
+  "mapping_factor_int4bit": 256,
+  "mapping_factor_int8bit": 1,
+  "mapping_factor_uint2bit": 5440,
+  "mapping_factor_uint4bit": 272,
+  "mapping_factor_uint8bit": 1
+}

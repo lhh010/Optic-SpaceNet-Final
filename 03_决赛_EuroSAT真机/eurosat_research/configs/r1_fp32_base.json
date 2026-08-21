@@ -1,0 +1,9 @@
+{
+  "name": "r1_fp32_base",
+  "channels": [32, 48, 72, 96],
+  "epochs": 80,
+  "qat": false,
+  "optimizer": "adamw",
+  "aug": "standard",
+  "label_smoothing": 0.0
+}

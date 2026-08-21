@@ -1,0 +1,68 @@
+{
+  "channels": [
+    12,
+    24,
+    48,
+    96
+  ],
+  "stem_stride": 2,
+  "fast_downsample": true,
+  "kernels": [
+    1,
+    1,
+    1
+  ],
+  "stem_kernel": 3,
+  "head_dims": [
+    128
+  ],
+  "macs_ok": true,
+  "data_dir": "E:/LT-Simulator/train-test/data/EuroSAT_RGB",
+  "num_workers": 2,
+  "epochs": 60,
+  "qat": true,
+  "qat_version": "v8",
+  "activation_style": "osim",
+  "output_noise": true,
+  "output_noise_ratio": 0.0392,
+  "output_quant": true,
+  "weight_noise": false,
+  "optimizer": "sgd",
+  "lr": 0.01,
+  "aug": "standard",
+  "label_smoothing": 0.05,
+  "init": null,
+  "layer_noise_sigmas": {
+    "stage1.0": 260.0,
+    "stage2.0": 260.0,
+    "stage2.3": 260.0,
+    "stage3.0": 260.0,
+    "stage3.3": 260.0
+  },
+  "layer_col_off": {
+    "stage1.0": 421.5,
+    "stage2.0": 717.0,
+    "stage2.3": 688.5,
+    "stage3.0": 1308.0,
+    "stage3.3": 396.0
+  },
+  "layer_col_gain": {
+    "stage1.0": 0.03765,
+    "stage2.0": 0.036,
+    "stage2.3": 0.018,
+    "stage3.0": 0.02355,
+    "stage3.3": 0.0189
+  },
+  "layer_dw_rms": {
+    "stage1.0": 5.58,
+    "stage2.0": 9.735,
+    "stage2.3": 7.5,
+    "stage3.0": 7.005,
+    "stage3.3": 10.845
+  },
+  "stem_fp32": true,
+  "head_fp32": true,
+  "warmup_epochs": 2,
+  "name": "m7_j1w075_v8probe15",
+  "init_from": "weights/m7_j1w075_clean.pth"
+}

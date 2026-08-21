@@ -1,0 +1,12 @@
+[optic_layers] [WARN] osimulator not installed, using FakeOpticalEngine
+EuroSAT total=27000 test window=[0:40] (limit=40)
+[OpticalEngine] Real simulator unavailable, fallback to fake mode
+[load_state] 40/40 tensors loaded from m5_j1rf_stem5_v8probe15.pth
+HW raw accuracy on 40 calib images: 67.50% (27/40)  [48s]
+
+layer stage1.0 (10240, 16)@( 16, 32)  exact|.|mean=    5457  raw_err std=     926  a_mean=1.0364 b_mean=     200  corr_err std=     818 (1.13x reduction)
+layer stage2.0 (2560,288)@(288, 64)  exact|.|mean=   37035  raw_err std=    3321  a_mean=0.9652 b_mean=    2926  corr_err std=    3678 (0.90x reduction)
+layer stage2.3 (2560,576)@(576, 64)  exact|.|mean=   39354  raw_err std=    4458  a_mean=0.9927 b_mean=    5319  corr_err std=    4735 (0.94x reduction)
+layer stage3.0 ( 640, 64)@( 64,128)  exact|.|mean=   16098  raw_err std=    1667  a_mean=1.0190 b_mean=     604  corr_err std=    1544 (1.08x reduction)
+layer stage3.3 ( 640,128)@(128,128)  exact|.|mean=    8668  raw_err std=    1457  a_mean=1.0153 b_mean=     691  corr_err std=    1351 (1.08x reduction)
+calibration saved -> calib_m5_20260811h_off5000.npz (5 layers)

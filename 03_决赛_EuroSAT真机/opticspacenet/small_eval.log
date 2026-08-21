@@ -1,0 +1,21 @@
+[optic_layers] [WARN] osimulator not installed, using FakeOpticalEngine
+==================================================================
+  Optic-SpaceNet Model 2 -> REAL Gazelle (compass_matmul)
+  backend=http  limit=200  batch=8
+  weight=E:\LT-Simulator\train-test\weights\spacenet_v1_phase4_v3_int8.pth
+  correction=small_calib.npz
+==================================================================
+EuroSAT total=27000 test window=[0:200] (limit=200)
+correction loaded: 5 weight keys
+[OpticalEngine] Real simulator unavailable, fallback to fake mode
+[load_state] 26/26 tensors loaded from spacenet_v1_phase4_v3_int8.pth
+[HW/http]    25/25  acc=86.00%  elapsed=528s
+FINAL http accuracy (200 images): 86.00% (172/200)
+engine stats: calls=125 total_time=1053.0s
+
+--- NumPy clean reference (same quantization path) ---
+[OpticalEngine] Real simulator unavailable, fallback to fake mode
+[load_state] 26/26 tensors loaded from spacenet_v1_phase4_v3_int8.pth
+[REF/numpy]    25/25  acc=89.00%  elapsed=1s
+FINAL numpy reference accuracy (200 images): 89.00% (178/200)
+HW vs clean-ref gap: -3.00 points

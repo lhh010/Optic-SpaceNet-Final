@@ -1,0 +1,84 @@
+--- a/mnist/j1_board/run_j1_gazelle.py
++++ b/mnist/j1_board/run_j1_gazelle.py
+@@ -13,6 +13,8 @@
+   J1_LIMIT         测试样本数 (default 500)
+   J1_BATCH         批大小 (default 8)
+   J1_DATA          测试数据 npy (default test_images_j1.npy)
++  J1_CALIB         标量 calib json (default ../calib_j1.json)
++  J1_CALIB_COL     逐列 calib json (calibrate_col.py 产物; 设置后优先于标量 calib)
+ 
+ 输出格式: {layer}_w{n}.npy (int8 权重, per-channel scale 存 {layer}_scale.npy)
+           {layer}_in_scale.npy / _in_zp.npy (输入量化参数)
+@@ -41,7 +43,31 @@
+ CALIB_FILE = os.environ.get("J1_CALIB", os.path.join(WDIR, "..", "calib_j1.json"))
+ _CALIB = None
+ 
++# 逐列 (per-output-channel) 校准: calibrate_col.py 产物。设 J1_CALIB_COL 后
++# 优先于标量 calib, 折叠进反量化 (零额外算子); 不设置则回退标量路径, 行为不变。
++CALIB_COL_FILE = os.environ.get("J1_CALIB_COL", "")
++_CALIB_COL = None
+ 
++
++def _load_calib_col():
++    global _CALIB_COL
++    if _CALIB_COL is None:
++        _CALIB_COL = {}
++        if not FAKE and CALIB_COL_FILE and os.path.exists(CALIB_COL_FILE):
++            _CALIB_COL = json.load(open(CALIB_COL_FILE))
++    return _CALIB_COL
++
++
++def col_calib_params(layer):
++    """该层逐列校准 (alpha_vec, beta_vec), 形状 (1, C_out); 无则 None。"""
++    c = _load_calib_col().get(layer)
++    if c is None:
++        return None
++    a = np.asarray(c["alpha"], dtype=np.float64).reshape(1, -1)
++    b = np.asarray(c["beta"], dtype=np.float64).reshape(1, -1)
++    return a, b
++
++
+ def _load_calib():
+     global _CALIB
+     if _CALIB is None:
+@@ -220,11 +246,18 @@
+     x_flat = x.transpose(0, 2, 3, 1).reshape(m, C)
+     x_int, x_scale, x_zp = quantize_act(x_flat)
+     y = optical_mm(x_int, w_int.T)  # (m, C_out)
+-    if layer:
++    cc = col_calib_params(layer) if layer else None
++    if cc is None and layer:
+         y = calib_correct(y, layer)
+     w_scale_arr = np.asarray(w_scale, dtype=np.float64).reshape(1, -1)
+     col_sum = w_int.T.astype(np.float64).sum(axis=0, keepdims=True)  # (1, C_out)
+-    y = x_scale * w_scale_arr * y - x_scale * x_zp * w_scale_arr * col_sum
++    off = x_zp * col_sum
++    if cc is not None:
++        # 逐列 calib 折叠进反量化:
++        #   y_f = x_scale·(w_scale_c/α_c)·(y − β_c − α_c·x_zp·col_sum_c)
++        w_scale_arr = w_scale_arr / cc[0]
++        off = cc[0] * off + cc[1]
++    y = x_scale * w_scale_arr * (y - off)
+     return y.reshape(B, H, W, -1).transpose(0, 3, 1, 2)
+ 
+ 
+@@ -234,11 +267,17 @@
+     反量化公式同 optical_conv1x1。"""
+     x_int, x_scale, x_zp = quantize_act(x)
+     y = optical_mm(x_int, w_int.T)  # (B, C_out)
+-    if layer:
++    cc = col_calib_params(layer) if layer else None
++    if cc is None and layer:
+         y = calib_correct(y, layer)
+     w_scale_arr = np.asarray(w_scale, dtype=np.float64).reshape(1, -1)
+     col_sum = w_int.astype(np.float64).sum(axis=1, keepdims=True).T  # (1, C_out)
+-    y = x_scale * w_scale_arr * y - x_scale * x_zp * w_scale_arr * col_sum
++    off = x_zp * col_sum
++    if cc is not None:
++        # 逐列 calib 折叠进反量化 (公式同 optical_conv1x1)
++        w_scale_arr = w_scale_arr / cc[0]
++        off = cc[0] * off + cc[1]
++    y = x_scale * w_scale_arr * (y - off)
+     return y
+ 
+ 

@@ -1,0 +1,38 @@
+{
+  "name": "c2b_J1_iid260",
+  "channels": [
+    16,
+    32,
+    64,
+    128
+  ],
+  "stem_stride": 2,
+  "fast_downsample": true,
+  "kernels": [
+    1,
+    1,
+    1
+  ],
+  "epochs": 60,
+  "init_from": "auto_research/runs/r3_J1_long_3b6c03f6/best.pth",
+  "qat": true,
+  "qat_version": "v6",
+  "stem_fp32": true,
+  "head_fp32": true,
+  "layer_noise_sigmas": {
+    "stage1.0": 260.0,
+    "stage2.0": 260.0,
+    "stage2.3": 260.0,
+    "stage3.0": 260.0,
+    "stage3.3": 260.0
+  },
+  "activation_style": "osim",
+  "output_noise": true,
+  "output_quant": true,
+  "weight_noise": false,
+  "optimizer": "sgd",
+  "lr": 0.01,
+  "warmup_epochs": 2,
+  "aug": "standard",
+  "label_smoothing": 0.05
+}

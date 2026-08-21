@@ -1,0 +1,23 @@
+[optic_layers] [WARN] osimulator not installed, using FakeOpticalEngine
+==================================================================
+  Optic-SpaceNet model5 -> REAL Gazelle (compass_matmul)
+  backend=http  limit=200  batch=8
+  weight=None
+  correction=calib_m5_20260811g_off4400.npz
+==================================================================
+EuroSAT total=27000 test window=[4400:4600] (limit=200)
+correction loaded: 5 weight keys
+[OpticalEngine] Real simulator unavailable, fallback to fake mode
+[load_state] 40/40 tensors loaded from m5_j1rf_stem5_v8probe15.pth
+error records -> err_m5_20260811g_off4400.npz (offset=4400)
+[HW/http]    25/25  acc=89.00%  elapsed=247s
+FINAL http accuracy (200 images): 89.00% (178/200)
+engine stats: calls=125 total_time=492.1s
+saved 22 error records -> err_m5_20260811g_off4400.npz
+
+--- NumPy clean reference (same quantization path) ---
+[OpticalEngine] Real simulator unavailable, fallback to fake mode
+[load_state] 40/40 tensors loaded from m5_j1rf_stem5_v8probe15.pth
+[REF/numpy]    25/25  acc=95.50%  elapsed=1s
+FINAL numpy reference accuracy (200 images): 95.50% (191/200)
+HW vs clean-ref gap: -6.50 points

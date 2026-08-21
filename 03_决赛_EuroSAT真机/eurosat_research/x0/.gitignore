@@ -1,0 +1,6 @@
+# 大体积/现场数据不入库（仅本地留档）
+data/
+ckpts/
+weights/
+board_ref/
+__pycache__/

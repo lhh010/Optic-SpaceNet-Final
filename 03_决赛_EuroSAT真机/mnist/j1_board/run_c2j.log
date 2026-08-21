@@ -1,0 +1,165 @@
+%I:rhs: file_name_LUT_typ:doublearm
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get vdd is 1.8
+%I:rhs: get vee is 0.0
+%I:rhs: get Power_ref =1000, get gc_mpd_offset=2102
+%I:rhs: config tx calibration value: sw_ch = [9, 10, 11, 12, 13, 14, 15, 16],sw_val=[1, 0, 1, 1, 0, 0, 0, 1], dac_ch = [9, 10, 11, 12, 13, 14, 15, 16], dac_val=[2492, 2860, 1525, 2201, 515, 288, 557, 205]
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: mg_wgh1_sw_list is [17, 18, 19, 20, 21, 22, 23, 24]
+%I:rhs: mg_wgh2_sw_list is [25, 26, 27, 28, 29, 30, 31, 32]
+%I:rhs: get offset value is [2051.29, 2045.07]
+open /dev/ttyPS1 serial error
+open file sucess
+set chaneel1 laster param: /dev/ttyUSB0 is  y = 0.2447x - 5.4282
+open file sucess
+set ch1 current 83.48mA
+open file sucess
+open file sucess
+open file sucess
+open file sucess
+set vee = 0.0,set io value =0
+set vdd = 1.8
+ltc2264 reg read, data=[255, 135]
+ltc2265 verify communication failed,read reg value is:135
+ltc2264 reg read, data=[255, 128]
+data is :0x80
+ltc2264 reg read, data=[255, 203]
+data is :0xcb
+read finished flag =3, before update LUT
+read finished flag =1, count = 0
+read finished flag =3, count = 1
+open file sucess
+open file sucess
+J1 on HW: offset=0 n=1000, batch=8, FAKE=False, HEAD_ELEC=True
+[    8/1000] acc=100.00% elapsed=12.7s
+[   16/1000] acc=100.00% elapsed=25.6s
+[   24/1000] acc=100.00% elapsed=38.3s
+[   32/1000] acc=100.00% elapsed=50.8s
+[   40/1000] acc=97.50% elapsed=63.4s
+[   48/1000] acc=97.92% elapsed=76.0s
+[   56/1000] acc=98.21% elapsed=88.8s
+[   64/1000] acc=98.44% elapsed=101.4s
+[   72/1000] acc=97.22% elapsed=114.2s
+[   80/1000] acc=96.25% elapsed=127.3s
+[   88/1000] acc=95.45% elapsed=139.8s
+[   96/1000] acc=94.79% elapsed=152.3s
+[  104/1000] acc=95.19% elapsed=164.9s
+[  112/1000] acc=94.64% elapsed=177.5s
+[  120/1000] acc=94.17% elapsed=190.0s
+[  128/1000] acc=93.75% elapsed=202.6s
+[  136/1000] acc=93.38% elapsed=215.1s
+[  144/1000] acc=93.06% elapsed=227.6s
+[  152/1000] acc=92.76% elapsed=240.2s
+[  160/1000] acc=92.50% elapsed=252.7s
+[  168/1000] acc=92.26% elapsed=265.3s
+[  176/1000] acc=91.48% elapsed=277.8s
+[  184/1000] acc=90.76% elapsed=290.4s
+[  192/1000] acc=91.15% elapsed=302.9s
+[  200/1000] acc=91.00% elapsed=315.5s
+[  208/1000] acc=90.87% elapsed=328.1s
+[  216/1000] acc=90.74% elapsed=340.7s
+[  224/1000] acc=89.73% elapsed=353.2s
+[  232/1000] acc=90.09% elapsed=365.8s
+[  240/1000] acc=89.58% elapsed=378.3s
+[  248/1000] acc=89.52% elapsed=390.8s
+[  256/1000] acc=89.45% elapsed=403.4s
+[  264/1000] acc=89.39% elapsed=415.9s
+[  272/1000] acc=89.71% elapsed=428.5s
+[  280/1000] acc=89.64% elapsed=441.0s
+[  288/1000] acc=88.89% elapsed=453.6s
+[  296/1000] acc=88.85% elapsed=466.2s
+[  304/1000] acc=88.82% elapsed=478.7s
+[  312/1000] acc=89.10% elapsed=491.3s
+[  320/1000] acc=88.44% elapsed=503.9s
+[  328/1000] acc=87.80% elapsed=516.5s
+[  336/1000] acc=88.10% elapsed=529.3s
+[  344/1000] acc=88.08% elapsed=541.9s
+[  352/1000] acc=88.07% elapsed=554.4s
+[  360/1000] acc=88.33% elapsed=566.9s
+[  368/1000] acc=88.32% elapsed=579.4s
+[  376/1000] acc=88.30% elapsed=592.0s
+[  384/1000] acc=88.54% elapsed=604.6s
+[  392/1000] acc=88.78% elapsed=617.1s
+[  400/1000] acc=88.75% elapsed=629.7s
+[  408/1000] acc=88.48% elapsed=642.2s
+[  416/1000] acc=88.70% elapsed=654.7s
+[  424/1000] acc=88.44% elapsed=667.2s
+[  432/1000] acc=88.66% elapsed=679.8s
+[  440/1000] acc=88.86% elapsed=692.3s
+[  448/1000] acc=88.84% elapsed=704.8s
+[  456/1000] acc=89.04% elapsed=717.4s
+[  464/1000] acc=89.22% elapsed=730.0s
+[  472/1000] acc=89.19% elapsed=742.5s
+[  480/1000] acc=88.96% elapsed=755.0s
+[  488/1000] acc=88.73% elapsed=767.6s
+[  496/1000] acc=88.91% elapsed=780.1s
+[  504/1000] acc=88.49% elapsed=792.6s
+[  512/1000] acc=88.48% elapsed=805.1s
+[  520/1000] acc=88.65% elapsed=817.7s
+[  528/1000] acc=88.83% elapsed=830.2s
+[  536/1000] acc=88.81% elapsed=842.7s
+[  544/1000] acc=88.79% elapsed=855.2s
+[  552/1000] acc=88.77% elapsed=867.8s
+[  560/1000] acc=88.75% elapsed=880.3s
+[  568/1000] acc=88.73% elapsed=892.8s
+[  576/1000] acc=88.54% elapsed=905.3s
+[  584/1000] acc=88.70% elapsed=917.9s
+[  592/1000] acc=88.51% elapsed=930.4s
+[  600/1000] acc=88.50% elapsed=942.9s
+[  608/1000] acc=88.32% elapsed=955.5s
+[  616/1000] acc=88.31% elapsed=968.0s
+[  624/1000] acc=88.14% elapsed=980.6s
+[  632/1000] acc=88.29% elapsed=993.1s
+[  640/1000] acc=88.44% elapsed=1005.6s
+[  648/1000] acc=88.58% elapsed=1018.1s
+[  656/1000] acc=88.41% elapsed=1030.7s
+[  664/1000] acc=88.55% elapsed=1043.2s
+[  672/1000] acc=88.69% elapsed=1055.8s
+[  680/1000] acc=88.82% elapsed=1068.3s
+[  688/1000] acc=88.95% elapsed=1080.9s
+[  696/1000] acc=88.65% elapsed=1093.8s
+[  704/1000] acc=88.78% elapsed=1106.4s
+[  712/1000] acc=88.76% elapsed=1119.0s
+[  720/1000] acc=88.89% elapsed=1131.5s
+[  728/1000] acc=88.74% elapsed=1144.1s
+[  736/1000] acc=88.86% elapsed=1156.6s
+[  744/1000] acc=88.71% elapsed=1169.1s
+[  752/1000] acc=88.56% elapsed=1181.6s
+[  760/1000] acc=88.68% elapsed=1194.1s
+[  768/1000] acc=88.80% elapsed=1206.7s
+[  776/1000] acc=88.66% elapsed=1219.2s
+[  784/1000] acc=88.65% elapsed=1231.7s
+[  792/1000] acc=88.51% elapsed=1244.2s
+[  800/1000] acc=88.50% elapsed=1256.8s
+[  808/1000] acc=88.61% elapsed=1269.3s
+[  816/1000] acc=88.60% elapsed=1281.8s
+[  824/1000] acc=88.71% elapsed=1294.3s
+[  832/1000] acc=88.70% elapsed=1306.8s
+[  840/1000] acc=88.81% elapsed=1319.4s
+[  848/1000] acc=88.92% elapsed=1332.0s
+[  856/1000] acc=88.90% elapsed=1344.5s
+[  864/1000] acc=88.89% elapsed=1357.0s
+[  872/1000] acc=88.88% elapsed=1369.5s
+[  880/1000] acc=88.98% elapsed=1382.0s
+[  888/1000] acc=89.08% elapsed=1394.6s
+[  896/1000] acc=89.06% elapsed=1407.2s
+[  904/1000] acc=89.16% elapsed=1419.8s
+[  912/1000] acc=89.04% elapsed=1432.3s
+[  920/1000] acc=89.13% elapsed=1444.8s
+[  928/1000] acc=89.12% elapsed=1457.5s
+[  936/1000] acc=89.21% elapsed=1470.1s
+[  944/1000] acc=89.30% elapsed=1482.6s
+[  952/1000] acc=88.97% elapsed=1495.1s
+[  960/1000] acc=89.06% elapsed=1507.6s
+[  968/1000] acc=89.15% elapsed=1520.2s
+[  976/1000] acc=89.24% elapsed=1532.7s
+[  984/1000] acc=89.23% elapsed=1545.2s
+[  992/1000] acc=89.11% elapsed=1557.8s
+[ 1000/1000] acc=89.20% elapsed=1570.3s
+FINAL: 89.20%
+%I:rhs: Closing...
+[]

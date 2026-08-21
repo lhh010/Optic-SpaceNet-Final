@@ -1,0 +1,9 @@
+M-validate DONE 2026-08-09
+任务: M5-M8 两阶段 v8 独立复测, test 5400 clean, qat eval 形态
+ckpt: 容器 runs/ 无 M 系 run; 最终 ckpt 在本地 weights/m{5,6,7,8}_*_v8probe15.pth (队友 Windows 训练仅同步权重)
+口径 sanity: x0r_rf_stem5 best.pth 复测 95.8889 = summary 95.89, 管线验证通过
+复测: M5 96.61 (报告96.65) / M6 95.28 (95.22) / M7 94.98 (95.00) / M8 96.20 (96.26) — 全部确认, |diff|<=0.06
+MACs: 5,309,696 / 1,377,536 / 861,440 / 2,163,968 — 与报告 5.31/1.38/0.86/2.16M 全部一致
+判读: M 系 vs X0 同档差异 (+0.33/-0.29/+0.31) 全在种子噪声量级, 无额外信息量; M5 被 ds3pool3 半 MACs 支配
+产物: x0/results/M_validate.md + scripts/eval_m_ckpt.py (本地+容器)
+DONE 2026-08-09

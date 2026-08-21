@@ -1,0 +1,18 @@
+[optic_layers] [WARN] osimulator not installed, using FakeOpticalEngine
+==================================================================
+  Optic-SpaceNet model7 -> REAL Gazelle (compass_matmul)
+  backend=http  limit=200  batch=8
+  weight=None
+  correction=calib_m7r_off3400.npz
+==================================================================
+EuroSAT total=27000 test window=[3400:3600] (limit=200)
+Traceback (most recent call last):
+  File "E:\LT-Simulator\contest-national\opticspacenet\run_eval.py", line 152, in <module>
+    main()
+    ~~~~^^
+  File "E:\LT-Simulator\contest-national\opticspacenet\run_eval.py", line 104, in main
+    z = np.load(corr_path)
+  File "E:\anaconda3\Lib\site-packages\numpy\lib\_npyio_impl.py", line 459, in load
+    fid = stack.enter_context(open(os.fspath(file), "rb"))
+                              ~~~~^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'calib_m7r_off3400.npz'

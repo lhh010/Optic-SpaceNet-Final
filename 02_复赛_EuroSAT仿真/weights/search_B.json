@@ -1,0 +1,17 @@
+{
+  "candidate": "B",
+  "channels": [
+    12,
+    20,
+    30,
+    42
+  ],
+  "params": 47622,
+  "est_macs": 47220,
+  "est_macs_M": 0.05,
+  "best_val_acc": 94.89,
+  "final_val_acc": 94.89,
+  "best_epoch": 79,
+  "weight_path": "weights/search_B.pth",
+  "device": "cuda:1"
+}

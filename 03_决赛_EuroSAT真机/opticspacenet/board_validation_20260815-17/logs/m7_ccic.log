@@ -1,0 +1,677 @@
+[2026-08-16 13:44:10] ==================== CICC M7 FULL CONTROLLED START ====================
+[2026-08-16 13:44:10] SKIP_OPEN_CALI=1: reuse existing fresh cali (manual 2026-08-16)
+[2026-08-16 13:44:10] === [M7 seg#1] off=0 probe+calib start ===
+X%I:rhs: file_name_LUT_typ:doublearm
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get vdd is 1.8
+%I:rhs: get vee is 0.0
+%I:rhs: get Power_ref =1000, get gc_mpd_offset=2101
+%I:rhs: config tx calibration value: sw_ch = [9, 10, 11, 12, 13, 14, 15, 16],sw_val=[1, 0, 1, 1, 0, 0, 0, 1], dac_ch = [9, 10, 11, 12, 13, 14, 15, 16], dac_val=[2870, 2901, 1634, 2170, 413, 207, 484, 153]
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: mg_wgh1_sw_list is [17, 18, 19, 20, 21, 22, 23, 24]
+%I:rhs: mg_wgh2_sw_list is [25, 26, 27, 28, 29, 30, 31, 32]
+%I:rhs: get offset value is [2051.29, 2045.07]
+open /dev/ttyPS1 serial error
+open file sucess
+set chaneel1 laster param: /dev/ttyUSB0 is  y = 0.2447x - 5.4282
+open file sucess
+set ch1 current 83.48mA
+open file sucess
+open file sucess
+open file sucess
+open file sucess
+set vee = 0.0,set io value =0
+set vdd = 1.8
+ltc2264 reg read, data=[255, 135]
+ltc2265 verify communication failed,read reg value is:135
+ltc2264 reg read, data=[255, 128]
+data is :0x80
+ltc2264 reg read, data=[255, 203]
+data is :0xcb
+read finished flag =3, before update LUT
+read finished flag =1, count = 0
+read finished flag =3, count = 1
+open file sucess
+open file sucess
+s1a: rows=16384 cols=24 resid_std=782.1 dt=22s
+s2a: rows=4096 cols=48 resid_std=1237.5 dt=10s
+s2b: rows=4096 cols=48 resid_std=1593.4 dt=15s
+s3a: rows=1024 cols=96 resid_std=2280.2 dt=7s
+s3b: rows=1024 cols=96 resid_std=1453.4 dt=13s
+DONE
+%I:rhs: Closing...
+[]
+%I:rhs: file_name_LUT_typ:doublearm
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get vdd is 1.8
+%I:rhs: get vee is 0.0
+%I:rhs: get Power_ref =1000, get gc_mpd_offset=2101
+%I:rhs: config tx calibration value: sw_ch = [9, 10, 11, 12, 13, 14, 15, 16],sw_val=[1, 0, 1, 1, 0, 0, 0, 1], dac_ch = [9, 10, 11, 12, 13, 14, 15, 16], dac_val=[2870, 2901, 1634, 2170, 413, 207, 484, 153]
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: mg_wgh1_sw_list is [17, 18, 19, 20, 21, 22, 23, 24]
+%I:rhs: mg_wgh2_sw_list is [25, 26, 27, 28, 29, 30, 31, 32]
+%I:rhs: get offset value is [2051.29, 2045.07]
+open /dev/ttyPS1 serial error
+open file sucess
+set chaneel1 laster param: /dev/ttyUSB0 is  y = 0.2447x - 5.4282
+open file sucess
+set ch1 current 83.48mA
+open file sucess
+open file sucess
+open file sucess
+open file sucess
+set vee = 0.0,set io value =0
+set vdd = 1.8
+ltc2264 reg read, data=[255, 135]
+ltc2265 verify communication failed,read reg value is:135
+ltc2264 reg read, data=[255, 128]
+data is :0x80
+ltc2264 reg read, data=[255, 203]
+data is :0xcb
+read finished flag =3, before update LUT
+read finished flag =1, count = 0
+read finished flag =3, count = 1
+open file sucess
+open file sucess
+s1a: alpha=1.04760 beta=103.4 resid_std=743.4 ideal_rms=5280
+s2a: alpha=1.04979 beta=310.0 resid_std=1104.2 ideal_rms=12089
+s2b: alpha=1.04988 beta=648.4 resid_std=1303.7 ideal_rms=19042
+s3a: alpha=1.04976 beta=934.1 resid_std=1625.0 ideal_rms=32340
+s3b: alpha=1.06066 beta=629.2 resid_std=1226.1 ideal_rms=13174
+h1: alpha=1.05434 beta=1547.8 resid_std=1891.5 ideal_rms=53448
+h2: alpha=1.04805 beta=1129.5 resid_std=1711.6 ideal_rms=21898
+saved /home/uisrc/j1/calib_scalar_m7ccic.json
+%I:rhs: Closing...
+[]
+scalar 对照: /home/uisrc/j1/calib_scalar_m7ccic.json
+s1a: n=16384 cols=24 | scalar 741.2 -> col 668.2 (std -9.9%, var -18.7%) | alpha_c std=0.04037 (SE 1.43e-03, SNR 28) beta_c std=325.1 (SE 5.7, SNR 57)
+s2a: n=4096 cols=48 | scalar 1105.1 -> col 1034.5 (std -6.4%, var -12.4%) | alpha_c std=0.03756 (SE 3.00e-03, SNR 13) beta_c std=543.0 (SE 22.4, SNR 24)
+s2b: n=4096 cols=48 | scalar 1303.8 -> col 1242.7 (std -4.7%, var -9.2%) | alpha_c std=0.01248 (SE 1.49e-03, SNR 8) beta_c std=385.1 (SE 24.1, SNR 16)
+s3a: n=1024 cols=96 | scalar 1619.7 -> col 1378.0 (std -14.9%, var -27.6%) | alpha_c std=0.02206 (SE 3.34e-03, SNR 7) beta_c std=842.1 (SE 69.8, SNR 12)
+s3b: n=1024 cols=96 | scalar 1225.4 -> col 1193.8 (std -2.6%, var -5.1%) | alpha_c std=0.01393 (SE 3.68e-03, SNR 4) beta_c std=291.3 (SE 40.1, SNR 7)
+saved /home/uisrc/j1/calib_col_m7ccic.json
+
+==== 留出验证汇总 (标量 -> 逐列, 后半数据) ====
+  s1a        741.2 ->     668.2   std -  9.9%  var - 18.7%
+  s2a       1105.1 ->    1034.5   std -  6.4%  var - 12.4%
+  s2b       1303.8 ->    1242.7   std -  4.7%  var -  9.2%
+  s3a       1619.7 ->    1378.0   std - 14.9%  var - 27.6%
+  s3b       1225.4 ->    1193.8   std -  2.6%  var -  5.1%
+[2026-08-16 13:47:04] === [M7 seg#1] off=0 calib 2min -> run budget 20min -> LIMIT=600 ===
+%I:rhs: file_name_LUT_typ:doublearm
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get vdd is 1.8
+%I:rhs: get vee is 0.0
+%I:rhs: get Power_ref =1000, get gc_mpd_offset=2101
+%I:rhs: config tx calibration value: sw_ch = [9, 10, 11, 12, 13, 14, 15, 16],sw_val=[1, 0, 1, 1, 0, 0, 0, 1], dac_ch = [9, 10, 11, 12, 13, 14, 15, 16], dac_val=[2870, 2901, 1634, 2170, 413, 207, 484, 153]
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: mg_wgh1_sw_list is [17, 18, 19, 20, 21, 22, 23, 24]
+%I:rhs: mg_wgh2_sw_list is [25, 26, 27, 28, 29, 30, 31, 32]
+%I:rhs: get offset value is [2051.29, 2045.07]
+open /dev/ttyPS1 serial error
+open file sucess
+set chaneel1 laster param: /dev/ttyUSB0 is  y = 0.2447x - 5.4282
+open file sucess
+set ch1 current 83.48mA
+open file sucess
+open file sucess
+open file sucess
+open file sucess
+set vee = 0.0,set io value =0
+set vdd = 1.8
+ltc2264 reg read, data=[255, 135]
+ltc2265 verify communication failed,read reg value is:135
+ltc2264 reg read, data=[255, 128]
+data is :0x80
+ltc2264 reg read, data=[255, 203]
+data is :0xcb
+read finished flag =3, before update LUT
+read finished flag =1, count = 0
+read finished flag =3, count = 1
+open file sucess
+open file sucess
+J1 on HW: offset=0 n=600, batch=8, FAKE=False, HEAD_ELEC=False
+[    8/600] acc=87.50% elapsed=8.6s
+[   16/600] acc=87.50% elapsed=17.2s
+[   24/600] acc=87.50% elapsed=25.8s
+[   32/600] acc=87.50% elapsed=34.4s
+[   40/600] acc=87.50% elapsed=43.0s
+[   48/600] acc=87.50% elapsed=51.6s
+[   56/600] acc=87.50% elapsed=60.2s
+[   64/600] acc=89.06% elapsed=68.8s
+[   72/600] acc=87.50% elapsed=77.4s
+[   80/600] acc=87.50% elapsed=86.0s
+[   88/600] acc=88.64% elapsed=94.6s
+[   96/600] acc=87.50% elapsed=103.2s
+[  104/600] acc=87.50% elapsed=111.8s
+[  112/600] acc=84.82% elapsed=120.4s
+[  120/600] acc=84.17% elapsed=129.0s
+[  128/600] acc=83.59% elapsed=137.6s
+[  136/600] acc=84.56% elapsed=146.2s
+[  144/600] acc=84.72% elapsed=154.8s
+[  152/600] acc=84.21% elapsed=163.4s
+[  160/600] acc=84.38% elapsed=172.0s
+[  168/600] acc=84.52% elapsed=180.6s
+[  176/600] acc=84.09% elapsed=189.2s
+[  184/600] acc=83.70% elapsed=197.9s
+[  192/600] acc=83.85% elapsed=206.5s
+[  200/600] acc=83.50% elapsed=215.1s
+[  208/600] acc=83.65% elapsed=223.7s
+[  216/600] acc=84.26% elapsed=232.3s
+[  224/600] acc=83.48% elapsed=240.9s
+[  232/600] acc=83.19% elapsed=249.5s
+[  240/600] acc=82.50% elapsed=258.1s
+[  248/600] acc=81.45% elapsed=266.7s
+[  256/600] acc=80.86% elapsed=275.3s
+[  264/600] acc=80.68% elapsed=283.9s
+[  272/600] acc=81.25% elapsed=292.5s
+[  280/600] acc=81.43% elapsed=301.1s
+[  288/600] acc=80.90% elapsed=309.7s
+[  296/600] acc=81.08% elapsed=318.3s
+[  304/600] acc=81.25% elapsed=326.9s
+[  312/600] acc=81.73% elapsed=335.5s
+[  320/600] acc=81.25% elapsed=344.1s
+[  328/600] acc=80.49% elapsed=352.8s
+[  336/600] acc=80.95% elapsed=361.4s
+[  344/600] acc=80.81% elapsed=370.0s
+[  352/600] acc=80.97% elapsed=378.6s
+[  360/600] acc=81.11% elapsed=387.2s
+[  368/600] acc=81.52% elapsed=395.8s
+[  376/600] acc=81.91% elapsed=404.4s
+[  384/600] acc=82.03% elapsed=413.1s
+[  392/600] acc=82.14% elapsed=421.7s
+[  400/600] acc=82.25% elapsed=430.3s
+[  408/600] acc=82.35% elapsed=438.9s
+[  416/600] acc=82.69% elapsed=447.5s
+[  424/600] acc=82.55% elapsed=456.1s
+[  432/600] acc=82.64% elapsed=464.7s
+[  440/600] acc=82.73% elapsed=473.3s
+[  448/600] acc=82.37% elapsed=481.9s
+[  456/600] acc=82.46% elapsed=490.5s
+[  464/600] acc=82.33% elapsed=499.1s
+[  472/600] acc=82.20% elapsed=507.7s
+[  480/600] acc=82.08% elapsed=516.3s
+[  488/600] acc=82.17% elapsed=524.9s
+[  496/600] acc=82.06% elapsed=533.5s
+[  504/600] acc=81.75% elapsed=542.1s
+[  512/600] acc=81.64% elapsed=550.7s
+[  520/600] acc=81.92% elapsed=559.3s
+[  528/600] acc=82.01% elapsed=567.9s
+[  536/600] acc=82.09% elapsed=576.5s
+[  544/600] acc=82.17% elapsed=585.4s
+[  552/600] acc=82.25% elapsed=594.0s
+[  560/600] acc=82.14% elapsed=602.6s
+[  568/600] acc=82.04% elapsed=611.2s
+[  576/600] acc=81.94% elapsed=620.2s
+[  584/600] acc=81.85% elapsed=629.2s
+[  592/600] acc=81.76% elapsed=638.3s
+[  600/600] acc=81.83% elapsed=647.3s
+FINAL: 81.83%
+logits saved: /home/uisrc/j1/logits_probe_m7ccic__off0.npy
+%I:rhs: Closing...
+[]
+[2026-08-16 13:58:05] !!! ALERT [M7 seg#1] off=0 acc=81.83 < expect-5 (<=90.0) -> cooldown 1800s
+[2026-08-16 13:58:05] === [M7 seg#1] off=0 acc=81.83 (expect 95.0) calib=2min run=11min limit=600 ===
+[2026-08-16 13:58:05] === [M7 seg#1] cooldown 1800s ===
+[2026-08-16 14:28:05] === [M7 seg#2] off=600 probe+calib start ===
+X%I:rhs: file_name_LUT_typ:doublearm
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get vdd is 1.8
+%I:rhs: get vee is 0.0
+%I:rhs: get Power_ref =1000, get gc_mpd_offset=2101
+%I:rhs: config tx calibration value: sw_ch = [9, 10, 11, 12, 13, 14, 15, 16],sw_val=[1, 0, 1, 1, 0, 0, 0, 1], dac_ch = [9, 10, 11, 12, 13, 14, 15, 16], dac_val=[2870, 2901, 1634, 2170, 413, 207, 484, 153]
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: mg_wgh1_sw_list is [17, 18, 19, 20, 21, 22, 23, 24]
+%I:rhs: mg_wgh2_sw_list is [25, 26, 27, 28, 29, 30, 31, 32]
+%I:rhs: get offset value is [2051.29, 2045.07]
+open /dev/ttyPS1 serial error
+open file sucess
+set chaneel1 laster param: /dev/ttyUSB0 is  y = 0.2447x - 5.4282
+open file sucess
+set ch1 current 83.48mA
+open file sucess
+open file sucess
+open file sucess
+open file sucess
+set vee = 0.0,set io value =0
+set vdd = 1.8
+ltc2264 reg read, data=[255, 135]
+ltc2265 verify communication failed,read reg value is:135
+ltc2264 reg read, data=[255, 128]
+data is :0x80
+ltc2264 reg read, data=[255, 203]
+data is :0xcb
+read finished flag =3, before update LUT
+read finished flag =1, count = 0
+read finished flag =3, count = 1
+open file sucess
+open file sucess
+s1a: rows=16384 cols=24 resid_std=784.6 dt=22s
+s2a: rows=4096 cols=48 resid_std=1236.5 dt=10s
+s2b: rows=4096 cols=48 resid_std=1596.3 dt=15s
+s3a: rows=1024 cols=96 resid_std=2294.3 dt=7s
+s3b: rows=1024 cols=96 resid_std=1452.2 dt=13s
+DONE
+%I:rhs: Closing...
+[]
+%I:rhs: file_name_LUT_typ:doublearm
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get vdd is 1.8
+%I:rhs: get vee is 0.0
+%I:rhs: get Power_ref =1000, get gc_mpd_offset=2101
+%I:rhs: config tx calibration value: sw_ch = [9, 10, 11, 12, 13, 14, 15, 16],sw_val=[1, 0, 1, 1, 0, 0, 0, 1], dac_ch = [9, 10, 11, 12, 13, 14, 15, 16], dac_val=[2870, 2901, 1634, 2170, 413, 207, 484, 153]
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: mg_wgh1_sw_list is [17, 18, 19, 20, 21, 22, 23, 24]
+%I:rhs: mg_wgh2_sw_list is [25, 26, 27, 28, 29, 30, 31, 32]
+%I:rhs: get offset value is [2051.29, 2045.07]
+open /dev/ttyPS1 serial error
+open file sucess
+set chaneel1 laster param: /dev/ttyUSB0 is  y = 0.2447x - 5.4282
+open file sucess
+set ch1 current 83.48mA
+open file sucess
+open file sucess
+open file sucess
+open file sucess
+set vee = 0.0,set io value =0
+set vdd = 1.8
+ltc2264 reg read, data=[255, 135]
+ltc2265 verify communication failed,read reg value is:135
+ltc2264 reg read, data=[255, 128]
+data is :0x80
+ltc2264 reg read, data=[255, 203]
+data is :0xcb
+read finished flag =3, before update LUT
+read finished flag =1, count = 0
+read finished flag =3, count = 1
+open file sucess
+open file sucess
+s1a: alpha=1.04781 beta=100.8 resid_std=742.8 ideal_rms=5280
+s2a: alpha=1.04983 beta=289.9 resid_std=1104.0 ideal_rms=12089
+s2b: alpha=1.04992 beta=638.6 resid_std=1304.7 ideal_rms=19042
+s3a: alpha=1.04966 beta=927.3 resid_std=1640.7 ideal_rms=32340
+s3b: alpha=1.06108 beta=613.8 resid_std=1227.4 ideal_rms=13174
+h1: alpha=1.05395 beta=1497.4 resid_std=1888.4 ideal_rms=53448
+h2: alpha=1.05014 beta=1123.0 resid_std=1722.0 ideal_rms=21898
+saved /home/uisrc/j1/calib_scalar_m7ccic.json
+%I:rhs: Closing...
+[]
+scalar 对照: /home/uisrc/j1/calib_scalar_m7ccic.json
+s1a: n=16384 cols=24 | scalar 744.2 -> col 671.5 (std -9.8%, var -18.6%) | alpha_c std=0.04111 (SE 1.44e-03, SNR 29) beta_c std=324.0 (SE 5.7, SNR 57)
+s2a: n=4096 cols=48 | scalar 1105.1 -> col 1033.0 (std -6.5%, var -12.6%) | alpha_c std=0.03778 (SE 3.00e-03, SNR 13) beta_c std=552.4 (SE 22.2, SNR 25)
+s2b: n=4096 cols=48 | scalar 1308.7 -> col 1248.1 (std -4.6%, var -9.0%) | alpha_c std=0.01242 (SE 1.48e-03, SNR 8) beta_c std=384.0 (SE 24.0, SNR 16)
+s3a: n=1024 cols=96 | scalar 1641.0 -> col 1383.2 (std -15.7%, var -29.0%) | alpha_c std=0.02211 (SE 3.30e-03, SNR 7) beta_c std=858.6 (SE 69.8, SNR 12)
+s3b: n=1024 cols=96 | scalar 1228.0 -> col 1194.0 (std -2.8%, var -5.5%) | alpha_c std=0.01363 (SE 3.69e-03, SNR 4) beta_c std=307.1 (SE 40.5, SNR 8)
+saved /home/uisrc/j1/calib_col_m7ccic.json
+
+==== 留出验证汇总 (标量 -> 逐列, 后半数据) ====
+  s1a        744.2 ->     671.5   std -  9.8%  var - 18.6%
+  s2a       1105.1 ->    1033.0   std -  6.5%  var - 12.6%
+  s2b       1308.7 ->    1248.1   std -  4.6%  var -  9.0%
+  s3a       1641.0 ->    1383.2   std - 15.7%  var - 29.0%
+  s3b       1228.0 ->    1194.0   std -  2.8%  var -  5.5%
+[2026-08-16 14:30:58] === [M7 seg#2] off=600 calib 2min -> run budget 20min -> LIMIT=600 ===
+%I:rhs: file_name_LUT_typ:doublearm
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get vdd is 1.8
+%I:rhs: get vee is 0.0
+%I:rhs: get Power_ref =1000, get gc_mpd_offset=2101
+%I:rhs: config tx calibration value: sw_ch = [9, 10, 11, 12, 13, 14, 15, 16],sw_val=[1, 0, 1, 1, 0, 0, 0, 1], dac_ch = [9, 10, 11, 12, 13, 14, 15, 16], dac_val=[2870, 2901, 1634, 2170, 413, 207, 484, 153]
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: mg_wgh1_sw_list is [17, 18, 19, 20, 21, 22, 23, 24]
+%I:rhs: mg_wgh2_sw_list is [25, 26, 27, 28, 29, 30, 31, 32]
+%I:rhs: get offset value is [2051.29, 2045.07]
+open /dev/ttyPS1 serial error
+open file sucess
+set chaneel1 laster param: /dev/ttyUSB0 is  y = 0.2447x - 5.4282
+open file sucess
+set ch1 current 83.48mA
+open file sucess
+open file sucess
+open file sucess
+open file sucess
+set vee = 0.0,set io value =0
+set vdd = 1.8
+ltc2264 reg read, data=[255, 135]
+ltc2265 verify communication failed,read reg value is:135
+ltc2264 reg read, data=[255, 128]
+data is :0x80
+ltc2264 reg read, data=[255, 203]
+data is :0xcb
+read finished flag =3, before update LUT
+read finished flag =1, count = 0
+read finished flag =3, count = 1
+open file sucess
+open file sucess
+J1 on HW: offset=600 n=600, batch=8, FAKE=False, HEAD_ELEC=False
+[    8/600] acc=62.50% elapsed=8.6s
+[   16/600] acc=81.25% elapsed=17.2s
+[   24/600] acc=83.33% elapsed=25.8s
+[   32/600] acc=84.38% elapsed=34.4s
+[   40/600] acc=82.50% elapsed=43.0s
+[   48/600] acc=83.33% elapsed=51.6s
+[   56/600] acc=80.36% elapsed=60.2s
+[   64/600] acc=81.25% elapsed=68.8s
+[   72/600] acc=81.94% elapsed=77.4s
+[   80/600] acc=83.75% elapsed=86.0s
+[   88/600] acc=84.09% elapsed=94.6s
+[   96/600] acc=84.38% elapsed=103.2s
+[  104/600] acc=84.62% elapsed=111.8s
+[  112/600] acc=84.82% elapsed=120.4s
+[  120/600] acc=85.00% elapsed=129.0s
+[  128/600] acc=83.59% elapsed=137.6s
+[  136/600] acc=84.56% elapsed=146.2s
+[  144/600] acc=83.33% elapsed=154.8s
+[  152/600] acc=83.55% elapsed=163.4s
+[  160/600] acc=83.12% elapsed=172.0s
+[  168/600] acc=82.14% elapsed=180.6s
+[  176/600] acc=82.39% elapsed=189.2s
+[  184/600] acc=82.61% elapsed=197.8s
+[  192/600] acc=81.77% elapsed=206.4s
+[  200/600] acc=82.00% elapsed=215.1s
+[  208/600] acc=81.73% elapsed=223.7s
+[  216/600] acc=81.02% elapsed=232.3s
+[  224/600] acc=81.70% elapsed=240.9s
+[  232/600] acc=81.47% elapsed=249.5s
+[  240/600] acc=82.08% elapsed=258.1s
+[  248/600] acc=82.26% elapsed=266.7s
+[  256/600] acc=81.64% elapsed=275.3s
+[  264/600] acc=81.06% elapsed=283.9s
+[  272/600] acc=80.88% elapsed=292.5s
+[  280/600] acc=81.43% elapsed=301.1s
+[  288/600] acc=81.60% elapsed=309.7s
+[  296/600] acc=81.42% elapsed=318.3s
+[  304/600] acc=81.58% elapsed=326.9s
+[  312/600] acc=81.09% elapsed=335.5s
+[  320/600] acc=81.56% elapsed=344.1s
+[  328/600] acc=82.01% elapsed=352.7s
+[  336/600] acc=81.25% elapsed=361.4s
+[  344/600] acc=81.69% elapsed=370.0s
+[  352/600] acc=81.25% elapsed=378.6s
+[  360/600] acc=81.67% elapsed=387.2s
+[  368/600] acc=81.79% elapsed=395.8s
+[  376/600] acc=81.65% elapsed=404.4s
+[  384/600] acc=81.25% elapsed=413.0s
+[  392/600] acc=81.12% elapsed=421.6s
+[  400/600] acc=81.00% elapsed=430.2s
+[  408/600] acc=81.37% elapsed=438.8s
+[  416/600] acc=80.53% elapsed=447.4s
+[  424/600] acc=80.19% elapsed=456.1s
+[  432/600] acc=80.09% elapsed=464.7s
+[  440/600] acc=80.45% elapsed=473.3s
+[  448/600] acc=80.58% elapsed=481.9s
+[  456/600] acc=80.70% elapsed=490.5s
+[  464/600] acc=80.82% elapsed=499.1s
+[  472/600] acc=80.72% elapsed=507.7s
+[  480/600] acc=81.04% elapsed=516.3s
+[  488/600] acc=81.15% elapsed=525.0s
+[  496/600] acc=81.45% elapsed=533.6s
+[  504/600] acc=81.55% elapsed=542.2s
+[  512/600] acc=81.45% elapsed=550.8s
+[  520/600] acc=81.35% elapsed=559.4s
+[  528/600] acc=80.68% elapsed=568.0s
+[  536/600] acc=80.97% elapsed=576.6s
+[  544/600] acc=80.88% elapsed=585.2s
+[  552/600] acc=80.98% elapsed=593.9s
+[  560/600] acc=80.71% elapsed=602.5s
+[  568/600] acc=80.81% elapsed=611.1s
+[  576/600] acc=80.90% elapsed=619.7s
+[  584/600] acc=81.16% elapsed=628.3s
+[  592/600] acc=81.42% elapsed=636.9s
+[  600/600] acc=81.67% elapsed=645.6s
+FINAL: 81.67%
+logits saved: /home/uisrc/j1/logits_probe_m7ccic__off600.npy
+%I:rhs: Closing...
+[]
+[2026-08-16 14:41:58] !!! ALERT [M7 seg#2] off=600 acc=81.67 < expect-5 (<=90.0) -> cooldown 1800s
+[2026-08-16 14:41:58] === [M7 seg#2] off=600 acc=81.67 (expect 95.0) calib=2min run=11min limit=600 ===
+[2026-08-16 14:41:58] === [M7 seg#2] cooldown 1800s ===
+[2026-08-16 15:11:58] === [M7 seg#3] off=1200 probe+calib start ===
+X%I:rhs: file_name_LUT_typ:doublearm
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get vdd is 1.8
+%I:rhs: get vee is 0.0
+%I:rhs: get Power_ref =1000, get gc_mpd_offset=2101
+%I:rhs: config tx calibration value: sw_ch = [9, 10, 11, 12, 13, 14, 15, 16],sw_val=[1, 0, 1, 1, 0, 0, 0, 1], dac_ch = [9, 10, 11, 12, 13, 14, 15, 16], dac_val=[2870, 2901, 1634, 2170, 413, 207, 484, 153]
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: mg_wgh1_sw_list is [17, 18, 19, 20, 21, 22, 23, 24]
+%I:rhs: mg_wgh2_sw_list is [25, 26, 27, 28, 29, 30, 31, 32]
+%I:rhs: get offset value is [2051.29, 2045.07]
+open /dev/ttyPS1 serial error
+open file sucess
+set chaneel1 laster param: /dev/ttyUSB0 is  y = 0.2447x - 5.4282
+open file sucess
+set ch1 current 83.48mA
+open file sucess
+open file sucess
+open file sucess
+open file sucess
+set vee = 0.0,set io value =0
+set vdd = 1.8
+ltc2264 reg read, data=[255, 135]
+ltc2265 verify communication failed,read reg value is:135
+ltc2264 reg read, data=[255, 128]
+data is :0x80
+ltc2264 reg read, data=[255, 203]
+data is :0xcb
+read finished flag =3, before update LUT
+read finished flag =1, count = 0
+read finished flag =3, count = 1
+open file sucess
+open file sucess
+s1a: rows=16384 cols=24 resid_std=784.0 dt=22s
+s2a: rows=4096 cols=48 resid_std=1237.6 dt=10s
+s2b: rows=4096 cols=48 resid_std=1593.8 dt=15s
+s3a: rows=1024 cols=96 resid_std=2292.1 dt=7s
+s3b: rows=1024 cols=96 resid_std=1453.9 dt=13s
+DONE
+%I:rhs: Closing...
+[]
+%I:rhs: file_name_LUT_typ:doublearm
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get vdd is 1.8
+%I:rhs: get vee is 0.0
+%I:rhs: get Power_ref =1000, get gc_mpd_offset=2101
+%I:rhs: config tx calibration value: sw_ch = [9, 10, 11, 12, 13, 14, 15, 16],sw_val=[1, 0, 1, 1, 0, 0, 0, 1], dac_ch = [9, 10, 11, 12, 13, 14, 15, 16], dac_val=[2870, 2901, 1634, 2170, 413, 207, 484, 153]
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: mg_wgh1_sw_list is [17, 18, 19, 20, 21, 22, 23, 24]
+%I:rhs: mg_wgh2_sw_list is [25, 26, 27, 28, 29, 30, 31, 32]
+%I:rhs: get offset value is [2051.29, 2045.07]
+open /dev/ttyPS1 serial error
+open file sucess
+set chaneel1 laster param: /dev/ttyUSB0 is  y = 0.2447x - 5.4282
+open file sucess
+set ch1 current 83.48mA
+open file sucess
+open file sucess
+open file sucess
+open file sucess
+set vee = 0.0,set io value =0
+set vdd = 1.8
+ltc2264 reg read, data=[255, 135]
+ltc2265 verify communication failed,read reg value is:135
+ltc2264 reg read, data=[255, 128]
+data is :0x80
+ltc2264 reg read, data=[255, 203]
+data is :0xcb
+read finished flag =3, before update LUT
+read finished flag =1, count = 0
+read finished flag =3, count = 1
+open file sucess
+open file sucess
+s1a: alpha=1.04739 beta=106.7 resid_std=744.5 ideal_rms=5280
+s2a: alpha=1.04937 beta=311.2 resid_std=1105.5 ideal_rms=12089
+s2b: alpha=1.04944 beta=662.1 resid_std=1309.3 ideal_rms=19042
+s3a: alpha=1.04959 beta=953.6 resid_std=1642.4 ideal_rms=32340
+s3b: alpha=1.06099 beta=631.3 resid_std=1233.5 ideal_rms=13174
+h1: alpha=1.05428 beta=1567.1 resid_std=1899.1 ideal_rms=53448
+h2: alpha=1.04849 beta=1152.8 resid_std=1749.3 ideal_rms=21898
+saved /home/uisrc/j1/calib_scalar_m7ccic.json
+%I:rhs: Closing...
+[]
+scalar 对照: /home/uisrc/j1/calib_scalar_m7ccic.json
+s1a: n=16384 cols=24 | scalar 744.8 -> col 671.1 (std -9.9%, var -18.8%) | alpha_c std=0.04129 (SE 1.43e-03, SNR 29) beta_c std=325.4 (SE 5.7, SNR 57)
+s2a: n=4096 cols=48 | scalar 1107.8 -> col 1036.7 (std -6.4%, var -12.4%) | alpha_c std=0.03873 (SE 3.02e-03, SNR 13) beta_c std=558.7 (SE 22.3, SNR 25)
+s2b: n=4096 cols=48 | scalar 1310.9 -> col 1248.7 (std -4.7%, var -9.3%) | alpha_c std=0.01254 (SE 1.50e-03, SNR 8) beta_c std=389.3 (SE 24.0, SNR 16)
+s3a: n=1024 cols=96 | scalar 1643.3 -> col 1385.1 (std -15.7%, var -29.0%) | alpha_c std=0.02202 (SE 3.36e-03, SNR 7) beta_c std=856.0 (SE 69.4, SNR 12)
+s3b: n=1024 cols=96 | scalar 1224.8 -> col 1192.0 (std -2.7%, var -5.3%) | alpha_c std=0.01371 (SE 3.70e-03, SNR 4) beta_c std=301.7 (SE 40.1, SNR 8)
+saved /home/uisrc/j1/calib_col_m7ccic.json
+
+==== 留出验证汇总 (标量 -> 逐列, 后半数据) ====
+  s1a        744.8 ->     671.1   std -  9.9%  var - 18.8%
+  s2a       1107.8 ->    1036.7   std -  6.4%  var - 12.4%
+  s2b       1310.9 ->    1248.7   std -  4.7%  var -  9.3%
+  s3a       1643.3 ->    1385.1   std - 15.7%  var - 29.0%
+  s3b       1224.8 ->    1192.0   std -  2.7%  var -  5.3%
+[2026-08-16 15:14:52] === [M7 seg#3] off=1200 calib 2min -> run budget 20min -> LIMIT=600 ===
+%I:rhs: file_name_LUT_typ:doublearm
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: get vdd is 1.8
+%I:rhs: get vee is 0.0
+%I:rhs: get Power_ref =1000, get gc_mpd_offset=2101
+%I:rhs: config tx calibration value: sw_ch = [9, 10, 11, 12, 13, 14, 15, 16],sw_val=[1, 0, 1, 1, 0, 0, 0, 1], dac_ch = [9, 10, 11, 12, 13, 14, 15, 16], dac_val=[2870, 2901, 1634, 2170, 413, 207, 484, 153]
+%I:rhs: get die_type is die4
+%I:rhs: get die_id is N4-D09-1-EVB02-2mA(new)
+%I:rhs: mg_wgh1_sw_list is [17, 18, 19, 20, 21, 22, 23, 24]
+%I:rhs: mg_wgh2_sw_list is [25, 26, 27, 28, 29, 30, 31, 32]
+%I:rhs: get offset value is [2051.29, 2045.07]
+open /dev/ttyPS1 serial error
+open file sucess
+set chaneel1 laster param: /dev/ttyUSB0 is  y = 0.2447x - 5.4282
+open file sucess
+set ch1 current 83.48mA
+open file sucess
+open file sucess
+open file sucess
+open file sucess
+set vee = 0.0,set io value =0
+set vdd = 1.8
+ltc2264 reg read, data=[255, 135]
+ltc2265 verify communication failed,read reg value is:135
+ltc2264 reg read, data=[255, 128]
+data is :0x80
+ltc2264 reg read, data=[255, 203]
+data is :0xcb
+read finished flag =3, before update LUT
+read finished flag =1, count = 0
+read finished flag =3, count = 1
+open file sucess
+open file sucess
+J1 on HW: offset=1200 n=600, batch=8, FAKE=False, HEAD_ELEC=False
+[    8/600] acc=87.50% elapsed=8.7s
+[   16/600] acc=87.50% elapsed=17.3s
+[   24/600] acc=87.50% elapsed=26.0s
+[   32/600] acc=87.50% elapsed=34.6s
+[   40/600] acc=87.50% elapsed=43.3s
+[   48/600] acc=89.58% elapsed=51.9s
+[   56/600] acc=85.71% elapsed=60.6s
+[   64/600] acc=85.94% elapsed=69.2s
+[   72/600] acc=84.72% elapsed=77.9s
+[   80/600] acc=83.75% elapsed=86.5s
+[   88/600] acc=84.09% elapsed=95.2s
+[   96/600] acc=84.38% elapsed=103.8s
+[  104/600] acc=83.65% elapsed=112.5s
+[  112/600] acc=83.93% elapsed=121.1s
+[  120/600] acc=85.00% elapsed=129.8s
+[  128/600] acc=84.38% elapsed=138.6s
+[  136/600] acc=84.56% elapsed=147.2s
+[  144/600] acc=84.72% elapsed=155.9s
+[  152/600] acc=84.21% elapsed=164.5s
+[  160/600] acc=83.75% elapsed=173.2s
+[  168/600] acc=82.74% elapsed=181.8s
+[  176/600] acc=82.39% elapsed=190.5s
+[  184/600] acc=81.52% elapsed=199.2s
+[  192/600] acc=80.21% elapsed=207.8s
+[  200/600] acc=80.50% elapsed=216.5s
+[  208/600] acc=80.29% elapsed=225.1s
+[  216/600] acc=81.02% elapsed=233.8s
+[  224/600] acc=80.80% elapsed=242.4s
+[  232/600] acc=80.17% elapsed=251.1s
+[  240/600] acc=80.42% elapsed=259.9s
+[  248/600] acc=80.65% elapsed=268.5s
+[  256/600] acc=80.86% elapsed=277.4s
+[  264/600] acc=81.44% elapsed=286.1s
+[  272/600] acc=81.25% elapsed=294.8s
+[  280/600] acc=80.71% elapsed=303.4s
+[  288/600] acc=81.25% elapsed=312.1s
+[  296/600] acc=81.76% elapsed=320.8s
+[  304/600] acc=82.24% elapsed=329.5s
+[  312/600] acc=81.73% elapsed=338.2s
+[  320/600] acc=82.19% elapsed=346.9s
+[  328/600] acc=82.01% elapsed=355.6s
+[  336/600] acc=82.44% elapsed=364.2s
+[  344/600] acc=82.56% elapsed=372.9s
+[  352/600] acc=82.39% elapsed=381.6s
+[  360/600] acc=82.50% elapsed=390.2s
+[  368/600] acc=82.07% elapsed=398.9s
+[  376/600] acc=81.38% elapsed=407.5s
+[  384/600] acc=81.77% elapsed=416.2s
+[  392/600] acc=81.63% elapsed=424.8s
+[  400/600] acc=81.75% elapsed=433.5s
+[  408/600] acc=81.62% elapsed=442.1s
+[  416/600] acc=81.25% elapsed=450.8s
+[  424/600] acc=81.37% elapsed=459.5s
+[  432/600] acc=81.25% elapsed=468.2s
+[  440/600] acc=81.59% elapsed=476.8s
+[  448/600] acc=81.92% elapsed=485.5s
+[  456/600] acc=81.80% elapsed=494.5s
+[  464/600] acc=82.11% elapsed=503.4s
+[  472/600] acc=81.78% elapsed=512.1s
+[  480/600] acc=81.67% elapsed=520.8s
+[  488/600] acc=81.76% elapsed=529.4s
+[  496/600] acc=81.85% elapsed=538.1s
+[  504/600] acc=81.94% elapsed=546.7s
+[  512/600] acc=82.03% elapsed=555.4s
+[  520/600] acc=82.31% elapsed=564.1s
+[  528/600] acc=82.39% elapsed=572.7s
+[  536/600] acc=82.28% elapsed=581.4s
+[  544/600] acc=82.35% elapsed=590.0s
+[  552/600] acc=82.25% elapsed=598.7s
+[  560/600] acc=81.79% elapsed=607.4s
+[  568/600] acc=81.69% elapsed=616.0s
+[  576/600] acc=81.60% elapsed=624.7s
+[  584/600] acc=81.68% elapsed=633.3s
+[  592/600] acc=81.76% elapsed=642.0s
+[  600/600] acc=81.67% elapsed=650.7s
+FINAL: 81.67%
+logits saved: /home/uisrc/j1/logits_probe_m7ccic__off1200.npy
+%I:rhs: Closing...
+[]
+[2026-08-16 15:25:56] !!! ALERT [M7 seg#3] off=1200 acc=81.67 < expect-5 (<=90.0) -> cooldown 1800s
+[2026-08-16 15:25:56] === [M7 seg#3] off=1200 acc=81.67 (expect 95.0) calib=2min run=11min limit=600 ===
+[2026-08-16 15:25:56] === [M7 seg#3] cooldown 1800s ===
