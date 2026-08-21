@@ -1,0 +1,7 @@
+# 数据集不进 git（本地直接可跑；下载源: modelscope lhh010/EuroSAT_RGB）
+02_复赛_EuroSAT仿真/data/
+03_决赛_EuroSAT真机/data/
+
+# 运行产物
+**/__pycache__/
+**/*.pyc
