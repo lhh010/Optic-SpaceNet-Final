@@ -31,6 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from PIL import Image  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
+from typing import Optional  # noqa: E402  (py3.9: 无 str|None 语法)
 
 from gazelle_engine import NumpyBackend, HttpBackend, build_model  # noqa: E402
 
@@ -54,7 +55,15 @@ def get_model():
         backend = (HttpBackend(host=OPTC_HOST, port=OPTC_PORT)
                    if BACKEND == "http" else NumpyBackend())
         corr = CORRECTION or None
-        _model, _engine = build_model(WEIGHT or None, backend,
+        # 提交包布局: 权重在 02_复赛/weights; gazelle_engine 的 _TS 默认指向原仓库 train-test,
+        # 此处显式传绝对路径规避 (未指定 HW_WEIGHT 时按 registry 默认名取)
+        weight = WEIGHT or os.path.join(
+            _PKG, "02_复赛_EuroSAT仿真", "weights",
+            {"model2": "spacenet_v1_phase4_v3_int8.pth",
+             "model3": "spacenet_v2_phase4_v3_int8.pth",
+             "model1a": "baseline_vgg_phase4_v3_int8.pth",
+             "model1b": "baseline_vgg_phase4_v3_int8_vB.pth"}[MODEL_NAME])
+        _model, _engine = build_model(weight, backend,
                                      correction=corr,
                                      model_name=MODEL_NAME)
     return _model, _engine
@@ -64,8 +73,9 @@ CLASSES = ["AnnualCrop", "Forest", "HerbaceousVegetation", "Highway",
            "Industrial", "Pasture", "PermanentCrop", "Residential",
            "River", "SeaLake"]
 
-MEAN = np.array([0.3434, 0.3807, 0.3253], dtype=np.float32)
-STD = np.array([0.1874, 0.1865, 0.1781], dtype=np.float32)
+# 与复赛训练/推理 pipeline 一致（demo/server/inference_local.py 同款 ImageNet 归一化）
+MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 
 def preprocess(image_bytes):
@@ -77,7 +87,7 @@ def preprocess(image_bytes):
 
 class InferRequest(BaseModel):
     image_b64: str
-    label: str | None = None
+    label: Optional[str] = None
 
 
 app = FastAPI(title="决赛真机光计算演示")
@@ -182,10 +192,17 @@ def checks_minirun():
     rng = np.random.RandomState(7)
     picks = sorted(rng.choice(test_idx, size=min(CHECK_N, len(test_idx)), replace=False).tolist())
 
-    # 双引擎：numpy 干净参考 + 真机
-    m_np, _ = build_model(None, NumpyBackend(), model_name=MODEL_NAME)
-    m_hw, _ = build_model(WEIGHT or None, HttpBackend(host=OPTC_HOST, port=OPTC_PORT),
-                          model_name=MODEL_NAME)
+    # 双引擎：numpy 干净参考 + 真机（权重路径同 get_model 的包内解析）
+    weight = WEIGHT or os.path.join(
+        _PKG, "02_复赛_EuroSAT仿真", "weights",
+        {"model2": "spacenet_v1_phase4_v3_int8.pth",
+         "model3": "spacenet_v2_phase4_v3_int8.pth",
+         "model1a": "baseline_vgg_phase4_v3_int8.pth",
+         "model1b": "baseline_vgg_phase4_v3_int8_vB.pth"}[MODEL_NAME])
+    m_np, _ = build_model(weight, NumpyBackend(), model_name=MODEL_NAME)
+    hw_backend = (HttpBackend(host=OPTC_HOST, port=OPTC_PORT)
+                  if BACKEND == "http" else NumpyBackend())
+    m_hw, _ = build_model(weight, hw_backend, model_name=MODEL_NAME)
     agree = 0
     acc_np = acc_hw = 0
     for i in picks:
