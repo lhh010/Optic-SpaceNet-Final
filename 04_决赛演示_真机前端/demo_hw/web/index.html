@@ -42,6 +42,7 @@ let b64=null;
 async function health(){try{const r=await fetch("/api/health");const j=await r.json();
   const remote=j.remote||"";
   if(j.local==="ok"&&remote.startsWith("gazelle-hw")){$("status").textContent="● 真机已连接（Gazelle 光计算）";$("status").className="ok";}
+  else if(j.local==="ok"&&remote==="unreachable"){$("status").textContent="● 真机不可达（检查 SSH 隧道/板上 server_gazelle）";$("status").className="down";}
   else if(j.local==="ok"){$("status").textContent="● numpy 参考模式（未连真机）";$("status").className="down";}
   else{$("status").textContent="● 后端异常";$("status").className="down";}
   $("engmeta").textContent=`  模型 ${j.model||"?"} · 后端 ${j.backend||"?"}`;}catch(e){$("status").textContent="● 后端未启动";$("status").className="down";}}
@@ -62,7 +63,7 @@ function card(c){const ok=c.pass?"✔":"✘";const col=c.pass?"#4ade80":"#f87171
 $("chk").onclick=async()=>{$("chk").disabled=true;$("checks").innerHTML="探针检测中…";
   try{const p=await(await fetch("/api/checks/probe")).json();$("checks").innerHTML=card(p)+"<p class=meta>mini-run 推理中（10 图 × 光算层真机往返，约 1–2 分钟）…</p>";
     const m=await(await fetch("/api/checks/minirun",{method:"POST"})).json();
-    $("checks").innerHTML=card(p)+card(m.canary)+card(m.minirun)+`<p class="meta">参考 acc ${m.acc_ref}% · 真机 acc ${m.acc_hw}%（n=${m.n}）</p>`;}
+    $("checks").innerHTML=card(p)+card(m.canary)+card(m.minirun)+`<p class="meta">参考 acc ${m.acc_ref}% · 真机 acc ${m.acc_hw}%（n=${m.n}）· 引擎 ${m.engine||"?"}</p>`;}
   catch(e){$("checks").innerHTML="检测失败："+e.message+"（检查隧道/板上 server）";}
   $("chk").disabled=false;};
 $("ebrgo").onclick=async()=>{const v=$("ebr").value;if(!v)return alert("先在板端跑 compass_evb_test 并读数");

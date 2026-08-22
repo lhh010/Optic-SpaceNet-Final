@@ -95,6 +95,21 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_methods=["*"], allow_headers=["*"])
 
 
+def _probe_board(timeout=5):
+    """轻量可达性探测: 独立短超时 HttpBackend 发一个 1x2@2x1 小矩阵乘。
+    不复用 engine.backend (其 timeout=120s, 黑洞式断连会挂太久), 也不污染
+    其权重上传缓存。可达返回 (True, ""); 否则 (False, 原因)。"""
+    pb = HttpBackend(host=OPTC_HOST, port=OPTC_PORT, timeout=timeout)
+    try:
+        x = np.array([[1, 2]], dtype=np.uint8)
+        w = np.array([[1], [-1]], dtype=np.int8)
+        got = pb.matmul_2d(x, w)
+        ok = bool(np.allclose(got, [[-1.0]], atol=1e-6))
+        return ok, ("" if ok else "探针结果异常: %s" % np.asarray(got).ravel()[:4])
+    except Exception as e:
+        return False, str(e)[:150]
+
+
 @app.get("/api/health")
 def health():
     try:
@@ -104,10 +119,16 @@ def health():
         return {"local": "error", "remote": "down", "detail": str(e)[:200]}
     try:
         backend = engine.backend
-        remote = ("gazelle-hw:" + backend.name) if backend.name == "http" else "numpy-ref"
     except Exception:
-        remote = "unknown"
-    return {"local": local, "remote": remote,
+        backend = None
+    if backend is None or backend.name != "http":
+        return {"local": local, "remote": "numpy-ref",
+                "model": MODEL_NAME, "backend": BACKEND}
+    # http 模式: 必须真实探测板上 /matmul, 防"假绿"(HttpBackend 构造不建连)
+    ok, detail = _probe_board()
+    return {"local": local,
+            "remote": "gazelle-hw:http" if ok else "unreachable",
+            "detail": "" if ok else detail,
             "model": MODEL_NAME, "backend": BACKEND}
 
 
@@ -222,6 +243,7 @@ def checks_minirun():
         "n": n,
         "acc_ref": round(acc_np / n * 100, 1),
         "acc_hw": round(acc_hw / n * 100, 1),
+        "engine": "gazelle-hw" if BACKEND == "http" else "numpy-ref（离线自测模式）",
         "canary": {"name": "③ Canary gap < 0.5pt（EuroSAT-10 等价演示）",
                    "pass": bool(gap <= 0.5),
                    "value": "%.1fpt" % gap,

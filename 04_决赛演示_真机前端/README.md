@@ -36,8 +36,9 @@ uvicorn demo_hw.server:app --port 8100
 #   CORRECTION=calib.npz                     校准修正（可选）
 ```
 
-浏览器打开 <http://127.0.0.1:8100> —— 状态灯绿色且显示「真机已连接（Gazelle 光计算）」才代表真机链路；
-显示 numpy 参考模式时是离线参考，**演示时必须口头说明**。
+浏览器打开 <http://127.0.0.1:8100> —— 状态灯绿色且显示「真机已连接（Gazelle 光计算）」才代表真机链路。
+健康检查每 15 秒会**主动向板上 /matmul 发一个短超时（5s）小探针**，绿色代表真实可达，不是仅配置了 http 后端；
+显示「真机不可达」= 配置了 http 但探针失败（隧道断 / 板上 server 未起）；显示 numpy 参考模式时是离线参考，**演示时必须口头说明**。
 
 ## 1.5 放行判据可视化面板（新增，对应 PPT P17）
 
@@ -64,7 +65,8 @@ uvicorn demo_hw.server:app --port 8100
 
 | 现象 | 原因 | 处置 |
 |---|---|---|
-| /api/health remote=down | 隧道断 / 板上 server 未起 | 重连隧道；板上重启 server_gazelle.py |
+| 状态灯「真机不可达」 | 隧道断 / 板上 server 未起 / 板子离线（探针 5s 超时即报，不再假绿） | 重连隧道；板上重启 server_gazelle.py；确认板子可达 |
+| /api/health remote=down | 本地模型加载失败 | 看 health 返回的 detail（权重路径/依赖） |
 | 推理 503 超时 | 板被占用 / 热崩溃 | 按 Runbook §2 判据重查；冷却后 fresh 校准 |
 | 精度明显偏低 | 校准 stale | 重新 compass_cali（20 分钟纪律），重跑 |
 | 只想验证页面逻辑 | — | `HW_BACKEND=numpy` 启动，走干净参考 |
