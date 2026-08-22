@@ -25,7 +25,13 @@
 │   ├── eurosat_research/     ← 架构搜索（R1-R8）、v8 QAT 训练、X0 联合设计、全部权重
 │   ├── opticspacenet/        ← 真机部署脚本、逐列校准、全量跑批日志与错误明细
 │   ├── mnist/j1_board/       ← 板端校准工具（calibrate_col.py / probe_dump.py）
-│   └── crossval/             ← 真机-仿真器噪声配对实验（E0-E7）
+│   ├── crossval/             ← 真机-仿真器噪声配对实验（E0-E7）
+│   └── data/                 ← EuroSAT_RGB 数据集（本地就位，.gitignore 排除）
+├── 04_决赛演示_真机前端/      ← 浏览器 × Gazelle 真机光计算推理演示（demo-hw）
+│   ├── demo_hw/server.py     ← FastAPI 后端（复用路径 A 引擎连真机 :8000）
+│   ├── demo_hw/web/          ← 单页前端（上传图片 → 真机推理 → Top-5）
+│   └── README.md             ← Runbook：隧道/判据/启动/故障/诚实边界
+│   （02_复赛/demo/ 为复赛 osim 仿真版前端，口径见其 README）
 └── docs/                     ← Model_Overview / Board_Deploy_Config 等全局参考
 ```
 

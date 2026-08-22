@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Optic-SpaceNet · 真机光计算演示</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:880px;margin:24px auto;padding:0 16px;background:#0f1420;color:#e8ecf4}
+h1{font-size:1.4rem} .card{background:#171e2e;border:1px solid #2a3550;border-radius:12px;padding:16px;margin:12px 0}
+#status{font-weight:600} .ok{color:#4ade80} .down{color:#f87171}
+img{max-width:220px;border-radius:8px} .bar{height:10px;background:#2a3550;border-radius:6px;overflow:hidden;margin:2px 0}
+.bar i{display:block;height:100%;background:#38bdf8}
+button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:10px 22px;font-size:1rem;cursor:pointer}
+button:disabled{opacity:.4} .meta{color:#93a4c3;font-size:.85rem}
+</style>
+</head>
+<body>
+<h1>Optic-SpaceNet · 真机光计算推理演示（CICC1003564）</h1>
+<div class="card">后端状态：<span id="status" class="down">检测中…</span> <span id="engmeta" class="meta"></span></div>
+<div class="card">
+  <input type="file" id="file" accept="image/*">
+  <button id="go" disabled>真机推理</button>
+  <p class="meta">选择一张 EuroSAT 风格遥感图（64×64 或任意尺寸，自动缩放）</p>
+</div>
+<div class="card" id="result" style="display:none">
+  <img id="thumb"><br>
+  <b id="pred"></b> <span id="correct"></span>
+  <div id="topk"></div>
+  <p class="meta" id="lat"></p>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+let b64=null;
+async function health(){try{const r=await fetch("/api/health");const j=await r.json();
+  const remote=j.remote||"";
+  if(j.local==="ok"&&remote.startsWith("gazelle-hw")){$("status").textContent="● 真机已连接（Gazelle 光计算）";$("status").className="ok";}
+  else if(j.local==="ok"){$("status").textContent="● numpy 参考模式（未连真机）";$("status").className="down";}
+  else{$("status").textContent="● 后端异常";$("status").className="down";}
+  $("engmeta").textContent=`  模型 ${j.model||"?"} · 后端 ${j.backend||"?"}`;}catch(e){$("status").textContent="● 后端未启动";$("status").className="down";}}
+health();setInterval(health,15000);
+$("file").onchange=e=>{const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();rd.onload=()=>{b64=rd.result.split(",")[1];$("go").disabled=false;
+  $("thumb").src=rd.result;$("result").style.display="block";};rd.readAsDataURL(f);};
+$("go").onclick=async()=>{if(!b64)return;$("go").disabled=true;$("pred").textContent="推理中…（真机逐层光计算，约数秒）";
+  try{const r=await fetch("/api/infer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({image_b64:b64})});
+  const j=await r.json();if(!r.ok)throw new Error(j.detail||r.status);
+  $("pred").textContent="预测："+j.pred;
+  $("correct").textContent=j.correct===true?" ✔":j.correct===false?" ✘":"";
+  $("topk").innerHTML=j.topk.map(t=>`${t.cls} ${(t.p*100).toFixed(1)}%<div class="bar"><i style="width:${t.p*100}%"></i></div>`).join("");
+  $("lat").textContent=`耗时 ${j.latency_s}s · 引擎 ${j.engine}`;}catch(e){$("pred").textContent="失败："+e.message;}
+  $("go").disabled=false;};
+</script>
+</body>
+</html>

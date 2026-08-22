@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<!-- 三模型光计算推理对比页面 — 选图后对 Model 1/2/3 分别做光计算推理，展示耗时和结果对比。 -->
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>三模型光计算推理对比</title>
+<link rel="stylesheet" href="vendor/fonts.css">
+<script src="vendor/tailwind.play.js"></script>
+<script>
+tailwind.config = {
+  theme: { extend: {
+    colors: { ink: "#05070f", panel: "#0b1120", edge: "#1e293b",
+              photon: "#22d3ee", gold: "#fbbf24", elec: "#64748b",
+              m1: "#f472b6", m2: "#a78bfa", m3: "#22d3ee" },
+    fontFamily: { mono: ['"JetBrains Mono"', "ui-monospace",
+                         "SFMono-Regular", "Menlo", "monospace"] },
+  } },
+};
+</script>
+<style type="text/tailwindcss">
+  .card { @apply bg-panel border border-edge rounded-xl p-5; }
+  .btn  { @apply rounded-lg px-4 py-2 text-sm font-bold transition cursor-pointer; }
+</style>
+<style>
+  html { scroll-behavior: smooth; }
+  body { background: #05070f; color: #e2e8f0; font-family: 'JetBrains Mono', monospace; }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, .4); }
+    50%      { box-shadow: 0 0 18px 4px rgba(34, 211, 238, .25); }
+  }
+  .skeleton { animation: pulse-glow 1.2s ease-in-out infinite; }
+
+  .bar-grow { transition: width 0.8s cubic-bezier(.2,.8,.2,1); }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .spinner { animation: spin 1s linear infinite; }
+
+  .fade-in { animation: fadeIn 0.5s ease forwards; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .elapsed-timer { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<header class="border-b border-edge px-6 py-4 flex items-center justify-between">
+  <div>
+    <h1 class="text-xl font-bold">三模型光计算推理对比</h1>
+    <p class="text-xs text-slate-500 mt-1">Model 1 · Model 2 · Model 3 → 同图对比推理结果与耗时</p>
+  </div>
+  <a href="/" class="btn bg-edge hover:bg-slate-700 text-xs">← 返回 Model 3 演示</a>
+</header>
+
+<!-- Image Selection -->
+<section class="px-6 py-6 border-b border-edge">
+  <div class="max-w-5xl mx-auto flex items-center gap-6">
+    <div class="flex-shrink-0">
+      <div id="img-preview" class="w-32 h-32 bg-panel border border-edge rounded-lg flex items-center justify-center overflow-hidden">
+        <span class="text-slate-600 text-xs">待选图</span>
+      </div>
+    </div>
+    <div class="flex flex-col gap-3 flex-1">
+      <div class="flex gap-2 items-center">
+        <select id="class-select" class="bg-panel border border-edge rounded-lg text-xs px-3 py-2 flex-1"></select>
+        <button id="btn-sample" class="btn bg-edge hover:bg-slate-700">抽图</button>
+        <label class="btn bg-edge hover:bg-slate-700 text-center text-xs cursor-pointer">
+          上传<input type="file" id="file" accept="image/*" class="hidden">
+        </label>
+      </div>
+      <div id="infer-status" class="text-sm text-slate-400 min-h-[20px]">选择图片后点击「开始推理」</div>
+      <button id="btn-infer" class="btn bg-photon/20 border border-photon text-photon hover:bg-photon/30 w-fit disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+        开始推理（三模型并行）
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- Three Model Cards -->
+<section class="px-6 py-8">
+  <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6" id="model-cards">
+    <!-- Model 1 -->
+    <div class="card" id="card-m1">
+      <div class="flex items-center gap-2 mb-3">
+        <div class="w-3 h-3 rounded-full bg-m1"></div>
+        <h2 class="text-sm font-bold">Model 1 · Baseline VGG</h2>
+      </div>
+      <div class="text-xs text-slate-500 mb-4">6×Conv 3×3 + 2×Linear · 2.39M params</div>
+      <div id="result-m1" class="min-h-[280px] flex items-center justify-center">
+        <span class="text-slate-600 text-xs">等待推理…</span>
+      </div>
+    </div>
+    <!-- Model 2 -->
+    <div class="card" id="card-m2">
+      <div class="flex items-center gap-2 mb-3">
+        <div class="w-3 h-3 rounded-full bg-m2"></div>
+        <h2 class="text-sm font-bold">Model 2 · SpaceNet V1</h2>
+      </div>
+      <div class="text-xs text-slate-500 mb-4">stem + 3 stages + FC · 268K params</div>
+      <div id="result-m2" class="min-h-[280px] flex items-center justify-center">
+        <span class="text-slate-600 text-xs">等待推理…</span>
+      </div>
+    </div>
+    <!-- Model 3 -->
+    <div class="card" id="card-m3">
+      <div class="flex items-center gap-2 mb-3">
+        <div class="w-3 h-3 rounded-full bg-m3"></div>
+        <h2 class="text-sm font-bold">Model 3 · SpaceNet V2 + KD</h2>
+      </div>
+      <div class="text-xs text-slate-500 mb-4">stem + 3 stages + FC · 267K params · 知识蒸馏</div>
+      <div id="result-m3" class="min-h-[280px] flex items-center justify-center">
+        <span class="text-slate-600 text-xs">等待推理…</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Summary Comparison Panel -->
+<section class="px-6 pb-12" id="sec-summary" style="display:none;">
+  <div class="max-w-6xl mx-auto card fade-in">
+    <h3 class="text-sm text-gold mb-4 font-bold">综合对比</h3>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="text-slate-400 border-b border-edge">
+            <th class="text-left py-2 px-2">指标</th>
+            <th class="text-center py-2 px-2 text-m1">Model 1</th>
+            <th class="text-center py-2 px-2 text-m2">Model 2</th>
+            <th class="text-center py-2 px-2 text-m3">Model 3</th>
+          </tr>
+        </thead>
+        <tbody id="summary-tbody"></tbody>
+      </table>
+    </div>
+    <!-- Latency Bar Chart -->
+    <div class="mt-6">
+      <h4 class="text-xs text-slate-400 mb-3">逐层耗时对比 (本次推理)</h4>
+      <div id="latency-chart" class="flex flex-col gap-4"></div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer link -->
+<footer class="border-t border-edge px-6 py-4 text-center text-xs text-slate-600">
+  <a href="/" class="hover:text-photon">← 返回 Model 3 逐层演示</a>
+</footer>
+
+<script src="compare.js"></script>
+</body>
+</html>
