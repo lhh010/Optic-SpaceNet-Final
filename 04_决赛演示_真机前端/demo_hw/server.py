@@ -129,4 +129,102 @@ def infer(req: InferRequest):
     }
 
 
+# ============================================================
+# 上板放行判据检查（PPT P17 四项判据的可视化演示）
+#   判据1 EBR>=8        — 需板端 compass_evb_test，评委现场看板端读数后手动输入验证
+#   判据2 error_std<±2% — 自动：已知探针矩阵乘 vs numpy 精确值
+#   判据3 canary<0.5pt  — 自动：10 图 mini-run 的 hw acc vs numpy 干净参考 acc 之差
+#                          （真机判据为 MNIST canary；此处用 EuroSAT 10 图等价演示，页面如实标注）
+#   判据4 mini-run 对齐 — 自动：同一次 10 图 run 的逐图预测与参考一致性 + 精度正常
+# 时间控制：探针(秒级) + 10图×5光算层往返，总计 <2 分钟
+# ============================================================
+
+CHECK_N = int(os.environ.get("HW_CHECK_N", "10"))
+
+
+@app.get("/api/checks/probe")
+def checks_probe():
+    """判据2：探针矩阵乘误差（与 numpy 精确参考对比）。"""
+    rng = np.random.RandomState(42)
+    x = rng.randint(1, 200, size=(16, 8)).astype(np.uint8)   # (m,k)
+    w = rng.randint(-100, 100, size=(8, 2)).astype(np.int8)  # (k,n)
+    exact = x.astype(np.float64) @ w.astype(np.float64)      # (16,2)
+    model, engine = get_model()
+    backend = engine.backend
+    try:
+        got = backend.matmul_2d(x.astype(np.int64), w.astype(np.int64))
+    except Exception as e:
+        return {"name": "error_std 偏差", "pass": False,
+                "detail": "真机 matmul 失败: %s" % str(e)[:150]}
+    err = np.abs(got - exact).ravel()
+    rms = float(np.sqrt(np.mean(err ** 2)))
+    ref_scale = float(np.sqrt(np.mean(np.abs(exact) ** 2))) + 1e-9
+    rel = rms / ref_scale * 100.0
+    ok = rel < 2.0
+    return {"name": "② error_std 偏差 < ±2%", "pass": bool(ok),
+            "value": "%.2f%%" % rel,
+            "detail": "16 组已知探针 vs numpy 精确参考，相对 RMS 误差"}
+
+
+@app.post("/api/checks/minirun")
+def checks_minirun():
+    """判据3+4：10 图 mini-run（hw vs numpy 干净参考）。"""
+    # 数据：优先包内 02_复赛 data（.gitignore 本地就位）
+    data_dir = os.environ.get("HW_DATA",
+                              os.path.join(_PKG, "02_复赛_EuroSAT仿真", "data", "EuroSAT_RGB"))
+    if not os.path.isdir(data_dir):
+        raise HTTPException(503, "EuroSAT 数据未找到: %s（见 README §0）" % data_dir)
+    sys.path.insert(0, os.path.join(_SRC, "data"))
+    from eurosat_split import split_indices  # noqa
+    import torchvision.datasets as datasets  # noqa
+    ds = datasets.ImageFolder(data_dir)
+    _, _, test_idx = split_indices(len(ds), seed=42, val_ratio=0.2, test_ratio=0.2)
+    rng = np.random.RandomState(7)
+    picks = sorted(rng.choice(test_idx, size=min(CHECK_N, len(test_idx)), replace=False).tolist())
+
+    # 双引擎：numpy 干净参考 + 真机
+    m_np, _ = build_model(None, NumpyBackend(), model_name=MODEL_NAME)
+    m_hw, _ = build_model(WEIGHT or None, HttpBackend(host=OPTC_HOST, port=OPTC_PORT),
+                          model_name=MODEL_NAME)
+    agree = 0
+    acc_np = acc_hw = 0
+    for i in picks:
+        path, target = ds.samples[i]
+        img = Image.open(path).convert("RGB").resize((64, 64))
+        arr = (np.asarray(img, dtype=np.float32) / 255.0 - MEAN) / STD
+        t = torch.from_numpy(arr.transpose(2, 0, 1)[None])
+        with torch.no_grad():
+            p_np = int(m_np(t).argmax())
+            p_hw = int(m_hw(t).argmax())
+        acc_np += int(p_np == target)
+        acc_hw += int(p_hw == target)
+        agree += int(p_np == p_hw)
+    n = len(picks)
+    gap = abs(acc_np - acc_hw) / n * 100.0
+    return {
+        "n": n,
+        "acc_ref": round(acc_np / n * 100, 1),
+        "acc_hw": round(acc_hw / n * 100, 1),
+        "canary": {"name": "③ Canary gap < 0.5pt（EuroSAT-10 等价演示）",
+                   "pass": bool(gap <= 0.5),
+                   "value": "%.1fpt" % gap,
+                   "detail": "hw 与干净参考 acc 差（真机判据为 MNIST canary）"},
+        "minirun": {"name": "④ Mini-run 采样对齐",
+                    "pass": bool(agree / n >= 0.8 and acc_hw / n >= 0.5),
+                    "value": "%d/%d 图与参考一致，hw acc %.1f%%" % (agree, n, acc_hw / n * 100),
+                    "detail": "逐图预测一致率与精度正常性"},
+    }
+
+
+@app.post("/api/checks/ebr")
+def checks_ebr(req: dict):
+    """判据1：EBR 手动录入（板端 compass_evb_test 读数）。"""
+    try:
+        v = float(req.get("ebr"))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "ebr 字段缺失/非数值")
+    return {"name": "① EBR ≥ 8", "pass": bool(v >= 8), "value": str(v),
+            "detail": "板端 compass_evb_test 实测值（现场读数录入）"}
+
+
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
