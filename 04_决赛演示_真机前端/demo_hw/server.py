@@ -1,14 +1,21 @@
 # -*- coding: utf-8 -*-
-"""决赛真机演示后端 — 浏览器前端 × Gazelle 真机光计算（demo-hw）。
+"""决赛真机演示后端 v2 — 浏览器 × Gazelle 真机光计算（demo-hw）。
 
-复用 03_决赛_EuroSAT真机/opticspacenet 的完整路径 A 推理链
-(gazelle_engine.build_model + HttpBackend -> 板上 server_gazelle.py)。
-与 02_复赛 demo 的区别: optical 路径连接的是【真机】而非 osim 容器。
+v2 变更 (2026-08-23):
+  - 模型: M10 ds3pool3 (默认) / M9 w075ds3 — 本地 numpy 前向 (ds3net.py,
+    逐行镜像板端 runner 数值语义), 光算 matmul 直连板上 server_gazelle.py
+    (不再假设 SSH 隧道, OPTC_HOST 可直接指板 IP)
+  - 判据: ② 探针 / ③ 真 MNIST canary (DSQ 三层 MLP) / ④ EuroSAT mini-run
+    / ① EBR 手动录入
+  - MNIST 官方抽样 200 张跑批 (/api/mnist/run)
+  - EuroSAT 分段跑批 (/api/run/eurosat, 默认段 200 张 ≈ 11 min @3.23s/张)
 
-运行(从 04_决赛演示_真机前端 目录):
+运行 (从 04_决赛演示_真机前端 目录):
   uvicorn demo_hw.server:app --port 8100
-前置: ① 板上已起 server_gazelle.py(:8000) ② SSH 隧道 127.0.0.1:8000 -> 板:8000
-      ③ 已完成 compass_cali + 四项放行判据(见 03_决赛/mnist/MNIST_现场演示Runbook.md §2)
+环境变量: HW_MODEL=model10|model9  HW_BACKEND=http|numpy
+  OPTC_HOST/OPTC_PORT (板上 server_gazelle)  HW_CHUNK(默认2, FPGA行回绕规避)
+  HW_CALIB_COL(逐列calib json)  DS3_HEAD_ELEC=1  HW_CHECK_N(默认10)
+  HW_MNIST_DIR(官方200张图目录, 内含 png + 可选 labels)
 """
 import base64
 import io
@@ -19,61 +26,42 @@ import time
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _PKG = os.path.abspath(os.path.join(_HERE, os.pardir, os.pardir))
 _OPTIC = os.path.join(_PKG, "03_决赛_EuroSAT真机", "opticspacenet")
+_MNIST = os.path.join(_PKG, "03_决赛_EuroSAT真机", "mnist")
 _SRC = os.path.join(_PKG, "02_复赛_EuroSAT仿真", "src")
-for _p in (_OPTIC, _SRC, os.path.join(_SRC, "core")):
+for _p in (_OPTIC, _SRC, os.path.join(_SRC, "core"), _HERE, _MNIST):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
 import numpy as np  # noqa: E402
-import torch  # noqa: E402
 from fastapi import FastAPI, HTTPException  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from PIL import Image  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
-from typing import Optional  # noqa: E402  (py3.9: 无 str|None 语法)
+from typing import Optional  # noqa: E402  (py3.9)
 
-from gazelle_engine import NumpyBackend, HttpBackend, build_model  # noqa: E402
+from gazelle_engine import NumpyBackend, HttpBackend  # noqa: E402
+import ds3net  # noqa: E402
 
 # ---- 配置(环境变量, 禁位置参数) ----
-MODEL_NAME = os.environ.get("HW_MODEL", "model2")   # model2|model3|model1a|model1b
-WEIGHT = os.environ.get("HW_WEIGHT", "")             # 空=registry 默认权重
-BACKEND = os.environ.get("HW_BACKEND", "http")       # http=真机 numpy=干净参考
+MODEL_NAME = os.environ.get("HW_MODEL", "model10")          # model10|model9
+BACKEND = os.environ.get("HW_BACKEND", "http")              # http|numpy
 OPTC_HOST = os.environ.get("OPTC_HOST", "127.0.0.1")
 OPTC_PORT = int(os.environ.get("OPTC_PORT", "8000"))
-CORRECTION = os.environ.get("CORRECTION", "")        # 可选 calib npz
-WEB_DIR = os.path.join(_HERE, "web")
+HW_CHUNK = int(os.environ.get("HW_CHUNK", "2"))              # m<=2 tiling (canonical)
+CALIB_COL_FILE = os.environ.get("HW_CALIB_COL", "")
+HEAD_ELEC = os.environ.get("DS3_HEAD_ELEC", "0") == "1"
+CHECK_N = int(os.environ.get("HW_CHECK_N", "10"))
+MNIST_DIR = os.environ.get("HW_MNIST_DIR", "")              # 官方 200 张目录
 
-# ---- 模型(懒加载, 进程级单例) ----
-_model = None
-_engine = None
-
-
-def get_model():
-    global _model, _engine
-    if _model is None:
-        backend = (HttpBackend(host=OPTC_HOST, port=OPTC_PORT)
-                   if BACKEND == "http" else NumpyBackend())
-        corr = CORRECTION or None
-        # 提交包布局: 权重在 02_复赛/weights; gazelle_engine 的 _TS 默认指向原仓库 train-test,
-        # 此处显式传绝对路径规避 (未指定 HW_WEIGHT 时按 registry 默认名取)
-        weight = WEIGHT or os.path.join(
-            _PKG, "02_复赛_EuroSAT仿真", "weights",
-            {"model2": "spacenet_v1_phase4_v3_int8.pth",
-             "model3": "spacenet_v2_phase4_v3_int8.pth",
-             "model1a": "baseline_vgg_phase4_v3_int8.pth",
-             "model1b": "baseline_vgg_phase4_v3_int8_vB.pth"}[MODEL_NAME])
-        _model, _engine = build_model(weight, backend,
-                                     correction=corr,
-                                     model_name=MODEL_NAME)
-    return _model, _engine
-
+_MODELS = {
+    "model10": ("m10_ds3pool3_v8probe15.pth", "max3", "M10 ds3pool3"),
+    "model9": ("m9_j1w075ds3_v8probe15.pth", "max", "M9 w075ds3"),
+}
 
 CLASSES = ["AnnualCrop", "Forest", "HerbaceousVegetation", "Highway",
            "Industrial", "Pasture", "PermanentCrop", "Residential",
            "River", "SeaLake"]
-
-# 与复赛训练/推理 pipeline 一致（demo/server/inference_local.py 同款 ImageNet 归一化）
 MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
@@ -82,30 +70,131 @@ def preprocess(image_bytes):
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB").resize((64, 64))
     x = np.asarray(img, dtype=np.float32) / 255.0
     x = (x - MEAN) / STD
-    return torch.from_numpy(x.transpose(2, 0, 1)[None])
+    return x.transpose(2, 0, 1)[None].astype(np.float64)
 
 
-class InferRequest(BaseModel):
-    image_b64: str
-    label: Optional[str] = None
+def get_backend():
+    if BACKEND == "http":
+        return HttpBackend(host=OPTC_HOST, port=OPTC_PORT,
+                            chunk_rows=HW_CHUNK, timeout=120)
+    return NumpyBackend()
 
 
-app = FastAPI(title="决赛真机光计算演示")
+_ws = None
+_meta = None
+_calib_col = None
+
+
+def get_model():
+    """返回 (ws, meta, calib_col); 进程级单例, 懒加载."""
+    global _ws, _meta, _calib_col
+    if _ws is None:
+        if MODEL_NAME not in _MODELS:
+            raise SystemExit("unknown HW_MODEL %s (want model10/model9)" % MODEL_NAME)
+        weight, pool, _label = _MODELS[MODEL_NAME]
+        pth = os.path.join(_PKG, "03_决赛_EuroSAT真机", "eurosat_research",
+                           "weights", weight)
+        _ws, _meta = ds3net.load_ds3(pth, pool)
+        _calib_col = ds3net.load_calib_col(CALIB_COL_FILE)
+    return _ws, _meta, _calib_col
+
+
+def infer_batch(x):
+    ws, meta, cc = get_model()
+    return ds3net.forward(x, ws, meta, get_backend(), calib_col=cc,
+                          head_elec=HEAD_ELEC)
+
+
+# ---------------- MNIST (DSQ 三层 MLP, 初赛 97.35% 链路) ----------------
+_mnist = None
+
+
+def get_mnist():
+    """加载 DSQ 权重 (03/mnist/*.npy); 返回 (w1,w2,w3,q,backend)。"""
+    global _mnist
+    if _mnist is None:
+        w1 = np.load(os.path.join(_MNIST, "w1_int4_dsq.npy"))[0].astype(np.int32)
+        w2 = np.load(os.path.join(_MNIST, "w2_int4_dsq.npy"))[0].astype(np.int32)
+        w3 = np.load(os.path.join(_MNIST, "w3_int4_dsq.npy"))[0].astype(np.int32)
+        q = np.load(os.path.join(_MNIST, "dsq_quant_params.npy"),
+                    allow_pickle=True).item()
+        _mnist = (w1, w2, w3, q)
+    return _mnist
+
+
+def _mnist_mm(backend, x_int, w_int):
+    """MNIST scale 模式 (与 run_mnist_gazelle.py 一致): x16 上采后光算再 /256。"""
+    x_up = (x_int.astype(np.int32) * 16).astype(np.uint8)
+    w_up = (w_int.astype(np.int32) * 16).astype(np.int8)
+    y = backend.matmul_2d(x_up, w_up)
+    return np.asarray(y, dtype=np.float64) / 256.0
+
+
+def mnist_forward(backend, x_int, w1, w2, w3, q):
+    s_in, s_w1, s_h1 = q["input_scale"], q["w1_scale"], q["h1_scale"]
+    s_w2, s_h2, s_w3 = q["w2_scale"], q["h2_scale"], q["w3_scale"]
+    y1 = _mnist_mm(backend, x_int, w1) * (s_in * s_w1)
+    h1 = np.clip(np.round(np.maximum(0.0, y1) / s_h1), 0, 15).astype(np.int32)
+    y2 = _mnist_mm(backend, h1, w2) * (s_h1 * s_w2)
+    h2 = np.clip(np.round(np.maximum(0.0, y2) / s_h2), 0, 15).astype(np.int32)
+    return _mnist_mm(backend, h2, w3) * (s_h2 * s_w3)
+
+
+def mnist_np_forward(x_int, w1, w2, w3, q):
+    return mnist_forward(NumpyBackend(), x_int, w1, w2, w3, q)
+
+
+def _mnist_quant(x_float, q):
+    return np.clip(np.round(x_float / q["input_scale"]), 0, 15).astype(np.int32)
+
+
+def load_mnist_images(limit=None, offset=0):
+    """官方抽样图: 优先 HW_MNIST_DIR (png 文件名排序; 可选 labels.txt/csv:
+    每行 name,label 或纯 label); 回退 03/mnist/test_images.npy (前 1000 官方测试集)。"""
+    if MNIST_DIR and os.path.isdir(MNIST_DIR):
+        names = sorted(f for f in os.listdir(MNIST_DIR)
+                       if f.lower().endswith((".png", ".jpg", ".bmp")))
+        names = names[offset:offset + (limit or len(names))]
+        imgs = []
+        for n in names:
+            img = Image.open(os.path.join(MNIST_DIR, n)).convert("L")
+            if img.size != (28, 28):
+                img = img.resize((28, 28))
+            imgs.append(np.asarray(img, dtype=np.float32).reshape(-1) / 255.0)
+        labels = None
+        for lf in ("labels.txt", "labels.csv"):
+            p = os.path.join(MNIST_DIR, lf)
+            if os.path.exists(p):
+                lines = [l.strip() for l in open(p) if l.strip()]
+                lab = []
+                for l in lines:
+                    lab.append(int(l.split(",")[-1]))
+                labels = np.array(lab, dtype=np.int64)[offset:offset + len(names)]
+                break
+        return np.stack(imgs), labels, names
+    # 回退: 包内官方测试集前 N 张 (与初赛同源)
+    images = np.load(os.path.join(_MNIST, "test_images.npy"))
+    labels = np.load(os.path.join(_MNIST, "test_labels.npy"))
+    end = min(offset + (limit or len(labels)), len(labels))
+    return (images[offset:end].reshape(-1, 784) / 255.0).astype(np.float32), \
+        labels[offset:end], ["test_%d" % i for i in range(offset, end)]
+
+
+app = FastAPI(title="决赛真机光计算演示 v2")
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_methods=["*"], allow_headers=["*"])
 
 
 def _probe_board(timeout=5):
-    """轻量可达性探测: 独立短超时 HttpBackend 发一个 1x2@2x1 小矩阵乘。
-    不复用 engine.backend (其 timeout=120s, 黑洞式断连会挂太久), 也不污染
-    其权重上传缓存。可达返回 (True, ""); 否则 (False, 原因)。"""
+    """可达性探测: 独立短超时 HttpBackend 发一个小矩阵乘。"""
     pb = HttpBackend(host=OPTC_HOST, port=OPTC_PORT, timeout=timeout)
     try:
         x = np.array([[1, 2]], dtype=np.uint8)
         w = np.array([[1], [-1]], dtype=np.int8)
         got = pb.matmul_2d(x, w)
         ok = bool(np.allclose(got, [[-1.0]], atol=1e-6))
-        return ok, ("" if ok else "探针结果异常: %s" % np.asarray(got).ravel()[:4])
+        return ok, ("" if ok else "probe result abnormal: %s"
+                    % np.asarray(got).ravel()[:4])
     except Exception as e:
         return False, str(e)[:150]
 
@@ -113,157 +202,233 @@ def _probe_board(timeout=5):
 @app.get("/api/health")
 def health():
     try:
-        model, engine = get_model()
+        get_model()
         local = "ok"
     except Exception as e:
         return {"local": "error", "remote": "down", "detail": str(e)[:200]}
-    try:
-        backend = engine.backend
-    except Exception:
-        backend = None
-    if backend is None or backend.name != "http":
-        return {"local": local, "remote": "numpy-ref",
-                "model": MODEL_NAME, "backend": BACKEND}
-    # http 模式: 必须真实探测板上 /matmul, 防"假绿"(HttpBackend 构造不建连)
+    if BACKEND != "http":
+        return {"local": local, "remote": "numpy-ref", "model": MODEL_NAME,
+                "backend": BACKEND, "label": _MODELS[MODEL_NAME][2]}
     ok, detail = _probe_board()
     return {"local": local,
             "remote": "gazelle-hw:http" if ok else "unreachable",
             "detail": "" if ok else detail,
-            "model": MODEL_NAME, "backend": BACKEND}
+            "board": "%s:%d" % (OPTC_HOST, OPTC_PORT),
+            "model": MODEL_NAME, "backend": BACKEND,
+            "label": _MODELS[MODEL_NAME][2], "chunk": HW_CHUNK}
+
+
+class InferRequest(BaseModel):
+    image_b64: str
+    label: Optional[str] = None
 
 
 @app.post("/api/infer")
 def infer(req: InferRequest):
     try:
-        image_bytes = base64.b64decode(req.image_b64)
-        x = preprocess(image_bytes)
+        x = preprocess(base64.b64decode(req.image_b64))
     except Exception as e:
         raise HTTPException(400, "image decode failed: %s" % e)
-    model, engine = get_model()
     t0 = time.perf_counter()
     try:
-        with torch.no_grad():
-            logits = model(x)
-        probs = torch.softmax(logits[0], dim=-1).numpy()
+        logits = infer_batch(x)
+        probs = np.exp(logits[0] - logits[0].max())
+        probs = probs / probs.sum()
     except Exception as e:
-        raise HTTPException(503, "真机推理失败(检查隧道/板上 server/校准): %s" % e)
+        raise HTTPException(503, "真机推理失败(检查板上 server/校准): %s" % e)
     latency = time.perf_counter() - t0
-    top = int(np.argmax(probs))
     order = np.argsort(-probs)[:5]
-    return {
-        "pred": CLASSES[top],
-        "probs": {CLASSES[i]: round(float(probs[i]), 4) for i in order},
-        "topk": [{"cls": CLASSES[i], "p": round(float(probs[i]), 4)} for i in order],
-        "latency_s": round(latency, 3),
-        "engine": "gazelle-hw" if BACKEND == "http" else "numpy-ref",
-        "correct": (req.label == CLASSES[top]) if req.label else None,
-    }
+    top = int(order[0])
+    return {"pred": CLASSES[top],
+            "topk": [{"cls": CLASSES[i], "p": round(float(probs[i]), 4)}
+                      for i in order],
+            "latency_s": round(latency, 3),
+            "engine": "gazelle-hw" if BACKEND == "http" else "numpy-ref",
+            "model": MODEL_NAME,
+            "correct": (req.label == CLASSES[top]) if req.label else None}
 
 
-# ============================================================
-# 上板放行判据检查（PPT P17 四项判据的可视化演示）
-#   判据1 EBR>=8        — 需板端 compass_evb_test，评委现场看板端读数后手动输入验证
-#   判据2 error_std<±2% — 自动：已知探针矩阵乘 vs numpy 精确值
-#   判据3 canary<0.5pt  — 自动：10 图 mini-run 的 hw acc vs numpy 干净参考 acc 之差
-#                          （真机判据为 MNIST canary；此处用 EuroSAT 10 图等价演示，页面如实标注）
-#   判据4 mini-run 对齐 — 自动：同一次 10 图 run 的逐图预测与参考一致性 + 精度正常
-# 时间控制：探针(秒级) + 10图×5光算层往返，总计 <2 分钟
-# ============================================================
-
-CHECK_N = int(os.environ.get("HW_CHECK_N", "10"))
-
+# ---------------- 放行判据 (四项) ----------------
 
 @app.get("/api/checks/probe")
 def checks_probe():
-    """判据2：探针矩阵乘误差（与 numpy 精确参考对比）。"""
+    """判据2: 探针矩阵乘误差 (vs numpy 精确参考)。"""
     rng = np.random.RandomState(42)
-    x = rng.randint(1, 200, size=(16, 8)).astype(np.uint8)   # (m,k)
-    w = rng.randint(-100, 100, size=(8, 2)).astype(np.int8)  # (k,n)
-    exact = x.astype(np.float64) @ w.astype(np.float64)      # (16,2)
-    model, engine = get_model()
-    backend = engine.backend
+    x = rng.randint(1, 200, size=(16, 8)).astype(np.uint8)
+    w = rng.randint(-100, 100, size=(8, 2)).astype(np.int8)
+    exact = x.astype(np.float64) @ w.astype(np.float64)
     try:
-        got = backend.matmul_2d(x.astype(np.int64), w.astype(np.int64))
+        got = get_backend().matmul_2d(x.astype(np.int64), w.astype(np.int64))
     except Exception as e:
-        return {"name": "error_std 偏差", "pass": False,
+        return {"name": "② error_std 偏差", "pass": False,
                 "detail": "真机 matmul 失败: %s" % str(e)[:150]}
     err = np.abs(got - exact).ravel()
     rms = float(np.sqrt(np.mean(err ** 2)))
-    ref_scale = float(np.sqrt(np.mean(np.abs(exact) ** 2))) + 1e-9
-    rel = rms / ref_scale * 100.0
-    ok = rel < 2.0
-    return {"name": "② error_std 偏差 < ±2%", "pass": bool(ok),
+    ref = float(np.sqrt(np.mean(np.abs(exact) ** 2))) + 1e-9
+    rel = rms / ref * 100.0
+    return {"name": "② error_std 偏差 < ±2%", "pass": bool(rel < 2.0),
             "value": "%.2f%%" % rel,
-            "detail": "16 组已知探针 vs numpy 精确参考，相对 RMS 误差"}
+            "detail": "16 组已知探针 vs numpy 精确参考, 相对 RMS 误差"}
 
 
-@app.post("/api/checks/minirun")
+@app.get("/api/checks/canary")
+def checks_canary():
+    """判据3: 真 MNIST canary — HW vs numpy 同量化参考 (gap < 0.5pt)。"""
+    w1, w2, w3, q = get_mnist()
+    x, labels, _ = load_mnist_images(limit=200)
+    if labels is None:
+        return {"name": "③ MNIST canary", "pass": False,
+                "detail": "无标签, canary 需要标签 (labels.txt 或回退 npy)"}
+    x_int = _mnist_quant(x, q)
+    try:
+        y_hw = mnist_forward(get_backend(), x_int, w1, w2, w3, q)
+    except Exception as e:
+        return {"name": "③ MNIST canary", "pass": False,
+                "detail": "真机失败: %s" % str(e)[:150]}
+    y_np = mnist_np_forward(x_int, w1, w2, w3, q)
+    acc_hw = float(np.mean(np.argmax(y_hw, 1) == labels)) * 100
+    acc_np = float(np.mean(np.argmax(y_np, 1) == labels)) * 100
+    gap = abs(acc_hw - acc_np)
+    return {"name": "③ MNIST canary gap < 0.5pt", "pass": bool(gap < 0.5),
+            "value": "hw %.2f%% vs ref %.2f%%, gap %.2fpt" % (acc_hw, acc_np, gap),
+            "detail": "DSQ 三层 MLP, n=%d, 真机 vs 同量化 numpy 参考" % len(labels)}
+
+
+@app.get("/api/checks/minirun")
 def checks_minirun():
-    """判据3+4：10 图 mini-run（hw vs numpy 干净参考）。"""
-    # 数据：优先包内 02_复赛 data（.gitignore 本地就位）
-    data_dir = os.environ.get("HW_DATA",
-                              os.path.join(_PKG, "02_复赛_EuroSAT仿真", "data", "EuroSAT_RGB"))
+    """判据4: EuroSAT mini-run — M10 hw vs numpy 干净参考 逐图对齐。"""
+    data_dir = os.environ.get(
+        "HW_DATA",
+        os.path.join(_PKG, "02_复赛_EuroSAT仿真", "data", "EuroSAT_RGB"))
     if not os.path.isdir(data_dir):
-        raise HTTPException(503, "EuroSAT 数据未找到: %s（见 README §0）" % data_dir)
+        raise HTTPException(503, "EuroSAT 数据未找到: %s" % data_dir)
     sys.path.insert(0, os.path.join(_SRC, "data"))
     from eurosat_split import split_indices  # noqa
-    import torchvision.datasets as datasets  # noqa
-    ds = datasets.ImageFolder(data_dir)
+    from torchvision import datasets as tvds  # noqa
+    ds = tvds.ImageFolder(data_dir)
     _, _, test_idx = split_indices(len(ds), seed=42, val_ratio=0.2, test_ratio=0.2)
     rng = np.random.RandomState(7)
-    picks = sorted(rng.choice(test_idx, size=min(CHECK_N, len(test_idx)), replace=False).tolist())
-
-    # 双引擎：numpy 干净参考 + 真机（权重路径同 get_model 的包内解析）
-    weight = WEIGHT or os.path.join(
-        _PKG, "02_复赛_EuroSAT仿真", "weights",
-        {"model2": "spacenet_v1_phase4_v3_int8.pth",
-         "model3": "spacenet_v2_phase4_v3_int8.pth",
-         "model1a": "baseline_vgg_phase4_v3_int8.pth",
-         "model1b": "baseline_vgg_phase4_v3_int8_vB.pth"}[MODEL_NAME])
-    m_np, _ = build_model(weight, NumpyBackend(), model_name=MODEL_NAME)
-    hw_backend = (HttpBackend(host=OPTC_HOST, port=OPTC_PORT)
-                  if BACKEND == "http" else NumpyBackend())
-    m_hw, _ = build_model(weight, hw_backend, model_name=MODEL_NAME)
-    agree = 0
-    acc_np = acc_hw = 0
+    picks = sorted(rng.choice(test_idx, size=min(CHECK_N, len(test_idx)),
+                              replace=False).tolist())
+    imgs, targets = [], []
     for i in picks:
         path, target = ds.samples[i]
-        img = Image.open(path).convert("RGB").resize((64, 64))
-        arr = (np.asarray(img, dtype=np.float32) / 255.0 - MEAN) / STD
-        t = torch.from_numpy(arr.transpose(2, 0, 1)[None])
-        with torch.no_grad():
-            p_np = int(m_np(t).argmax())
-            p_hw = int(m_hw(t).argmax())
-        acc_np += int(p_np == target)
-        acc_hw += int(p_hw == target)
-        agree += int(p_np == p_hw)
-    n = len(picks)
-    gap = abs(acc_np - acc_hw) / n * 100.0
-    return {
-        "n": n,
-        "acc_ref": round(acc_np / n * 100, 1),
-        "acc_hw": round(acc_hw / n * 100, 1),
-        "engine": "gazelle-hw" if BACKEND == "http" else "numpy-ref（离线自测模式）",
-        "canary": {"name": "③ Canary gap < 0.5pt（EuroSAT-10 等价演示）",
-                   "pass": bool(gap <= 0.5),
-                   "value": "%.1fpt" % gap,
-                   "detail": "hw 与干净参考 acc 差（真机判据为 MNIST canary）"},
-        "minirun": {"name": "④ Mini-run 采样对齐",
-                    "pass": bool(agree / n >= 0.8 and acc_hw / n >= 0.5),
-                    "value": "%d/%d 图与参考一致，hw acc %.1f%%" % (agree, n, acc_hw / n * 100),
-                    "detail": "逐图预测一致率与精度正常性"},
-    }
+        im = Image.open(path).convert("RGB").resize((64, 64))
+        arr = (np.asarray(im, dtype=np.float32) / 255.0 - MEAN) / STD
+        imgs.append(arr.transpose(2, 0, 1))
+        targets.append(target)
+    x = np.stack(imgs).astype(np.float64)
+    try:
+        y_hw = infer_batch(x)
+    except Exception as e:
+        return {"name": "④ mini-run 对齐", "pass": False,
+                "detail": "真机失败: %s" % str(e)[:150]}
+    y_np = ds3net.forward(x, *get_model()[:2], NumpyBackend(),
+                          calib_col={}, head_elec=HEAD_ELEC)
+    p_hw = np.argmax(y_hw, 1)
+    p_np = np.argmax(y_np, 1)
+    agree = int(np.sum(p_hw == p_np))
+    acc_hw = float(np.mean(p_hw == np.array(targets))) * 100
+    return {"name": "④ mini-run 采样对齐",
+            "pass": bool(agree / len(picks) >= 0.8 and acc_hw >= 50),
+            "value": "%d/%d 一致, hw acc %.1f%%" % (agree, len(picks), acc_hw),
+            "detail": "逐图预测一致率 + 精度正常性 (n=%d)" % len(picks)}
 
 
 @app.post("/api/checks/ebr")
 def checks_ebr(req: dict):
-    """判据1：EBR 手动录入（板端 compass_evb_test 读数）。"""
+    """判据1: EBR 手动录入 (板端 compass_evb_test 读数)。"""
     try:
         v = float(req.get("ebr"))
     except (TypeError, ValueError):
         raise HTTPException(400, "ebr 字段缺失/非数值")
     return {"name": "① EBR ≥ 8", "pass": bool(v >= 8), "value": str(v),
-            "detail": "板端 compass_evb_test 实测值（现场读数录入）"}
+            "detail": "板端 compass_evb_test 实测值(现场读数录入)"}
 
 
-app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
+# ---------------- 跑批段 (30min 窗口预算: 校准10 + 判据5 + 跑批15) ----------------
+
+@app.get("/api/run/eurosat")
+def run_eurosat(offset: int = 0, limit: int = 200):
+    """EuroSAT 分段跑批 [offset, offset+limit), 全量 5400 按 200/段。
+    实测吞吐 (C2): M10 3.23s/张, M9 1.98s/张 (板端 runner 口径);
+    HTTP 直连 m<=2 tiling 会更慢, 首次实测后调整 limit。"""
+    limit = max(1, min(limit, 500))
+    data_dir = os.environ.get(
+        "HW_DATA",
+        os.path.join(_PKG, "02_复赛_EuroSAT仿真", "data", "EuroSAT_RGB"))
+    if not os.path.isdir(data_dir):
+        raise HTTPException(503, "EuroSAT 数据未找到: %s" % data_dir)
+    sys.path.insert(0, os.path.join(_SRC, "data"))
+    from eurosat_split import split_indices  # noqa
+    from torchvision import datasets as tvds  # noqa
+    ds = tvds.ImageFolder(data_dir)
+    _, _, test_idx = split_indices(len(ds), seed=42, val_ratio=0.2, test_ratio=0.2)
+    idx = test_idx[offset:offset + limit]
+    if len(idx) == 0:
+        raise HTTPException(400, "offset %d 超出测试集" % offset)
+    backend = get_backend()
+    ws, meta, cc = get_model()
+    correct = 0
+    t0 = time.perf_counter()
+    per = []
+    B = 8
+    for s in range(0, len(idx), B):
+        batch_idx = idx[s:s + B]
+        imgs, targets = [], []
+        for i in batch_idx:
+            path, target = ds.samples[i]
+            im = Image.open(path).convert("RGB").resize((64, 64))
+            arr = (np.asarray(im, dtype=np.float32) / 255.0 - MEAN) / STD
+            imgs.append(arr.transpose(2, 0, 1))
+            targets.append(target)
+        try:
+            logits = ds3net.forward(np.stack(imgs).astype(np.float64),
+                                    ws, meta, backend, calib_col=cc,
+                                    head_elec=HEAD_ELEC)
+        except Exception as e:
+            raise HTTPException(503, "真机失败(第 %d 张起): %s" % (s, e))
+        preds = np.argmax(logits, 1)
+        correct += int(np.sum(preds == np.array(targets)))
+        done = s + len(batch_idx)
+        per.append({"n": done, "acc": round(correct * 100.0 / done, 2),
+                    "elapsed": round(time.perf_counter() - t0, 1)})
+    n = len(idx)
+    return {"model": MODEL_NAME, "offset": offset, "n": n,
+            "acc": round(correct * 100.0 / n, 2),
+            "elapsed_s": round(time.perf_counter() - t0, 1),
+            "sec_per_img": round((time.perf_counter() - t0) / n, 2),
+            "engine": "gazelle-hw" if BACKEND == "http" else "numpy-ref",
+            "trace": per}
+
+
+@app.get("/api/mnist/run")
+def run_mnist(limit: int = 200, offset: int = 0):
+    """MNIST 官方抽样跑批 (默认 200 张, DSQ 三层 MLP)。"""
+    limit = max(1, min(limit, 1000))
+    x, labels, names = load_mnist_images(limit=limit, offset=offset)
+    w1, w2, w3, q = get_mnist()
+    x_int = _mnist_quant(x, q)
+    t0 = time.perf_counter()
+    try:
+        y = mnist_forward(get_backend(), x_int, w1, w2, w3, q)
+    except Exception as e:
+        raise HTTPException(503, "真机失败: %s" % e)
+    preds = np.argmax(y, 1)
+    out = {"n": len(preds), "elapsed_s": round(time.perf_counter() - t0, 1),
+           "engine": "gazelle-hw" if BACKEND == "http" else "numpy-ref",
+           "source": MNIST_DIR if MNIST_DIR else "内置官方测试集"}
+    if labels is not None:
+        acc = float(np.mean(preds == labels)) * 100
+        out["acc"] = round(acc, 2)
+        wrong = [names[i] for i in range(len(preds))
+                 if preds[i] != labels[i]][:20]
+        out["wrong_sample"] = wrong
+    else:
+        out["pred_head"] = [int(p) for p in preds[:20]]
+        out["note"] = "无标签文件, 只返回预测"
+    return out
+
+
+app.mount("/", StaticFiles(directory=os.path.join(_HERE, "web"), html=True),
+           name="web")
