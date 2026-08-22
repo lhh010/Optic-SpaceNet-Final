@@ -32,7 +32,7 @@
 │   ├── demo_hw/web/          ← 单页前端（上传图片 → 真机推理 → Top-5）
 │   └── README.md             ← Runbook：隧道/判据/启动/故障/诚实边界
 │   （02_复赛/demo/ 为复赛 osim 仿真版前端，口径见其 README）
-└── docs/                     ← Model_Overview / Board_Deploy_Config 等全局参考
+└── docs/                     ← 决赛正式材料：01设计/02验证/03技术数据(各md+pdf)、技术要求论文(md+pdf)、答辩ppt-CICC1003564-0821(pptx+pdf)；另含 Model_Overview / Board_Deploy_Config
 ```
 
 ## 快速开始
