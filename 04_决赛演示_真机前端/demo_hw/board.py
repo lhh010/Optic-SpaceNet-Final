@@ -111,6 +111,20 @@ def _read_npy(remote_path, timeout=30):
         return None
 
 
+def run_calibrate(weights="weights_m10_5400", calib_out="calib_scalar_auto.json"):
+    """顺序校准: compass_cali(带bringup)后 calibrate_any_ds3(标量)。必须顺序, 否则 device busy。
+    返回 {ok, step, calib, err}。"""
+    out1, err1, rc1 = ssh_sudo_run("compass_cali --mode-local", timeout=1800)
+    if rc1 != 0:
+        return {"ok": False, "step": "compass_cali", "calib": "", "err": err1[-200:]}
+    envs = "DS3_WEIGHTS_DIR=" + _quote(weights) + " DS3_CALIB_OUT=" + _quote(calib_out)
+    cmd = "cd " + J1_DIR + " && " + envs + " python3 calibrate_any_ds3.py"
+    out2, err2, rc2 = ssh_sudo_run(cmd, timeout=900)
+    ok2 = (rc2 == 0 and "saved" in out2)
+    return {"ok": ok2, "step": "scalar_calib", "calib": calib_out,
+            "err": ("" if ok2 else (err2[-200:] or out2[-200:]))}
+
+
 def run_ebr(timeout=600):
     """板上 compass_evb_test, 解析 EBR (两通道)。返回 (ebr1, ebr2) 或 (None,None)。"""
     out, err, rc = ssh_sudo_run("compass_evb_test", timeout=timeout)

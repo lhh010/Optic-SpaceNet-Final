@@ -30,8 +30,10 @@ from PIL import Image  # noqa: E402
 
 # ---- 配置 ----
 MODEL_NAME = os.environ.get("HW_MODEL", "model10")
-HW_CALIB = os.environ.get("HW_CALIB", "")   # 板上标量 calib json 名(如 calib_scalar_m10_0823.json)
-CHECK_N = int(os.environ.get("HW_CHECK_N", "8"))
+_calib = os.environ.get("HW_CALIB", "")   # 当前校准 json 名(可在 /api/calibrate 后动态更新)
+import threading  # noqa
+_calib_state = {"status": "idle", "progress": "", "calib": _calib, "error": ""}
+CHECK_N = int(os.environ.get("HW_CHECK_N", "100"))   # 判据④ mini-run 默认样本数
 WEIGHTS = {"model10": "weights_m10_5400", "model9": "weights_w075ds3"}.get(
     MODEL_NAME, "weights_m10_5400")
 
@@ -60,7 +62,7 @@ def health():
     ok, detail = board.probe_board()
     return {"local": "ok", "remote": ("gazelle-hw:pathB" if ok else "unreachable"),
             "detail": detail, "board": board.BOARD_HOST, "model": MODEL_NAME,
-            "weights": WEIGHTS, "calib": HW_CALIB or "(未校准)",
+            "weights": WEIGHTS, "calib": _calib or "(未校准)",
             "label": "M10 ds3pool3" if MODEL_NAME == "model10" else "M9 w075ds3"}
 
 
@@ -84,15 +86,16 @@ def checks_canary():
 
 
 @app.get("/api/checks/minirun")
-def checks_minirun():
+def checks_minirun(n: int = CHECK_N):
     """判据4: EuroSAT mini-run — 板端 acc vs 本地 numpy 干净参考。"""
-    x, targets, idx = _eurosat_batch(0, CHECK_N)
+    n = max(1, min(n, 500))
+    x, targets, idx = _eurosat_batch(0, n)
     ref = None
     if x is not None:
         rl = _local_ref(x)
         ref = float(np.mean(np.argmax(rl, 1) == targets)) * 100
     try:
-        r = board.run_ds3(0, CHECK_N, calib_json=HW_CALIB or None, weights=WEIGHTS)
+        r = board.run_ds3(0, n, calib_json=_calib or None, weights=WEIGHTS)
     except Exception as e:
         return {"name": "④ mini-run 对齐", "pass": False, "detail": str(e)[:150]}
     hw = r["acc"]
@@ -100,7 +103,7 @@ def checks_minirun():
     return {"name": "④ mini-run 采样对齐", "pass": bool(ok),
             "value": "hw %.1f%% vs ref %.1f%%" % (hw if hw is not None else -1,
                                                     ref if ref is not None else -1),
-            "detail": "板上 %d 图(路径B) vs 本地 numpy 干净参考, 偏差<2pt" % CHECK_N}
+            "detail": "板上 %d 图(路径B) vs 本地 numpy 干净参考, 偏差<2pt" % n}
 
 
 @app.get("/api/checks/ebr")
@@ -118,6 +121,36 @@ def checks_ebr():
     return {"name": "① EBR ≥ 8", "pass": bool(ok),
             "value": "%.3f / %.3f" % (e1, e2),
             "detail": "板上 compass_evb_test 自动测量(需≥8)"}
+
+
+# ---------------- 校准 --------------
+
+@app.post("/api/calibrate")
+def calibrate():
+    """触发重新校准 (compass_cali + 标量), 后台线程, 非阻塞。"""
+    if _calib_state["status"] == "running":
+        return {"status": "running", "detail": "校准进行中, 请稍候"}
+    global _calib
+    def work():
+        _calib_state["status"] = "running"
+        _calib_state["progress"] = "compass_cali (fresh bringup, ~10min)..."
+        newname = "calib_scalar_auto_%d.json" % int(time.time())
+        res = board.run_calibrate(WEIGHTS, newname)
+        _calib_state["progress"] = "scalar_calib 完成" if res["ok"] else res["step"]
+        _calib_state["error"] = res.get("err", "")
+        if res["ok"]:
+            _calib = newname
+            _calib_state["calib"] = newname
+            _calib_state["status"] = "done"
+        else:
+            _calib_state["status"] = "error"
+    threading.Thread(target=work, daemon=True).start()
+    return {"status": "started", "detail": "校准已启动(约10-12分钟)"}
+
+
+@app.get("/api/calibrate/status")
+def calib_status():
+    return dict(_calib_state)
 
 
 # ---------------- 跑批 ----------------
@@ -170,7 +203,7 @@ def run_eurosat(offset: int = 0, limit: int = CHECK_N):
     limit = max(1, min(limit, 200))
     t0 = time.time()
     try:
-        r = board.run_ds3(offset, limit, calib_json=HW_CALIB or None, weights=WEIGHTS)
+        r = board.run_ds3(offset, limit, calib_json=_calib or None, weights=WEIGHTS)
     except Exception as e:
         raise HTTPException(503, "板上 runner 失败: %s" % e)
     # 本地 numpy 参考用于 gap + 逐图对比
@@ -184,7 +217,7 @@ def run_eurosat(offset: int = 0, limit: int = CHECK_N):
     return {"model": MODEL_NAME, "weights": WEIGHTS, "offset": offset, "n": limit,
             "acc": r["acc"], "ref": round(ref, 2) if ref is not None else None,
             "gap": gap, "elapsed_s": r["elapsed_s"],
-            "sec_per_img": r["sec_per_img"], "calib": HW_CALIB or "(none)",
+            "sec_per_img": r["sec_per_img"], "calib": _calib or "(none)",
             "engine": "gazelle-hw:pathB", "trace": r["trace"], "rows": rows}
 
 

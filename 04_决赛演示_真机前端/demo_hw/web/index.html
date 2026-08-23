@@ -15,13 +15,17 @@ input[type=number]{width:72px;color:#111;border-radius:4px;border:1px solid #555
 </head>
 <body>
 <h1>Optic-SpaceNet · 决赛真机光计算演示 (CICC1003564) — 路径B</h1>
-<div class="card">后端状态：<span id="status" class="down">检测中…</span> <span id="engmeta" class="meta"></span></div>
+<div class="card">后端状态：<span id="status" class="down">检测中…</span> <span id="engmeta" class="meta"></span>
+  <div style="margin-top:8px"><button id="calib" style="background:#7c3aed">重新校准（约10-12分钟）</button> <span id="calibstat" class="meta"></span></div>
+</div>
 <div class="card">
   <b>上板放行判据（四项全过才开窗）</b>
   <p class="meta">① EBR（自动，板上 compass_evb_test）→ ③ MNIST canary → ④ EuroSAT mini-run（② 探针见板端日志）</p>
   <button id="ebrgo" style="background:#0e7490">① 自动测 EBR（约1-2分钟）</button>
   <button id="chk" style="background:#059669">运行 ③④ 判据</button>
+  <span>④ 张数</span><input id="mnir" type="number" value="100" min="8" max="500">
   <span id="ebrdisp" class="meta"></span>
+  <div id="chk1"></div>
   <div id="checks"></div>
 </div>
 <div class="card">
@@ -52,11 +56,11 @@ function card(c){const ok=c.pass?"✔":"✘";const col=c.pass?"#4ade80":"#f87171
   return `<div style="margin:6px 0">${ok} <b style="color:${col}">${c.name||""}</b> — ${c.value||""} <span class="meta">${c.detail||""}</span></div>`;}
 $("chk").onclick=async()=>{$("chk").disabled=true;$("checks").innerHTML="③ MNIST canary 推理中…";
   try{const c=await(await fetch("/api/checks/canary")).json();$("checks").innerHTML=card(c)+"<p class=meta>④ EuroSAT mini-run 推理中…</p>";
-    const m=await(await fetch("/api/checks/minirun")).json();$("checks").innerHTML+=card(m);}
+    const m=await(await fetch(`/api/checks/minirun?n=${$("mnir").value||100}`)).json();$("checks").innerHTML+=card(m);}
   catch(e){$("checks").innerHTML+="<p class=down>检测失败："+e.message+"</p>";}
   $("chk").disabled=false;};
 $("ebrgo").onclick=async()=>{$("ebrgo").disabled=true;$("ebrdisp").textContent="EBR 自动测量中（约1-2分钟）…";
-  try{const r=await(await fetch("/api/checks/ebr")).json();$("checks").innerHTML=card(r);$("ebrdisp").textContent="";}
+  try{const r=await(await fetch("/api/checks/ebr")).json();$("chk1").innerHTML=card(r);$("ebrdisp").textContent="";}
   catch(e){$("ebrdisp").textContent="EBR 测量失败："+e.message;}
   $("ebrgo").disabled=false;};
 $("rgo").onclick=async()=>{$("rgo").disabled=true;$("rout").textContent="跑批中…（板端 runner，约 3.2s/张）";
@@ -90,6 +94,16 @@ function rowCard(row){const hwMiss=row.hw_missing===true;const c=(row.hw_correct
       <div style="display:flex;gap:16px"><div style="flex:1"><span class="meta">真机</span>${hwBar}</div><div style="flex:1"><span class="meta">参考</span>${topkBar(row.ref_topk,"#a78bfa")}</div></div>
     </div>
   </div>`;}
+$("calib").onclick=async()=>{if(!confirm("确认重新校准？(约10-12分钟, 需独占板子)"))return;
+  $("calib").disabled=true;$("calibstat").textContent="校准中…";
+  try{const r=await(await fetch("/api/calibrate",{method:"POST"})).json();
+    $("calibstat").textContent=r.detail||"已启动";
+    const poll=setInterval(async()=>{const s=await(await fetch("/api/calibrate/status")).json();
+      $("calibstat").textContent=s.status+" · "+s.progress;
+      if(s.status==="done"){clearInterval(poll);$("calibstat").textContent="✅ 校准完成: "+(s.calib||"")+(s.error?(" 错误:"+s.error):"");$("calib").disabled=false;}
+      else if(s.status==="error"){clearInterval(poll);$("calibstat").textContent="❌ 校准失败: "+(s.error||"");$("calib").disabled=false;}
+    },5000);
+  }catch(e){$("calibstat").textContent="校准启动失败:"+e.message;$("calib").disabled=false;}};
 </script>
 </body>
 </html>
