@@ -280,9 +280,12 @@ def forward_traced(x, ws, meta, backend, calib_col=None, head_elec=False):
     h = _apply_bn(h, ws["stem_bn"], eps)
     h = _relu(h)
     h = _pool3s2(h) if meta.get("stem_pool_mode", "max") == "max3" else _pool2d(h, 2)
-    _add("stem", "electronic", "Conv2d 3→C0 5×5/s2 + BN + ReLU + MaxPool", h, t0)
+    _c0 = int(ws["stem"].shape[0])
+    _add("stem", "electronic",
+         "5×5/s2 Conv 3→%d + BN + ReLU + MaxPool (电)" % _c0, h, t0)
 
-    # 7 光层
+    # 7 光层 (spec 带通道信息: 输入通道 = 上一层输出, 输出通道 = 权重行数)
+    _prev_c = int(h.shape[1])
     for name, kind in [("s1a", "1x1"), ("s1ds", "3x3s2"), ("s2a", "1x1"),
                        ("s2b", "1x1"), ("s2ds", "3x3s2"), ("s3a", "1x1"),
                        ("s3b", "1x1")]:
@@ -291,7 +294,11 @@ def forward_traced(x, ws, meta, backend, calib_col=None, head_elec=False):
         h = fn(backend, h, ws[name], meta[name + "_scale"], cc(name))
         h = _apply_bn(h, ws[name + "_bn"], eps)
         h = _relu(h)
-        _add(name, "optical", "%s conv" % kind, h, t0)
+        _c = int(ws[name].shape[0])
+        spec = ("1×1 Conv %d→%d + BN + ReLU" if kind == "1x1"
+                else "3×3/s2 Conv %d→%d + BN + ReLU (光下采样)") % (_prev_c, _c)
+        _add(name, "optical", spec, h, t0)
+        _prev_c = _c
 
     g = h.mean(axis=(2, 3))  # GAP
     if head_elec:
@@ -303,9 +310,12 @@ def forward_traced(x, ws, meta, backend, calib_col=None, head_elec=False):
         t0 = time.perf_counter()
         z = _relu(optical_fc(backend, g, ws["h1"], meta["h1_scale"],
                              cc("h1"), ws.get("h1_bias")))
-        _add("h1", "optical", "Linear GAP→128", z, t0)
+        _add("h1", "optical",
+             "Linear GAP %d→%d + ReLU" % (int(g.shape[1]), int(ws["h1"].shape[0])),
+             z, t0)
         t0 = time.perf_counter()
         z = optical_fc(backend, z, ws["h2"], meta["h2_scale"],
                        cc("h2"), ws.get("h2_bias"))
-        _add("h2", "optical", "Linear 128→10 · logits", z, t0)
+        _add("h2", "optical",
+             "Linear %d→10 · logits" % int(ws["h2"].shape[0]), z, t0)
     return z, layers

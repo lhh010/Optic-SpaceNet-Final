@@ -36,12 +36,20 @@ from pydantic import BaseModel  # noqa: E402
 from torchvision import datasets  # noqa: E402
 
 from demo.server import compare, compare_models, inference_local, render  # noqa: E402
-from demo.server import gazelle_client as remote_client  # noqa: E402  (Gazelle 真机, 替代容器 osimulator)
 from demo.server import board_checks  # noqa: E402  (上板四项放行判据)
+# 数据来源: OPTIC_OSIM=1 → 容器 osimulator (optic_server :8765, 原 remote_client);
+#           否则 → Gazelle 真机 HTTP (gazelle_client) / GAZELLE_FAKE=1 离线 numpy。
+_OSIM = os.environ.get("OPTIC_OSIM", "0") == "1"
+if _OSIM:
+    from demo.server import remote_client  # noqa: E402  (osimulator HTTP 客户端)
+    from demo.server import gazelle_client as _gazelle_rc  # noqa: E402  (M9/M10 干净参考)
+    from demo.server.remote_client import RemoteUnavailable  # noqa: E402
+else:
+    from demo.server import gazelle_client as remote_client  # noqa: E402  (Gazelle 真机)
+    from demo.server.gazelle_client import RemoteUnavailable  # noqa: E402
 from demo.server.compare_models import COMPARE_METRICS  # noqa: E402
 from demo.server.inference_local import CLASSES, DATA_DIR  # noqa: E402
 from demo.server.metrics import METRICS  # noqa: E402
-from demo.server.gazelle_client import RemoteUnavailable  # noqa: E402
 
 WEB_DIR = os.path.join(REPO_ROOT, "demo", "web")
 
@@ -118,26 +126,42 @@ def infer(req: InferRequest):
     except Exception as e:
         raise HTTPException(400, f"image decode failed: {e}")
 
-    try:
-        if model == "model3":
-            fp32 = inference_local.infer_fp32(img_tensor)
-        else:
-            # M9/M10 干净参考: 同模型 numpy 路径 (NumpyBackend), 与光学路径同层链
-            fp32 = remote_client.infer(req.image_b64, model_name=model, clean=True)
-    except Exception as e:
-        raise HTTPException(503, f"local fp32 reference failed: {e}")
-
-    t0 = time.perf_counter()
-    try:
-        optical = remote_client.infer(req.image_b64, model_name=model)
+    if _OSIM and model != "model3":
+        # osimulator 后端仅挂载 Model 1/2/3; M9/M10 用 numpy 干净参考
+        # (前端结构展示验证: s1a..h2 九层, 数据为同模型干净参考, 不连真机)
+        fp32 = _gazelle_rc.infer(req.image_b64, model_name=model, clean=True)
+        optical = _gazelle_rc.infer(req.image_b64, model_name=model, clean=True)
         degraded = False
-    except RemoteUnavailable:
-        if model == "model3":
-            optical = inference_local.infer_fake(img_tensor)
-        else:
-            optical = remote_client.infer(req.image_b64, model_name=model, clean=True)
-        degraded = True
-    remote_latency = time.perf_counter() - t0
+        remote_latency = 0.0
+    else:
+        try:
+            if model == "model3":
+                fp32 = inference_local.infer_fp32(img_tensor)
+            else:
+                # M9/M10 干净参考: 同模型 numpy 路径 (NumpyBackend), 与光学路径同层链
+                fp32 = remote_client.infer(req.image_b64, model_name=model, clean=True)
+        except Exception as e:
+            raise HTTPException(503, f"local fp32 reference failed: {e}")
+
+    def _rc_infer(**kw):
+        """兼容 osimulator(remote_client: model_id) 与 Gazelle(gazelle_client: model_name)。"""
+        if os.environ.get("OPTIC_OSIM", "0") == "1":
+            return remote_client.infer(req.image_b64,
+                                       model_id={"model3": 3}.get(model, 3))
+        return remote_client.infer(req.image_b64, **kw)
+
+    if not (_OSIM and model != "model3"):
+        t0 = time.perf_counter()
+        try:
+            optical = _rc_infer(model_name=model)
+            degraded = False
+        except RemoteUnavailable:
+            if model == "model3":
+                optical = inference_local.infer_fake(img_tensor)
+            else:
+                optical = _rc_infer(model_name=model, clean=True)
+            degraded = True
+        remote_latency = time.perf_counter() - t0
 
     correct = None
     if req.label is not None:
