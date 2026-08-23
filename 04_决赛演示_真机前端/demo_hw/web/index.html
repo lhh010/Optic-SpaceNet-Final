@@ -3,108 +3,75 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Optic-SpaceNet · 决赛真机演示</title>
+<title>Optic-SpaceNet · 决赛真机演示 v3 (pathB)</title>
 <style>
-body{font-family:system-ui,sans-serif;max-width:900px;margin:24px auto;padding:0 16px;background:#0f1420;color:#e8ecf4}
+body{font-family:system-ui,sans-serif;max-width:880px;margin:24px auto;padding:0 16px;background:#0f1420;color:#e8ecf4}
 h1{font-size:1.4rem} .card{background:#171e2e;border:1px solid #2a3550;border-radius:12px;padding:16px;margin:12px 0}
 #status{font-weight:600} .ok{color:#4ade80} .down{color:#f87171}
-img{max-width:220px;border-radius:8px} .bar{height:10px;background:#2a3550;border-radius:6px;overflow:hidden;margin:2px 0}
-.bar i{display:block;height:100%;background:#38bdf8}
 button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:10px 22px;font-size:1rem;cursor:pointer}
 button:disabled{opacity:.4} .meta{color:#93a4c3;font-size:.85rem}
-input[type=number]{width:70px;color:#111;border-radius:4px;border:1px solid #555;padding:3px}
+input[type=number]{width:72px;color:#111;border-radius:4px;border:1px solid #555;padding:3px}
 </style>
 </head>
 <body>
-<h1>Optic-SpaceNet · 决赛真机光计算演示（CICC1003564）</h1>
-<div class="card">后端状态：<span id="status" class="down">检测中…</span>
-  <span id="engmeta" class="meta"></span></div>
-
+<h1>Optic-SpaceNet · 决赛真机光计算演示 (CICC1003564) — 路径B</h1>
+<div class="card">后端状态：<span id="status" class="down">检测中…</span> <span id="engmeta" class="meta"></span></div>
 <div class="card">
   <b>上板放行判据（四项全过才开窗）</b>
-  <p class="meta">② 探针(秒级) → ③ MNIST canary(约1分钟) → ④ EuroSAT mini-run → ① EBR 板端读数手动录入</p>
-  <button id="chk" style="background:#059669">运行 ②③④ 自动判据</button>
+  <p class="meta">③ MNIST canary → ④ EuroSAT mini-run → ① EBR 板端读数手动录入（② 探针在板端 compass_evb_test 读数）</p>
+  <button id="chk" style="background:#059669">运行 ③④ 判据</button>
   <span>EBR 读数：</span><input id="ebr" type="number" step="0.01">
   <button id="ebrgo">校验 ①</button>
   <div id="checks"></div>
 </div>
-
 <div class="card">
-  <b>单图真机推理（EuroSAT 遥感图）</b><br><br>
-  <input type="file" id="file" accept="image/*">
-  <button id="go" disabled>真机推理</button>
-  <p class="meta">任意尺寸自动缩放到 64×64；真值标签(可选)：<input id="label" style="color:#111" placeholder="如 Forest"></p>
-  <div id="result" style="display:none;margin-top:8px">
-    <img id="thumb"><br>
-    <b id="pred"></b> <span id="correct"></span>
-    <div id="topk"></div>
-    <p class="meta" id="lat"></p>
-  </div>
-</div>
-
-<div class="card">
-  <b>EuroSAT 分段跑批（30min 窗口预算：校准~10min + 判据~5min + 跑批~15min）</b>
-  <p class="meta">实测吞吐 M10≈3.23s/张 / M9≈1.98s/张；默认 [0,200) ≈ 11min(M10)，贴窗请减 limit</p>
+  <b>EuroSAT 真机跑批（路径B · 板端 runner · ~3.2s/张）</b>
+  <p class="meta">演示建议 1–10 张保证时间可控；全量数字见 02_验证报告(M10 95.33%)</p>
   起始 <input id="roff" type="number" value="0" min="0">
-  张数 <input id="rlim" type="number" value="200" min="1" max="500">
-  <button id="rgo" style="background:#b45309">开始跑批段</button>
+  张数 <input id="rlim" type="number" value="8" min="1" max="200">
+  <button id="rgo" style="background:#b45309">开始跑批</button>
   <div id="rout" class="meta"></div>
 </div>
-
 <div class="card">
-  <b>MNIST 官方抽样（DSQ 三层 MLP · 光算全链）</b>
-  <p class="meta">主办方抽样图放入 HW_MNIST_DIR 目录(含 labels.txt)；未设置时用内置官方测试集</p>
-  张数 <input id="mlim" type="number" value="200" min="1" max="1000">
-  起始 <input id="moff" type="number" value="0" min="0">
+  <b>MNIST 官方抽样（DSQ 三层 MLP · 路径B）</b>
+  <p class="meta">官方 CICC_2026 200 张（已上板）；可跑全部 200 或小数张</p>
+  张数 <input id="mlim" type="number" value="200" min="1" max="200">
   <button id="mgo" style="background:#7c3aed">运行 MNIST</button>
   <div id="mout" class="meta"></div>
 </div>
-
 <script>
 const $=id=>document.getElementById(id);
-let b64=null;
 async function health(){try{const r=await fetch("/api/health");const j=await r.json();
   const remote=j.remote||"";
-  if(j.local==="ok"&&remote.startsWith("gazelle-hw")){$("status").textContent="● 真机已连接（Gazelle 光计算 · "+(j.board||"")+"）";$("status").className="ok";}
-  else if(j.local==="ok"&&remote==="unreachable"){$("status").textContent="● 真机不可达（检查板上 server_gazelle / 网络）: "+(j.detail||"");$("status").className="down";}
-  else if(j.local==="ok"){$("status").textContent="● numpy 参考模式（未连真机）";$("status").className="down";}
-  else{$("status").textContent="● 后端异常: "+(j.detail||"");$("status").className="down";}
-  $("engmeta").textContent=`  模型 ${j.label||j.model||"?"} · 后端 ${j.backend||"?"} · chunk ${j.chunk??"-"}`;}catch(e){$("status").textContent="● 后端未启动";$("status").className="down";}}
+  if(remote.startsWith("gazelle-hw")){$("status").textContent="● 真机已连接（路径B · "+(j.board||"")+"）";$("status").className="ok";}
+  else if(remote==="unreachable"){$("status").textContent="● 真机不可达: "+(j.detail||"");$("status").className="down";}
+  else{$("status").textContent="● 后端异常";$("status").className="down";}
+  $("engmeta").textContent=`  模型 ${j.label||j.model||"?"} · 校准 ${j.calib||"-"}`;}catch(e){$("status").textContent="● 后端未启动";$("status").className="down";}}
 health();setInterval(health,15000);
 function card(c){const ok=c.pass?"✔":"✘";const col=c.pass?"#4ade80":"#f87171";
   return `<div style="margin:6px 0">${ok} <b style="color:${col}">${c.name||""}</b> — ${c.value||""} <span class="meta">${c.detail||""}</span></div>`;}
-$("chk").onclick=async()=>{$("chk").disabled=true;$("checks").innerHTML="② 探针检测中…";
-  try{const p=await(await fetch("/api/checks/probe")).json();$("checks").innerHTML=card(p)+"<p class=meta>③ MNIST canary 推理中…</p>";
-    const c=await(await fetch("/api/checks/canary")).json();$("checks").innerHTML+=card(c)+"<p class=meta>④ EuroSAT mini-run 推理中…</p>";
+$("chk").onclick=async()=>{$("chk").disabled=true;$("checks").innerHTML="③ MNIST canary 推理中…";
+  try{const c=await(await fetch("/api/checks/canary")).json();$("checks").innerHTML=card(c)+"<p class=meta>④ EuroSAT mini-run 推理中…</p>";
     const m=await(await fetch("/api/checks/minirun")).json();$("checks").innerHTML+=card(m);}
-  catch(e){$("checks").innerHTML+="<p class=down>检测失败："+e.message+"（检查板上 server）</p>";}
+  catch(e){$("checks").innerHTML+="<p class=down>检测失败："+e.message+"</p>";}
   $("chk").disabled=false;};
-$("ebrgo").onclick=async()=>{const v=$("ebr").value;if(!v)return alert("先在板端跑 compass_evb_test 并读数");
+$("ebrgo").onclick=async()=>{const v=$("ebr").value;if(!v)return alert("先在板端 compass_evb_test 读数");
   const r=await(await fetch("/api/checks/ebr",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ebr:parseFloat(v)})})).json();
   $("checks").innerHTML+=card(r);};
-$("file").onchange=e=>{const f=e.target.files[0];if(!f)return;
-  const rd=new FileReader();rd.onload=()=>{b64=rd.result.split(",")[1];$("go").disabled=false;
-  $("thumb").src=rd.result;$("result").style.display="block";};rd.readAsDataURL(f);};
-$("go").onclick=async()=>{if(!b64)return;$("go").disabled=true;$("pred").textContent="推理中…（真机逐层光计算）";
-  try{const r=await fetch("/api/infer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({image_b64:b64,label:$("label").value||null})});
-  const j=await r.json();if(!r.ok)throw new Error(j.detail||r.status);
-  $("pred").textContent="预测："+j.pred;
-  $("correct").textContent=j.correct===true?" ✔":j.correct===false?" ✘":"";
-  $("topk").innerHTML=j.topk.map(t=>`${t.cls} ${(t.p*100).toFixed(1)}%<div class="bar"><i style="width:${t.p*100}%"></i></div>`).join("");
-  $("lat").textContent=`耗时 ${j.latency_s}s · 引擎 ${j.engine} · ${j.model}`;}catch(e){$("pred").textContent="失败："+e.message;}
-  $("go").disabled=false;};
-$("rgo").onclick=async()=>{$("rgo").disabled=true;$("rout").textContent="跑批中…（每 8 张刷新；请勿刷新页面）";
+$("rgo").onclick=async()=>{$("rgo").disabled=true;$("rout").textContent="跑批中…（板端 runner，约 3.2s/张）";
   try{const r=await fetch(`/api/run/eurosat?offset=${$("roff").value}&limit=${$("rlim").value}`);
   const j=await r.json();if(!r.ok)throw new Error(j.detail||r.status);
-  $("rout").innerHTML=`✔ 完成：[${j.offset}, ${j.offset+j.n}) acc <b>${j.acc}%</b> · ${j.elapsed_s}s（${j.sec_per_img}s/张）· ${j.engine}`+(j.trace?`<br>轨迹：${j.trace.map(t=>`${t.n}:${t.acc}%`).join(" → ")}`:"");}
+  let s=`✔ [${j.offset},${j.offset+j.n}) acc <b>${j.acc}%</b> · ${j.elapsed_s}s（${j.sec_per_img}s/张）· ${j.engine}`;
+  if(j.ref!==null&&j.ref!==undefined)s+=` · 参考 ${j.ref}% · gap ${j.gap}pt`;
+  s+=`<br>校准 ${j.calib}`+(j.trace&&j.trace.length?` · 轨迹 ${j.trace.map(t=>`${t.n}:${t.acc}%`).join(" → ")}`:"");
+  $("rout").innerHTML=s;}
   catch(e){$("rout").textContent="✘ 失败："+e.message;}
   $("rgo").disabled=false;};
 $("mgo").onclick=async()=>{$("mgo").disabled=true;$("mout").textContent="MNIST 光算推理中…";
-  try{const r=await fetch(`/api/mnist/run?limit=${$("mlim").value}&offset=${$("moff").value}`);
+  try{const r=await fetch(`/api/mnist/run?limit=${$("mlim").value}&official=true`);
   const j=await r.json();if(!r.ok)throw new Error(j.detail||r.status);
-  let s=`✔ n=${j.n} · ${j.elapsed_s}s · ${j.engine} · 来源：${j.source}`;
-  if(j.acc!==undefined)s+=`<br>准确率 <b>${j.acc}%</b>`+(j.wrong_sample&&j.wrong_sample.length?` · 错例(前20)：${j.wrong_sample.join(", ")}`:" · 全对");
-  else s+=`<br>预测(前20)：${j.pred_head.join(", ")}（${j.note||""}）`;
+  let s=`✔ n=${j.n} · ${j.elapsed_s}s · ${j.engine} · ${j.source}`;
+  if(j.acc!==undefined)s+=`<br>准确率 <b>${j.acc}%</b> · 参考 ${j.ref}% · gap ${j.gap}pt`;
   $("mout").innerHTML=s;}
   catch(e){$("mout").textContent="✘ 失败："+e.message;}
   $("mgo").disabled=false;};

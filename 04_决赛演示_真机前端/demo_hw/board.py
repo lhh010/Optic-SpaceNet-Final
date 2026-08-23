@@ -1,0 +1,105 @@
+# -*- coding: utf-8 -*-
+"""板边(路径B)编排: 通过 SSH 在板上运行 runner, 解析结果。
+demo 不再走 pathA HTTP matmul (实测 ~10s/次, 单图 90s+), 改为 pathB 板端 runner
+(~3.2s/张, M10 95.33% canonical 链)。"""
+import os
+import re
+import time
+
+import numpy as np
+import paramiko
+
+BOARD_HOST = os.environ.get("BOARD_HOST", "192.168.31.158")
+BOARD_USER = os.environ.get("BOARD_USER", "uisrc")
+BOARD_PASS = os.environ.get("BOARD_PASS", "5182")
+J1_DIR = os.environ.get("BOARD_J1", "/home/uisrc/j1")
+MNIST_DIR = os.environ.get("BOARD_MNIST", "/home/uisrc/mnist")
+
+_conn = None
+
+
+def _connect():
+    global _conn
+    if _conn is None or _conn.get_transport() is None or not _conn.get_transport().is_active():
+        _conn = paramiko.SSHClient()
+        _conn.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        _conn.connect(BOARD_HOST, port=22, username=BOARD_USER,
+                     password=BOARD_PASS, timeout=15,
+                     look_for_keys=False, allow_agent=False)
+    return _conn
+
+
+def _quote(s):
+    """单引号 quote (适合作 sh 里一个 word)。"""
+    return "'" + s.replace("'", "'\\''") + "'"
+
+
+def ssh_run(cmd, timeout=3600):
+    c = _connect()
+    stdin, stdout, stderr = c.exec_command(cmd, timeout=timeout)
+    out = stdout.read().decode("utf-8", "replace")
+    err = stderr.read().decode("utf-8", "replace")
+    rc = stdout.channel.recv_exit_status()
+    return out, err, rc
+
+
+def ssh_sudo_run(cmd, timeout=3600):
+    """sudo 执行(root, 经 stdin 喂密码); 板端 runner 需 root 写 api.log。"""
+    wrapped = "echo " + _quote(BOARD_PASS) + " | sudo -S sh -c " + _quote(cmd)
+    return ssh_run(wrapped, timeout=timeout)
+
+
+def run_ds3(offset, limit, calib_json=None, weights="weights_m10_5400"):
+    """板上跑 ds3 (M10) 批量 [offset, offset+limit)。返回 dict。"""
+    env = {"DS3_WEIGHTS_DIR": weights, "DS3_LIMIT": str(limit),
+           "DS3_OFFSET": str(offset), "DS3_BATCH": str(min(limit, 8))}
+    if calib_json:
+        env["DS3_CALIB"] = calib_json
+    envs = " ".join(k + "=" + _quote(v) for k, v in env.items())
+    cmd = "cd " + J1_DIR + " && " + envs + " python3 run_ds3_gazelle.py"
+    t0 = time.time()
+    out, err, rc = ssh_sudo_run(cmd, timeout=1200)
+    elapsed = time.time() - t0
+    m = re.search(r"FINAL:\s*([0-9.]+)%", out)
+    acc = float(m.group(1)) if m else None
+    mtrace = re.findall(r"\[\s*(\d+)/\d+\] acc=([0-9.]+)%", out)
+    return {"acc": acc, "elapsed_s": round(elapsed, 1),
+            "sec_per_img": round(elapsed / max(1, limit), 2) if acc is not None else None,
+            "trace": [{"n": int(n), "acc": float(a)} for n, a in mtrace],
+            "rc": rc, "stderr": (err[-300:] if rc else "")}
+
+
+def run_mnist(limit, method="dsq", official=False):
+    """板上跑 MNIST。official=True 用官方200 (需已上传并调用 run_mnist_official.py)。"""
+    if official:
+        cmd = ("cd " + MNIST_DIR + " && MNIST_METHOD=" + _quote(method) +
+               " python3 run_mnist_official.py " + str(limit))
+    else:
+        cmd = ("cd " + MNIST_DIR + " && MNIST_METHOD=" + _quote(method) +
+               " MNIST_LIMIT=" + str(limit) + " python3 run_mnist_gazelle.py")
+    t0 = time.time()
+    out, err, rc = ssh_sudo_run(cmd, timeout=900)
+    elapsed = time.time() - t0
+    m = re.search(r"FINAL\s+\S+\s+accuracy\s*\([^)]*\):\s*([0-9.]+)%", out)
+    acc = float(m.group(1)) if m else None
+    nref = re.search(r"NumPy reference accuracy\(same quant path\):\s*([0-9.]+)%", out)
+    ref = float(nref.group(1)) if nref else None
+    gap = round(abs(acc - ref), 2) if acc is not None and ref is not None else None
+    return {"acc": acc, "ref": ref, "gap": gap,
+            "elapsed_s": round(elapsed, 1), "rc": rc, "stderr": err[-200:]}
+
+
+def probe_board():
+    """可达性: SSH 开一个 sudo 无害命令。返回 (ok, detail)。"""
+    try:
+        out, err, rc = ssh_sudo_run("echo PROBE_OK", timeout=15)
+        return (rc == 0 and "PROBE_OK" in out), ("SSH " + BOARD_HOST)
+    except Exception as e:
+        return False, str(e)[:120]
+
+
+def upload(local_path, remote_path):
+    c = _connect()
+    sftp = c.open_sftp()
+    sftp.put(local_path, remote_path)
+    sftp.close()
