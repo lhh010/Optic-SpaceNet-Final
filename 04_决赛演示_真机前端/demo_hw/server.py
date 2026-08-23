@@ -31,8 +31,26 @@ from PIL import Image  # noqa: E402
 # ---- 配置 ----
 MODEL_NAME = os.environ.get("HW_MODEL", "model10")
 _calib = os.environ.get("HW_CALIB", "")   # 当前校准 json 名(可在 /api/calibrate 后动态更新)
+_calib_resolved = False
 import threading  # noqa
 _calib_state = {"status": "idle", "progress": "", "calib": _calib, "error": ""}
+
+
+def current_calib():
+    """返回当前校准名。HW_CALIB 为空时自动向板子询问最新标量校准 json(重启也生效)。"""
+    global _calib, _calib_resolved
+    if not _calib:
+        if not _calib_resolved:
+            try:
+                latest = board.latest_calib()
+                if latest:
+                    _calib = latest
+                    _calib_state["calib"] = latest
+                _calib_resolved = True   # 成功(或确认无新)才锁定, 板子暂不可达则不锁下次重试
+            except Exception:
+                pass
+        return _calib
+    return _calib
 CHECK_N = int(os.environ.get("HW_CHECK_N", "100"))   # 判据④ mini-run 默认样本数
 WEIGHTS = {"model10": "weights_m10_5400", "model9": "weights_w075ds3"}.get(
     MODEL_NAME, "weights_m10_5400")
@@ -62,7 +80,7 @@ def health():
     ok, detail = board.probe_board()
     return {"local": "ok", "remote": ("gazelle-hw:pathB" if ok else "unreachable"),
             "detail": detail, "board": board.BOARD_HOST, "model": MODEL_NAME,
-            "weights": WEIGHTS, "calib": _calib or "(未校准)",
+            "weights": WEIGHTS, "calib": current_calib() or "(未校准)",
             "label": "M10 ds3pool3" if MODEL_NAME == "model10" else "M9 w075ds3"}
 
 
@@ -95,7 +113,7 @@ def checks_minirun(n: int = CHECK_N):
         rl = _local_ref(x)
         ref = float(np.mean(np.argmax(rl, 1) == targets)) * 100
     try:
-        r = board.run_ds3(0, n, calib_json=_calib or None, weights=WEIGHTS)
+        r = board.run_ds3(0, n, calib_json=current_calib() or None, weights=WEIGHTS)
     except Exception as e:
         return {"name": "④ mini-run 对齐", "pass": False, "detail": str(e)[:150]}
     hw = r["acc"]
@@ -204,7 +222,7 @@ def run_eurosat(offset: int = 0, limit: int = CHECK_N):
     limit = max(1, min(limit, 200))
     t0 = time.time()
     try:
-        r = board.run_ds3(offset, limit, calib_json=_calib or None, weights=WEIGHTS)
+        r = board.run_ds3(offset, limit, calib_json=current_calib() or None, weights=WEIGHTS)
     except Exception as e:
         raise HTTPException(503, "板上 runner 失败: %s" % e)
     # 本地 numpy 参考用于 gap + 逐图对比
@@ -218,7 +236,7 @@ def run_eurosat(offset: int = 0, limit: int = CHECK_N):
     return {"model": MODEL_NAME, "weights": WEIGHTS, "offset": offset, "n": limit,
             "acc": r["acc"], "ref": round(ref, 2) if ref is not None else None,
             "gap": gap, "elapsed_s": r["elapsed_s"],
-            "sec_per_img": r["sec_per_img"], "calib": _calib or "(none)",
+            "sec_per_img": r["sec_per_img"], "calib": current_calib() or "(none)",
             "engine": "gazelle-hw:pathB", "trace": r["trace"], "rows": rows}
 
 

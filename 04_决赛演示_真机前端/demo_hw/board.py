@@ -125,6 +125,15 @@ def run_calibrate(weights="weights_m10_5400", calib_out="calib_scalar_auto.json"
             "err": ("" if ok2 else (err2[-200:] or out2[-200:]))}
 
 
+def latest_calib():
+    """板上 ~/j1 里最新的标量校准 json 名 (ls -t 按 mtime 新→旧)。无则 None。"""
+    out, err, rc = ssh_sudo_run("ls -t " + J1_DIR + "/calib_scalar_*.json 2>/dev/null | head -1", timeout=20)
+    name = out.strip()
+    if name and name.endswith(".json"):
+        return os.path.basename(name)
+    return None
+
+
 def run_ebr(timeout=600):
     """板上 compass_evb_test, 解析 EBR (两通道)。返回 (ebr1, ebr2) 或 (None,None)。"""
     out, err, rc = ssh_sudo_run("compass_evb_test", timeout=timeout)
