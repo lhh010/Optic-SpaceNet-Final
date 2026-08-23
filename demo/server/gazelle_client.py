@@ -52,6 +52,8 @@ from demo.server import model_trace  # noqa: E402
 from demo.server.inference_local import preprocess  # noqa: E402
 from demo.server.gazelle_engine import (  # noqa: E402
     HttpBackend, NumpyBackend, GazelleOpticalEngine)
+from demo.server.backend_transports import (  # noqa: E402
+    TransportUnavailable, matrix_backend)
 from demo.server import ds3net  # noqa: E402
 from optic_layers import build_optical_model  # noqa: E402
 
@@ -77,7 +79,7 @@ GAZELLE_CALIB_10 = os.environ.get("GAZELLE_CALIB_10", "")
 GAZELLE_FAKE = os.environ.get("GAZELLE_FAKE", "0") == "1"
 GAZELLE_TIMEOUT = float(os.environ.get("GAZELLE_TIMEOUT", "300"))
 
-ENGINE_LABEL = "gazelle-osim"  # 前端 health 状态灯已认识该标签 (青)
+ENGINE_LABEL = "gazelle-hardware"  # 与 Model 3 的 gazelle-osim 明确区分
 
 CLASSES = [
     "AnnualCrop", "Forest", "HerbaceousVegetation", "Highway", "Industrial",
@@ -104,7 +106,7 @@ class RemoteUnavailable(Exception):
 # ---------------------------------------------------------------------------
 # 模型单例 (惰性加载, 按 model_name)
 # ---------------------------------------------------------------------------
-_state = {"model3": None, "model9": None, "model10": None,
+_state = {"model3": {}, "model9": None, "model10": None,
          "model3_clean": None}
 
 
@@ -119,30 +121,39 @@ def _load_correction(path):
     return correction
 
 
-def _get_backend():
+def _get_backend(backend_mode=None):
+    if backend_mode in ("osimulator", "gazelle_ssh", "gazelle_serial"):
+        try:
+            return matrix_backend(backend_mode)
+        except TransportUnavailable as exc:
+            raise RemoteUnavailable(str(exc))
     if GAZELLE_FAKE:
         return NumpyBackend()
-    return HttpBackend(host=GAZELLE_HOST, port=GAZELLE_PORT,
-                       timeout=GAZELLE_TIMEOUT)
+    backend = HttpBackend(host=GAZELLE_HOST, port=GAZELLE_PORT,
+                          timeout=GAZELLE_TIMEOUT)
+    backend.name = ENGINE_LABEL
+    return backend
 
 
-def _get_model3():
-    """Model 3: torch 前向 + optic_layers 光层替换 (与旧路径一致)。"""
-    if _state["model3"] is None:
+def _get_model3(backend_mode=None):
+    """Model 3 torch forward with one cached optical model per transport."""
+    key = backend_mode or "gazelle_http"
+    if key not in _state["model3"]:
         if not os.path.isfile(GAZELLE_WEIGHT):
             raise RemoteUnavailable("weight not found: %s" % GAZELLE_WEIGHT)
         correction = None
         if GAZELLE_CALIB and os.path.isfile(GAZELLE_CALIB):
             correction = _load_correction(GAZELLE_CALIB)
-        engine = GazelleOpticalEngine(_get_backend(), correction=correction)
+        engine = GazelleOpticalEngine(
+            _get_backend(backend_mode), correction=correction)
         model = model_trace.build_student(GAZELLE_WEIGHT)
         build_optical_model(model, engine, pad_to_8=True,
                             input_bit=8, weight_bit=8,
                             keep_first_conv_electronic=True,
                             convert_linear=True)
         model.eval()
-        _state["model3"] = (model, engine)
-    return _state["model3"]
+        _state["model3"][key] = (model, engine)
+    return _state["model3"][key]
 
 
 def _get_ds3(model_name):
@@ -166,13 +177,10 @@ def _get_model(model_name):
 # ---------------------------------------------------------------------------
 # 接口: health / infer (与 remote_client 同签名 + model 选择)
 # ---------------------------------------------------------------------------
-def health(base_url=None):
-    """探针: 板上服务可达 + 返回有限数值 → ok。不可用 raise RemoteUnavailable。"""
-    if GAZELLE_FAKE:
-        return {"status": "ok", "engine": ENGINE_LABEL,
-                "detail": "numpy 离线参考 (GAZELLE_FAKE=1)"}
+def health(base_url=None, backend_mode=None):
+    """Probe the selected matrix transport with a finite-value matmul."""
     try:
-        pb = HttpBackend(host=GAZELLE_HOST, port=GAZELLE_PORT, timeout=5)
+        pb = _get_backend(backend_mode)
         x = np.array([[1, 2]], dtype=np.uint8)
         w = np.array([[1], [-1]], dtype=np.int8)
         got = np.asarray(pb.matmul_2d(x, w), dtype=np.float64).ravel()
@@ -180,9 +188,12 @@ def health(base_url=None):
             raise RemoteUnavailable("probe 返回非有限值: %s" % got)
     except RemoteUnavailable:
         raise
-    except Exception as e:
-        raise RemoteUnavailable("probe failed: %s" % str(e)[:150])
-    return {"status": "ok", "engine": ENGINE_LABEL,
+    except Exception as exc:
+        raise RemoteUnavailable("probe failed: %s" % str(exc)[:180])
+    label = getattr(pb, "name", ENGINE_LABEL)
+    if label == "http":
+        label = ENGINE_LABEL
+    return {"status": "ok", "engine": label,
             "detail": "raw=[%s]" % str(got[:4])}
 
 
@@ -199,8 +210,8 @@ def _encode_act(act):
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def _path_result(logits, layers, model_name, clean):
-    """组装 PathResult (与 optic_server 同构; engine 标签统一 gazelle-osim)。"""
+def _path_result(logits, layers, model_name, engine_label, clean=False):
+    """组装 PathResult；真机与本地 clean reference 使用不同引擎标签。"""
     lg = logits[0] if torch.is_tensor(logits) else logits[0]
     if torch.is_tensor(lg):
         probs_t = torch.softmax(lg, dim=0).tolist()
@@ -213,12 +224,13 @@ def _path_result(logits, layers, model_name, clean):
     prob_dict = {CLASSES[i]: round(float(probs_t[i]), 6) for i in order.tolist()}
     out_layers = [{
         "name": l["name"], "where": l["where"], "spec": l["spec"],
+        "analysis": l.get("analysis"),
         "shape": l.get("shape") or list(l["act"].shape[1:]),
         "latency_s": round(l.get("latency_s", 0.0), 6),
         "act_b64": _encode_act(l["act"]),
     } for l in layers]
     return {
-        "engine": ENGINE_LABEL,
+        "engine": engine_label,
         "model": model_name,
         "pred": CLASSES[pred_i],
         "probs": prob_dict,
@@ -229,12 +241,8 @@ def _path_result(logits, layers, model_name, clean):
 
 
 def infer(image_b64, base_url=None, model_id=None, model_name="model3",
-          clean=False):
-    """光电分离推理 → PathResult。
-
-    clean=True → NumpyBackend (无噪声干净参考, 供 fp32 侧对比用)。
-    model_name: model3|model9|model10; model_id=3/9/10 也可 (兼容旧调用)。
-    """
+          clean=False, backend_mode=None):
+    """Quantized optical/hardware inference through the selected transport."""
     if model_id is not None and model_name == "model3":
         if model_id == 9:
             model_name = "model9"
@@ -248,42 +256,75 @@ def infer(image_b64, base_url=None, model_id=None, model_name="model3",
     try:
         image_bytes = base64.b64decode(image_b64)
         img_tensor = preprocess(image_bytes)
-    except Exception as e:
-        raise RemoteUnavailable("image decode failed: %s" % e)
+    except Exception as exc:
+        raise RemoteUnavailable("image decode failed: %s" % exc)
 
     t0 = time.perf_counter()
+    engine_label = "numpy-clean"
     try:
         if model_name == "model3":
             if clean:
                 if _state["model3_clean"] is None:
                     eng = GazelleOpticalEngine(NumpyBackend())
-                    m = model_trace.build_student(MODEL_DEFS["model3"]["weight"])
-                    build_optical_model(m, eng, pad_to_8=True, input_bit=8,
-                                        weight_bit=8,
-                                        keep_first_conv_electronic=True,
-                                        convert_linear=True)
-                    m.eval()
-                    _state["model3_clean"] = m
-                traced = model_trace.forward_traced(_state["model3_clean"],
-                                                    img_tensor)
+                    model = model_trace.build_student(
+                        MODEL_DEFS["model3"]["weight"])
+                    build_optical_model(
+                        model, eng, pad_to_8=True, input_bit=8,
+                        weight_bit=8, keep_first_conv_electronic=True,
+                        convert_linear=True)
+                    model.eval()
+                    _state["model3_clean"] = model
+                traced = model_trace.forward_traced(
+                    _state["model3_clean"], img_tensor)
                 logits, layers = traced["logits"], traced["layers"]
             else:
-                model, engine = _get_model3()
+                model, engine = _get_model3(backend_mode)
                 traced = model_trace.forward_traced(model, img_tensor)
                 logits, layers = traced["logits"], traced["layers"]
+                engine_label = getattr(engine.backend, "name", ENGINE_LABEL)
         else:
             ws, meta, cc = _get_ds3(model_name)
-            backend = NumpyBackend() if clean else _get_backend()
+            matrix = NumpyBackend() if clean else _get_backend(backend_mode)
             x = np.asarray(img_tensor.numpy(), dtype=np.float64)
             logits, layers = ds3net.forward_traced(
-                x, ws, meta, backend, calib_col=cc,
+                x, ws, meta, matrix, calib_col=cc,
                 head_elec=MODEL_DEFS[model_name]["head_elec"])
+            if not clean:
+                engine_label = getattr(matrix, "name", ENGINE_LABEL)
     except RemoteUnavailable:
         raise
-    except Exception as e:
-        raise RemoteUnavailable("真机推理失败: %s" % str(e)[:200])
+    except TransportUnavailable as exc:
+        raise RemoteUnavailable(str(exc))
+    except Exception as exc:
+        target = backend_mode or "Gazelle"
+        raise RemoteUnavailable(
+            "%s 推理失败: %s" % (target, str(exc)[:220]))
 
-    result = _path_result(logits, layers, model_name, clean)
+    if engine_label == "http":
+        engine_label = ENGINE_LABEL
+    result = _path_result(
+        logits, layers, model_name, engine_label, clean=clean)
     result["latency_total_s"] = round(
         max(result["latency_total_s"], time.perf_counter() - t0), 6)
     return result
+
+
+def infer_fp32(image_b64, model_name="model3"):
+    """Run the selected model with original floating-point weights locally."""
+    try:
+        image_bytes = base64.b64decode(image_b64)
+        img_tensor = preprocess(image_bytes)
+        if model_name == "model3":
+            from demo.server import inference_local
+            return inference_local.infer_fp32(img_tensor)
+        ws, meta, _ = _get_ds3(model_name)
+        x = np.asarray(img_tensor.numpy(), dtype=np.float64)
+        logits, layers = ds3net.forward_fp32_traced(x, ws, meta)
+        return _path_result(
+            logits, layers, model_name, "numpy-fp32", clean=True)
+    except RemoteUnavailable:
+        raise
+    except Exception as exc:
+        raise RemoteUnavailable(
+            "本地 FP32 %s 推理失败: %s" %
+            (model_name, str(exc)[:220]))

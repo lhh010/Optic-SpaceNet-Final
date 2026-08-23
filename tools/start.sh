@@ -14,6 +14,8 @@ OUT_DIR="$REPO/tools/out"                                   # 校准/验证结�
 IMAGE="gazelle-demo:1.0"
 CONTAINER="gazelle-demo-run"
 FRONT_PORT="${FRONT_PORT:-8000}"
+OSIM_CONTAINER="${OSIM_CONTAINER:-LT-Simulator-container}"
+OSIM_URL="${OPTIC_REMOTE_URL:-}"
 
 mkdir -p "$OUT_DIR"
 
@@ -57,6 +59,13 @@ else
 fi
 say "容器运行中 (前端端口 $FRONT_PORT, 结果输出 $OUT_DIR)"
 
+# Model 3 固定走 osimulator。优先动态读取容器 IP，保留交接时地址作回退。
+if [ -z "$OSIM_URL" ]; then
+  OSIM_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$OSIM_CONTAINER" 2>/dev/null)
+  OSIM_URL="http://${OSIM_IP:-172.17.0.3}:8765"
+fi
+say "Model 3 osimulator: $OSIM_URL"
+
 # ---------- 3. 前端环境变量提示 ----------
 cat <<'EOF'
   [真机调用环境变量] (容器内可通过 tools/*.sh 脚本传入, 或 export 后 exec)
@@ -89,9 +98,11 @@ while true; do
       esac
       ;;
     2)
-      echo "  前端数据来源: [1] 真机 http   [2] 离线 numpy 参考 (GAZELLE_FAKE=1)"
+      echo "  M9/M10 数据来源: [1] Gazelle 真机   [2] 离线 numpy 参考"
+      echo "  Model 3 始终使用 osimulator ($OSIM_URL)"
       read -rp "  选择 [1-2]: " B
-      ENVS="GAZELLE_HOST=192.168.31.158 GAZELLE_PORT=8000"
+      ENVS="OPTIC_OSIM=1 OPTIC_REMOTE_URL=$OSIM_URL"
+      ENVS="$ENVS GAZELLE_HOST=192.168.31.158 GAZELLE_PORT=8000"
       ENVS="$ENVS GAZELLE_WEIGHT_9=/workspace/weights/m9_j1w075ds3_v8probe15.pth"
       ENVS="$ENVS GAZELLE_WEIGHT_10=/workspace/weights/m10_ds3pool3_v8probe15.pth"
       # 使用 tools/out/calib 里最新的逐列校准 (同窗口)

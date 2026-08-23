@@ -52,12 +52,14 @@ def load_ds3(pth_path, stem_pool_mode):
 
     def conv1x1(layer, *parts):
         w = get(*parts, "weight").squeeze()  # (C_out, C_in)
+        ws[layer + "_wf"] = w.astype(np.float64)
         wq, s = _quantize_w_per_channel(w)
         ws[layer] = wq; meta[layer + "_scale"] = s
 
     def conv3s2(layer, *parts):
         w = get(*parts, "weight")  # (C_out, C, 3, 3) -> (C_out, 9C)
         w2 = w.reshape(w.shape[0], -1)
+        ws[layer + "_wf"] = w2.astype(np.float64)
         wq, s = _quantize_w_per_channel(w2)
         ws[layer] = wq; meta[layer + "_scale"] = s
 
@@ -256,66 +258,220 @@ def forward(x, ws, meta, backend, calib_col=None, head_elec=False):
 # ---------------- forward_traced (逐层激活, 供演示前端光|电对比) ----------------
 
 def forward_traced(x, ws, meta, backend, calib_col=None, head_elec=False):
-    """逐层执行, 返回 (logits (B,10), layers)。
-
-    layers: [{"name","where","spec","shape","latency_s","act"(np.ndarray), ...}]
-    act 为该层输出激活 (BN+ReLU+pool 之后, 与 Model 3 前端展示语义一致);
-    stem 为电层, 其余为光层 (backend.matmul_2d)。
-    """
+    """逐层执行并返回可供前端解释的真实激活、结构和设计分析。"""
     import time
     cc = (calib_col or {}).get
     x = np.asarray(x, dtype=np.float64)
     eps = float(meta.get("stem_bn_eps", 1e-5))
     layers = []
 
-    def _add(name, where, spec, act, t0):
-        layers.append({"name": name, "where": where, "spec": spec,
-                       "shape": list(act.shape[1:]), "act": act,
-                       "latency_s": time.perf_counter() - t0})
+    def _add(name, where, spec, analysis, act, t0):
+        layers.append({
+            "name": name,
+            "where": where,
+            "spec": spec,
+            "analysis": analysis,
+            "shape": list(act.shape[1:]),
+            "act": act,
+            "latency_s": time.perf_counter() - t0,
+        })
 
-    # stem (电, k5 s2 + BN + ReLU + pool)
+    # Stem stays electronic. Both checkpoints use 3x3/s2; only M10 uses
+    # MaxPool3x3/s2, while M9 uses MaxPool2x2.
     t0 = time.perf_counter()
     w = ws["stem"].astype(np.float64)
     h = _conv2d_np(x, w, stride=2, pad=1)
     h = _apply_bn(h, ws["stem_bn"], eps)
     h = _relu(h)
-    h = _pool3s2(h) if meta.get("stem_pool_mode", "max") == "max3" else _pool2d(h, 2)
-    _c0 = int(ws["stem"].shape[0])
-    _add("stem", "electronic",
-         "5×5/s2 Conv 3→%d + BN + ReLU + MaxPool (电)" % _c0, h, t0)
+    pool3 = meta.get("stem_pool_mode", "max") == "max3"
+    h = _pool3s2(h) if pool3 else _pool2d(h, 2)
+    c0 = int(w.shape[0])
+    pool_spec = "MaxPool3x3/s2" if pool3 else "MaxPool2x2/s2"
+    stem_analysis = (
+        "电子前端先提取局部纹理并把 64x64 压到 16x16；"
+        + ("3x3 池化在进入光学主干前扩大局部感受野。"
+           if pool3 else
+           "0.75x 窄通道优先控制参数量和 MACs。")
+    )
+    _add(
+        "stem", "electronic",
+        "3x3/s2 Conv 3→%d + BN + ReLU + %s" % (c0, pool_spec),
+        stem_analysis, h, t0)
 
-    # 7 光层 (spec 带通道信息: 输入通道 = 上一层输出, 输出通道 = 权重行数)
-    _prev_c = int(h.shape[1])
-    for name, kind in [("s1a", "1x1"), ("s1ds", "3x3s2"), ("s2a", "1x1"),
-                       ("s2b", "1x1"), ("s2ds", "3x3s2"), ("s3a", "1x1"),
-                       ("s3b", "1x1")]:
+    analyses = {
+        "s1a": (
+            "首个光学通道混合层：保持 16x16 空间分辨率并扩展通道；"
+            "1x1 展平只沿通道做矩阵乘，更贴合 Gazelle 8x2 tile。"
+        ),
+        "s1ds": (
+            "第一处可学习光学下采样：im2col 后执行 3x3/s2 矩阵乘，"
+            "将 16x16 降到 8x8。它替代直接 MaxPool，避免噪声尖峰被 max 有偏放大。"
+        ),
+        "s2a": (
+            "在 8x8 特征图上将通道翻倍，提升中层地物纹理与光谱组合能力；"
+            "BN/ReLU 在电子域完成，矩阵乘在光学域完成。"
+        ),
+        "s2b": (
+            "同分辨率的第二次 1x1 通道重组；实验表明 stage 内第二次混合"
+            "是宽度收益生效的重要环节，而单纯继续堆深收益有限。"
+        ),
+        "s2ds": (
+            "第二处 3x3/s2 光学下采样，把 8x8 压到 4x4，同时扩大感受野；"
+            "该层同样使用 uint8 激活、per-channel int8 权重和逐输出列校准。"
+        ),
+        "s3a": (
+            "在仅 4x4 的低空间成本区将通道再次翻倍，集中构建高层语义；"
+            "这让模型把容量投向通道表达而不是大尺寸特征图。"
+        ),
+        "s3b": (
+            "最终 1x1 光学特征整合，保持 4x4 尺寸；"
+            "v8 QAT 按层注入实测列偏移、列增益与等效权重扰动以抑制误差累积。"
+        ),
+    }
+
+    prev_c = int(h.shape[1])
+    for name, kind in [
+            ("s1a", "1x1"), ("s1ds", "3x3s2"), ("s2a", "1x1"),
+            ("s2b", "1x1"), ("s2ds", "3x3s2"), ("s3a", "1x1"),
+            ("s3b", "1x1")]:
         t0 = time.perf_counter()
         fn = optical_conv1x1 if kind == "1x1" else optical_conv3s2
         h = fn(backend, h, ws[name], meta[name + "_scale"], cc(name))
         h = _apply_bn(h, ws[name + "_bn"], eps)
         h = _relu(h)
-        _c = int(ws[name].shape[0])
-        spec = ("1×1 Conv %d→%d + BN + ReLU" if kind == "1x1"
-                else "3×3/s2 Conv %d→%d + BN + ReLU (光下采样)") % (_prev_c, _c)
-        _add(name, "optical", spec, h, t0)
-        _prev_c = _c
+        out_c = int(ws[name].shape[0])
+        if kind == "1x1":
+            spec = "1x1 Conv %d→%d + BN + ReLU [光学 MVM]" % (
+                prev_c, out_c)
+        else:
+            spec = "3x3/s2 Conv %d→%d + BN + ReLU [im2col→光学 MVM]" % (
+                prev_c, out_c)
+        _add(name, "optical", spec, analyses[name], h, t0)
+        prev_c = out_c
 
-    g = h.mean(axis=(2, 3))  # GAP
+    # GAP is electronic; the current demo deployment maps both FC layers to
+    # Gazelle unless HEAD_ELEC is explicitly selected.
+    g = h.mean(axis=(2, 3))
+    h1_analysis = (
+        "GAP 在电子域把每个通道的 4x4 响应汇聚为一个向量；随后 FC1 "
+        "在当前部署中映射到光学矩阵乘，并用 ReLU 形成分类嵌入。"
+    )
+    h2_analysis = (
+        "最终光学全连接输出 EuroSAT 十类 logits，不再接 ReLU；"
+        "这一层的扰动会直接改变类别间隔，因此逐列增益/偏移校准尤其关键。"
+    )
     if head_elec:
+        t0 = time.perf_counter()
         z = _relu(g @ ws["h1_wf"].T + ws["h1_bias"])
-        z = z @ ws["h2_wf"].T + ws["h2_bias"]
-        layers.append({"name": "h1", "where": "electronic", "spec": "Linear(GAP→128)",
-                       "shape": [], "act": None, "latency_s": 0.0})
+        _add("h1", "electronic",
+             "GAP + Linear %d→%d + ReLU" % (
+                 int(g.shape[1]), int(ws["h1_wf"].shape[0])),
+             h1_analysis.replace("光学矩阵乘", "电子矩阵乘"), z, t0)
+        t0 = time.perf_counter()
+        logits = z @ ws["h2_wf"].T + ws["h2_bias"]
+        _add("h2", "electronic",
+             "Linear %d→10 [logits]" % int(ws["h2_wf"].shape[1]),
+             h2_analysis.replace("最终光学全连接", "最终电子全连接"),
+             logits, t0)
     else:
         t0 = time.perf_counter()
-        z = _relu(optical_fc(backend, g, ws["h1"], meta["h1_scale"],
-                             cc("h1"), ws.get("h1_bias")))
+        z = _relu(optical_fc(
+            backend, g, ws["h1"], meta["h1_scale"],
+            cc("h1"), ws.get("h1_bias")))
         _add("h1", "optical",
-             "Linear GAP %d→%d + ReLU" % (int(g.shape[1]), int(ws["h1"].shape[0])),
-             z, t0)
+             "GAP + Linear %d→%d + ReLU [光学 MVM]" % (
+                 int(g.shape[1]), int(ws["h1"].shape[0])),
+             h1_analysis, z, t0)
         t0 = time.perf_counter()
-        z = optical_fc(backend, z, ws["h2"], meta["h2_scale"],
-                       cc("h2"), ws.get("h2_bias"))
+        logits = optical_fc(
+            backend, z, ws["h2"], meta["h2_scale"],
+            cc("h2"), ws.get("h2_bias"))
         _add("h2", "optical",
-             "Linear %d→10 · logits" % int(ws["h2"].shape[0]), z, t0)
-    return z, layers
+             "Linear %d→10 [光学 MVM · logits]" % int(ws["h2"].shape[1]),
+             h2_analysis, logits, t0)
+    return logits, layers
+
+
+
+def forward_fp32_traced(x, ws, meta):
+    """Original floating-point M9/M10 forward used as electric reference.
+
+    This path does not quantize activations or weights. Layer boundaries match
+    forward_traced so optical/hardware activations pair with electric results.
+    """
+    import time
+
+    x = np.asarray(x, dtype=np.float64)
+    eps = float(meta.get("stem_bn_eps", 1e-5))
+    layers = []
+
+    def add(name, where, spec, analysis, act, t0):
+        layers.append({
+            "name": name, "where": where, "spec": spec,
+            "analysis": analysis, "shape": list(act.shape[1:]),
+            "act": act, "latency_s": time.perf_counter() - t0,
+        })
+
+    t0 = time.perf_counter()
+    h = _relu(_apply_bn(
+        _conv2d_np(x, ws["stem"].astype(np.float64), stride=2, pad=1),
+        ws["stem_bn"], eps))
+    pool3 = meta.get("stem_pool_mode", "max") == "max3"
+    h = _pool3s2(h) if pool3 else _pool2d(h, 2)
+    c0 = int(h.shape[1])
+    pool_spec = "MaxPool3x3/s2" if pool3 else "MaxPool2x2/s2"
+    add("stem", "electronic",
+        "3x3/s2 Conv 3→%d + BN + ReLU + %s [FP32 电计算]" %
+        (c0, pool_spec),
+        "原始浮点权重的电子前端；作为所有后端逐层对比的固定基准。",
+        h, t0)
+
+    analyses = {
+        "s1a": "原始浮点 1x1 通道扩展，是同名光学 MVM 的逐元素参考。",
+        "s1ds": "原始浮点 3x3/s2 下采样；im2col 展开与光学路径保持相同。",
+        "s2a": "原始浮点中层通道扩展，用于量化与硬件误差的逐层归因。",
+        "s2b": "原始浮点同分辨率通道重组，用于观察误差是否在 stage 内累积。",
+        "s2ds": "原始浮点第二次可学习下采样，是光学 3x3 MVM 的对照。",
+        "s3a": "原始浮点高层通道扩展，保留未经 int8 量化的语义激活。",
+        "s3b": "原始浮点最终特征整合，作为进入分类头前的电计算基准。",
+    }
+    prev_c = c0
+    for name, kind in [
+            ("s1a", "1x1"), ("s1ds", "3x3s2"), ("s2a", "1x1"),
+            ("s2b", "1x1"), ("s2ds", "3x3s2"), ("s3a", "1x1"),
+            ("s3b", "1x1")]:
+        t0 = time.perf_counter()
+        wf = ws[name + "_wf"]
+        if kind == "1x1":
+            batch, channels, height, width = h.shape
+            flat = h.transpose(0, 2, 3, 1).reshape(-1, channels)
+            out = flat @ wf.T
+            h = out.reshape(batch, height, width, -1).transpose(0, 3, 1, 2)
+            kind_spec = "1x1"
+        else:
+            batch = h.shape[0]
+            cols, oh, ow = _im2col_3x3s2(h)
+            out = cols @ wf.T
+            h = out.reshape(batch, oh, ow, -1).transpose(0, 3, 1, 2)
+            kind_spec = "3x3/s2"
+        h = _relu(_apply_bn(h, ws[name + "_bn"], eps))
+        out_c = int(h.shape[1])
+        add(name, "optical",
+            "%s Conv %d→%d + BN + ReLU [FP32 电计算]" %
+            (kind_spec, prev_c, out_c), analyses[name], h, t0)
+        prev_c = out_c
+
+    gap = h.mean(axis=(2, 3))
+    t0 = time.perf_counter()
+    z = _relu(gap @ ws["h1_wf"].astype(np.float64).T + ws["h1_bias"])
+    add("h1", "optical",
+        "GAP + Linear %d→%d + ReLU [FP32 电计算]" %
+        (int(gap.shape[1]), int(z.shape[1])),
+        "GAP 后使用原始浮点 FC1，作为光学分类嵌入的直接参照。", z, t0)
+    t0 = time.perf_counter()
+    logits = z @ ws["h2_wf"].astype(np.float64).T + ws["h2_bias"]
+    add("h2", "optical",
+        "Linear %d→10 [FP32 电计算 · logits]" % int(z.shape[1]),
+        "原始浮点分类 logits；最终预测与类别概率的电计算基准。",
+        logits, t0)
+    return logits, layers

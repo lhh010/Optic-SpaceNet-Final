@@ -12,6 +12,7 @@ Endpoints (contract: demo/docs/api.md):
 CORS is wide open on purpose — this is a local demo server.
 """
 import base64
+import copy
 import io
 import os
 import random
@@ -37,16 +38,19 @@ from torchvision import datasets  # noqa: E402
 
 from demo.server import compare, compare_models, inference_local, render  # noqa: E402
 from demo.server import board_checks  # noqa: E402  (上板四项放行判据)
-# 数据来源: OPTIC_OSIM=1 → 容器 osimulator (optic_server :8765, 原 remote_client);
-#           否则 → Gazelle 真机 HTTP (gazelle_client) / GAZELLE_FAKE=1 离线 numpy。
+from demo.server import gazelle_client  # noqa: E402  (M9/M10: Gazelle 真机)
+from demo.server import remote_client as osim_client  # noqa: E402  (Model 3: osimulator)
+from demo.server.gazelle_client import (  # noqa: E402
+    RemoteUnavailable as GazelleUnavailable,
+)
+from demo.server.remote_client import (  # noqa: E402
+    RemoteUnavailable as OsimUnavailable,
+)
+
+# 按模型路由，而不是用一个全局后端替换全部模型：
+#   OPTIC_OSIM=1: Model 3 -> osimulator；M9/M10 -> Gazelle。
+#   OPTIC_OSIM=0: 三者均可走 Gazelle（保留原单模型真机模式）。
 _OSIM = os.environ.get("OPTIC_OSIM", "0") == "1"
-if _OSIM:
-    from demo.server import remote_client  # noqa: E402  (osimulator HTTP 客户端)
-    from demo.server import gazelle_client as _gazelle_rc  # noqa: E402  (M9/M10 干净参考)
-    from demo.server.remote_client import RemoteUnavailable  # noqa: E402
-else:
-    from demo.server import gazelle_client as remote_client  # noqa: E402  (Gazelle 真机)
-    from demo.server.gazelle_client import RemoteUnavailable  # noqa: E402
 from demo.server.compare_models import COMPARE_METRICS  # noqa: E402
 from demo.server.inference_local import CLASSES, DATA_DIR  # noqa: E402
 from demo.server.metrics import METRICS  # noqa: E402
@@ -58,6 +62,17 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def no_cache_frontend(request, call_next):
+    """Prevent stale demo HTML/JS from surviving frontend revisions."""
+    response = await call_next(request)
+    if request.url.path.endswith((".html", ".js", ".css")) or request.url.path == "/":
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 _dataset = None
 _test_indices = None
@@ -77,21 +92,39 @@ class InferRequest(BaseModel):
     image_b64: str
     label: str | None = None
     model: str = "model3"   # model3 | model9 | model10 (前端模型选择)
+    backend: str = "osimulator"
 
 
 @app.get("/api/health")
-def health():
+def health(backend: str = Query("osimulator")):
     try:
         inference_local.get_fp32_model()
         local = "ok"
     except Exception:
         local = "error"
-    try:
-        remote = remote_client.health()["engine"]
-    except RemoteUnavailable:
-        remote = "down"
-    return {"local": local, "remote": remote,
-            "gazelle_host": getattr(remote_client, "GAZELLE_HOST", "")}
+
+    allowed = {"electronic", "osimulator", "gazelle_ssh", "gazelle_serial"}
+    if backend not in allowed:
+        raise HTTPException(400, "unknown backend %r" % backend)
+    if backend == "electronic":
+        remote = "fp32-local" if local == "ok" else "down"
+        detail = "本地浮点电计算"
+    else:
+        try:
+            probe = gazelle_client.health(backend_mode=backend)
+            remote = probe["engine"]
+            detail = probe.get("detail")
+        except GazelleUnavailable as exc:
+            remote = "down"
+            detail = str(exc)[:180]
+    return {
+        "local": local, "remote": remote, "backend": backend,
+        "detail": detail,
+        "backends": ["electronic", "osimulator",
+                     "gazelle_ssh", "gazelle_serial"],
+        "gazelle_host": gazelle_client.GAZELLE_HOST,
+        "gazelle_port": gazelle_client.GAZELLE_PORT,
+    }
 
 
 @app.get("/api/sample")
@@ -119,49 +152,45 @@ def sample(class_: str | None = Query(None, alias="class"),
 
 @app.post("/api/infer")
 def infer(req: InferRequest):
-    model = req.model if req.model in ("model3", "model9", "model10") else "model3"
+    model = req.model if req.model in (
+        "model3", "model9", "model10") else "model3"
+    allowed = {"electronic", "osimulator", "gazelle_ssh", "gazelle_serial"}
+    if req.backend not in allowed:
+        raise HTTPException(400, "unknown backend %r" % req.backend)
     try:
-        image_bytes = base64.b64decode(req.image_b64)
-        img_tensor = inference_local.preprocess(image_bytes)
-    except Exception as e:
-        raise HTTPException(400, f"image decode failed: {e}")
+        base64.b64decode(req.image_b64, validate=True)
+    except Exception as exc:
+        raise HTTPException(400, "image decode failed: %s" % exc)
 
-    if _OSIM and model != "model3":
-        # osimulator 后端仅挂载 Model 1/2/3; M9/M10 用 numpy 干净参考
-        # (前端结构展示验证: s1a..h2 九层, 数据为同模型干净参考, 不连真机)
-        fp32 = _gazelle_rc.infer(req.image_b64, model_name=model, clean=True)
-        optical = _gazelle_rc.infer(req.image_b64, model_name=model, clean=True)
-        degraded = False
-        remote_latency = 0.0
+    try:
+        fp32 = gazelle_client.infer_fp32(
+            req.image_b64, model_name=model)
+    except GazelleUnavailable as exc:
+        raise HTTPException(503, "local FP32 reference failed: %s" % exc)
+
+    targets = {
+        "electronic": "本地 FP32 电计算",
+        "osimulator": "本地 osimulator",
+        "gazelle_ssh": "Gazelle · SSH 隧道",
+        "gazelle_serial": "Gazelle · 串口引导",
+    }
+    t0 = time.perf_counter()
+    degraded = False
+    degraded_reason = None
+    if req.backend == "electronic":
+        optical = copy.deepcopy(fp32)
     else:
         try:
-            if model == "model3":
-                fp32 = inference_local.infer_fp32(img_tensor)
-            else:
-                # M9/M10 干净参考: 同模型 numpy 路径 (NumpyBackend), 与光学路径同层链
-                fp32 = remote_client.infer(req.image_b64, model_name=model, clean=True)
-        except Exception as e:
-            raise HTTPException(503, f"local fp32 reference failed: {e}")
-
-    def _rc_infer(**kw):
-        """兼容 osimulator(remote_client: model_id) 与 Gazelle(gazelle_client: model_name)。"""
-        if os.environ.get("OPTIC_OSIM", "0") == "1":
-            return remote_client.infer(req.image_b64,
-                                       model_id={"model3": 3}.get(model, 3))
-        return remote_client.infer(req.image_b64, **kw)
-
-    if not (_OSIM and model != "model3"):
-        t0 = time.perf_counter()
-        try:
-            optical = _rc_infer(model_name=model)
-            degraded = False
-        except RemoteUnavailable:
-            if model == "model3":
-                optical = inference_local.infer_fake(img_tensor)
-            else:
-                optical = _rc_infer(model_name=model, clean=True)
+            optical = gazelle_client.infer(
+                req.image_b64, model_name=model,
+                backend_mode=req.backend)
+        except GazelleUnavailable as exc:
+            optical = gazelle_client.infer(
+                req.image_b64, model_name=model, clean=True)
+            optical["engine"] = "numpy-quantized-fallback"
             degraded = True
-        remote_latency = time.perf_counter() - t0
+            degraded_reason = str(exc)[:220]
+    remote_latency = time.perf_counter() - t0
 
     correct = None
     if req.label is not None:
@@ -175,10 +204,15 @@ def infer(req: InferRequest):
         "optical": optical,
         "meta": {
             "degraded": degraded,
+            "degraded_reason": degraded_reason,
             "remote_latency_s": round(remote_latency, 6),
             "label": req.label,
             "correct": correct,
             "model": model,
+            "backend": req.backend,
+            "target": targets[req.backend],
+            "reference_engine": fp32["engine"],
+            "selected_engine": optical["engine"],
         },
     }
 
@@ -261,14 +295,18 @@ def metrics(model: str = Query("model3", alias="model")):
 class CompareInferRequest(BaseModel):
     image_b64: str
     model_id: int
+    backend: str = "osimulator"
 
 
 @app.post("/api/compare-infer")
 def compare_infer(req: CompareInferRequest):
-    if req.model_id not in (1, 2, 3):
-        raise HTTPException(400, f"model_id must be 1, 2, or 3, got {req.model_id}")
+    if req.model_id not in (3, 9, 10):
+        raise HTTPException(400, f"model_id must be 3, 9, or 10, got {req.model_id}")
+    if req.backend not in compare_models.ALLOWED_BACKENDS:
+        raise HTTPException(400, "backend must be osimulator, gazelle_ssh, or gazelle_serial")
     try:
-        result = compare_models.infer_model(req.model_id, req.image_b64)
+        result = compare_models.infer_model(
+            req.model_id, req.image_b64, backend_mode=req.backend)
     except Exception as e:
         raise HTTPException(503, f"inference failed for model {req.model_id}: {e}")
     return result

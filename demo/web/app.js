@@ -6,10 +6,33 @@
 const $ = (id) => document.getElementById(id);
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-let currentModel = "model3";   // model3 | model9 | model10 (前端模型选择)
+let currentModel = "model3";
+let currentBackend = "osimulator";
+const BACKENDS = {
+  electronic: { label: "传统电计算", result: "本地 FP32 电计算",
+    help: "原始浮点权重在本机 Torch/NumPy 执行；与 FP32 基准相同，余弦应为 1。" },
+  osimulator: { label: "osimulator", result: "osimulator 光计算",
+    help: "本地 LT-Simulator 执行每层 MVM；逐层激活与 FP32 电计算自动对比。" },
+  gazelle_ssh: { label: "Gazelle · SSH", result: "Gazelle SSH 光计算",
+    help: "通过 ssh uisrc@192.168.31.158 建立隧道，逐层访问板端 /matmul（path A）；用于获取激活，不冒充只回 logits 的快速 path B。" },
+  gazelle_serial: { label: "Gazelle · 串口", result: "Gazelle 串口引导光计算",
+    help: "串口 console 登录并发现板卡 IP；SDK 无串口 RPC，矩阵数据随后走板端 HTTP。" },
+};
 
 /* 每模型配置: 滚动叙事屏 (STAGES) + 逐层结构静态表 (ARCH, 仅可视化示意,
    运行时恒定, 不走 API) + 尺寸归一化基准。视觉样式完全共用。 */
+const DS3_ANALYSIS = {
+  s1a: "首个光学通道混合层：保持 16x16 分辨率并扩展通道；1x1 展平只沿通道做矩阵乘，更贴合 Gazelle 8x2 tile。",
+  s1ds: "第一处可学习光学下采样：im2col 后执行 3x3/s2 矩阵乘，将 16x16 降到 8x8；相较直接 MaxPool，可避免噪声尖峰被 max 有偏放大。",
+  s2a: "在 8x8 特征图上将通道翻倍，增强中层地物纹理与光谱组合；矩阵乘在光学域完成，BN/ReLU 留在电子域。",
+  s2b: "同分辨率的第二次 1x1 通道重组；实验表明 stage 内第二次混合是宽度收益生效的重要环节，单纯继续堆深收益有限。",
+  s2ds: "第二处 3x3/s2 光学下采样，把 8x8 压到 4x4 并扩大感受野；使用 uint8 激活、per-channel int8 权重与逐输出列校准。",
+  s3a: "在仅 4x4 的低空间成本区再次翻倍通道，集中构建高层语义，把模型容量投向通道表达而非大尺寸特征图。",
+  s3b: "最终 1x1 光学特征整合；v8 QAT 按层注入实测列偏移、列增益与等效权重扰动，降低多层误差累积。",
+  h1: "电子 GAP 先把 4x4 响应汇聚成通道向量；当前部署再将 FC1 映射到光学矩阵乘，并用 ReLU 形成分类嵌入。",
+  h2: "最终光学全连接输出 EuroSAT 十类 logits，不接 ReLU；扰动会直接改变类别间隔，因此逐列增益/偏移校准尤其关键。",
+};
+
 const MODELS = {
   model3: {
     label: "Model 3 · SpaceNet V2 + KD",
@@ -39,75 +62,79 @@ const MODELS = {
   },
   model9: {
     label: "M9 · w075ds3",
-    title: "M9 · w075ds3 · 真机全量 5400 = 94.43% · EuroSAT 10 类",
+    title: "M9 · w075ds3 · 54.9K 参数 · 1.52M MACs · 真机全量 94.43%",
+    stemAnalysis: "电子 stem 使用 3x3/s2 Conv + MaxPool2x2/s2，把 64x64 压到 16x16；0.75x 窄通道优先控制参数量和 MACs。",
     stages: [
-      { name: "s1a",  label: "Stage1 · 1×1" },
-      { name: "s1ds", label: "Stage1 · 3×3/s2 下采样" },
-      { name: "s2a",  label: "Stage2 · 1×1" },
-      { name: "s2b",  label: "Stage2 · 1×1" },
-      { name: "s2ds", label: "Stage2 · 3×3/s2 下采样" },
-      { name: "s3a",  label: "Stage3 · 1×1" },
-      { name: "s3b",  label: "Stage3 · 1×1" },
-      { name: "h1",   label: "Head FC 1" },
-      { name: "h2",   label: "Head FC 2 · logits" },
+      { name: "s1a",  label: "s1a · 1x1 光学通道扩展", analysis: DS3_ANALYSIS.s1a },
+      { name: "s1ds", label: "s1ds · 3x3/s2 光学下采样", analysis: DS3_ANALYSIS.s1ds },
+      { name: "s2a",  label: "s2a · 1x1 中层扩展", analysis: DS3_ANALYSIS.s2a },
+      { name: "s2b",  label: "s2b · 1x1 二次通道混合", analysis: DS3_ANALYSIS.s2b },
+      { name: "s2ds", label: "s2ds · 3x3/s2 光学下采样", analysis: DS3_ANALYSIS.s2ds },
+      { name: "s3a",  label: "s3a · 1x1 高层扩展", analysis: DS3_ANALYSIS.s3a },
+      { name: "s3b",  label: "s3b · 1x1 语义整合", analysis: DS3_ANALYSIS.s3b },
+      { name: "h1",   label: "h1 · GAP + 光学 FC", analysis: DS3_ANALYSIS.h1 },
+      { name: "h2",   label: "h2 · 光学 logits", analysis: DS3_ANALYSIS.h2 },
     ],
     arch: {
-      stem: { where: "electronic", in: [3, 64, 64], out: [12, 32, 32],
-              ops: [{ k: "Conv", note: "5×5 /s2" }, { k: "BN" }, { k: "ReLU" }, { k: "MaxPool" }] },
-      s1a:  { where: "optical", in: [12, 32, 32], out: [24, 32, 32],
-              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
-      s1ds: { where: "optical", in: [24, 32, 32], out: [24, 16, 16],
-              ops: [{ k: "Conv", note: "3×3 /s2" }, { k: "BN" }, { k: "ReLU" }] },
-      s2a:  { where: "optical", in: [24, 16, 16], out: [48, 16, 16],
-              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
-      s2b:  { where: "optical", in: [48, 16, 16], out: [48, 16, 16],
-              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
-      s2ds: { where: "optical", in: [48, 16, 16], out: [48, 8, 8],
-              ops: [{ k: "Conv", note: "3×3 /s2" }, { k: "BN" }, { k: "ReLU" }] },
-      s3a:  { where: "optical", in: [48, 8, 8], out: [96, 8, 8],
-              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
-      s3b:  { where: "optical", in: [96, 8, 8], out: [96, 8, 8],
-              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
-      h1:   { where: "optical", in: [96], out: [128], ops: [{ k: "Linear" }, { k: "ReLU" }] },
-      h2:   { where: "optical", in: [128], out: [10], ops: [{ k: "Linear" }] },
+      stem: { where: "electronic", in: [3, 64, 64], out: [12, 16, 16],
+              ops: [{ k: "Conv", note: "3x3 /s2" }, { k: "BN" }, { k: "ReLU" }, { k: "MaxPool", note: "2x2 /s2" }] },
+      s1a:  { where: "optical", in: [12, 16, 16], out: [24, 16, 16],
+              ops: [{ k: "Conv", note: "1x1" }, { k: "BN" }, { k: "ReLU" }] },
+      s1ds: { where: "optical", in: [24, 16, 16], out: [24, 8, 8],
+              ops: [{ k: "Conv", note: "3x3 /s2" }, { k: "BN" }, { k: "ReLU" }] },
+      s2a:  { where: "optical", in: [24, 8, 8], out: [48, 8, 8],
+              ops: [{ k: "Conv", note: "1x1" }, { k: "BN" }, { k: "ReLU" }] },
+      s2b:  { where: "optical", in: [48, 8, 8], out: [48, 8, 8],
+              ops: [{ k: "Conv", note: "1x1" }, { k: "BN" }, { k: "ReLU" }] },
+      s2ds: { where: "optical", in: [48, 8, 8], out: [48, 4, 4],
+              ops: [{ k: "Conv", note: "3x3 /s2" }, { k: "BN" }, { k: "ReLU" }] },
+      s3a:  { where: "optical", in: [48, 4, 4], out: [96, 4, 4],
+              ops: [{ k: "Conv", note: "1x1" }, { k: "BN" }, { k: "ReLU" }] },
+      s3b:  { where: "optical", in: [96, 4, 4], out: [96, 4, 4],
+              ops: [{ k: "Conv", note: "1x1" }, { k: "BN" }, { k: "ReLU" }] },
+      h1:   { where: "optical", in: [96, 4, 4], out: [96],
+              ops: [{ k: "GAP" }, { k: "Linear", note: "96→96" }, { k: "ReLU" }] },
+      h2:   { where: "optical", in: [96], out: [10], ops: [{ k: "Linear", note: "96→10" }] },
     },
-    maxSpatial: 64, maxChan: 128, maxFc: 1024,
+    maxSpatial: 64, maxChan: 96, maxFc: 96,
   },
   model10: {
     label: "M10 · ds3pool3",
-    title: "M10 · ds3pool3 · 真机全量 5400 = 95.33% · EuroSAT 10 类",
+    title: "M10 · ds3pool3 · 96.6K 参数 · 2.56M MACs · 真机全量 95.33% (SOTA)",
+    stemAnalysis: "电子 stem 使用 3x3/s2 Conv + MaxPool3x3/s2，把 64x64 压到 16x16；更宽的 C0=16 与 3x3 池化为光学主干保留更强局部表征。",
     stages: [
-      { name: "s1a",  label: "Stage1 · 1×1" },
-      { name: "s1ds", label: "Stage1 · 3×3/s2 下采样" },
-      { name: "s2a",  label: "Stage2 · 1×1" },
-      { name: "s2b",  label: "Stage2 · 1×1" },
-      { name: "s2ds", label: "Stage2 · 3×3/s2 下采样" },
-      { name: "s3a",  label: "Stage3 · 1×1" },
-      { name: "s3b",  label: "Stage3 · 1×1" },
-      { name: "h1",   label: "Head FC 1" },
-      { name: "h2",   label: "Head FC 2 · logits" },
+      { name: "s1a",  label: "s1a · 1x1 光学通道扩展", analysis: DS3_ANALYSIS.s1a },
+      { name: "s1ds", label: "s1ds · 3x3/s2 光学下采样", analysis: DS3_ANALYSIS.s1ds },
+      { name: "s2a",  label: "s2a · 1x1 中层扩展", analysis: DS3_ANALYSIS.s2a },
+      { name: "s2b",  label: "s2b · 1x1 二次通道混合", analysis: DS3_ANALYSIS.s2b },
+      { name: "s2ds", label: "s2ds · 3x3/s2 光学下采样", analysis: DS3_ANALYSIS.s2ds },
+      { name: "s3a",  label: "s3a · 1x1 高层扩展", analysis: DS3_ANALYSIS.s3a },
+      { name: "s3b",  label: "s3b · 1x1 语义整合", analysis: DS3_ANALYSIS.s3b },
+      { name: "h1",   label: "h1 · GAP + 光学 FC", analysis: DS3_ANALYSIS.h1 },
+      { name: "h2",   label: "h2 · 光学 logits", analysis: DS3_ANALYSIS.h2 },
     ],
     arch: {
-      stem: { where: "electronic", in: [3, 64, 64], out: [16, 32, 32],
-              ops: [{ k: "Conv", note: "5×5 /s2" }, { k: "BN" }, { k: "ReLU" }, { k: "MaxPool", note: "3×3/s2" }] },
-      s1a:  { where: "optical", in: [16, 32, 32], out: [32, 32, 32],
-              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
-      s1ds: { where: "optical", in: [32, 32, 32], out: [32, 16, 16],
-              ops: [{ k: "Conv", note: "3×3 /s2" }, { k: "BN" }, { k: "ReLU" }] },
-      s2a:  { where: "optical", in: [32, 16, 16], out: [64, 16, 16],
-              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
-      s2b:  { where: "optical", in: [64, 16, 16], out: [64, 16, 16],
-              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
-      s2ds: { where: "optical", in: [64, 16, 16], out: [64, 8, 8],
-              ops: [{ k: "Conv", note: "3×3 /s2" }, { k: "BN" }, { k: "ReLU" }] },
-      s3a:  { where: "optical", in: [64, 8, 8], out: [128, 8, 8],
-              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
-      s3b:  { where: "optical", in: [128, 8, 8], out: [128, 8, 8],
-              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
-      h1:   { where: "optical", in: [128], out: [128], ops: [{ k: "Linear" }, { k: "ReLU" }] },
-      h2:   { where: "optical", in: [128], out: [10], ops: [{ k: "Linear" }] },
+      stem: { where: "electronic", in: [3, 64, 64], out: [16, 16, 16],
+              ops: [{ k: "Conv", note: "3x3 /s2" }, { k: "BN" }, { k: "ReLU" }, { k: "MaxPool", note: "3x3 /s2" }] },
+      s1a:  { where: "optical", in: [16, 16, 16], out: [32, 16, 16],
+              ops: [{ k: "Conv", note: "1x1" }, { k: "BN" }, { k: "ReLU" }] },
+      s1ds: { where: "optical", in: [32, 16, 16], out: [32, 8, 8],
+              ops: [{ k: "Conv", note: "3x3 /s2" }, { k: "BN" }, { k: "ReLU" }] },
+      s2a:  { where: "optical", in: [32, 8, 8], out: [64, 8, 8],
+              ops: [{ k: "Conv", note: "1x1" }, { k: "BN" }, { k: "ReLU" }] },
+      s2b:  { where: "optical", in: [64, 8, 8], out: [64, 8, 8],
+              ops: [{ k: "Conv", note: "1x1" }, { k: "BN" }, { k: "ReLU" }] },
+      s2ds: { where: "optical", in: [64, 8, 8], out: [64, 4, 4],
+              ops: [{ k: "Conv", note: "3x3 /s2" }, { k: "BN" }, { k: "ReLU" }] },
+      s3a:  { where: "optical", in: [64, 4, 4], out: [128, 4, 4],
+              ops: [{ k: "Conv", note: "1x1" }, { k: "BN" }, { k: "ReLU" }] },
+      s3b:  { where: "optical", in: [128, 4, 4], out: [128, 4, 4],
+              ops: [{ k: "Conv", note: "1x1" }, { k: "BN" }, { k: "ReLU" }] },
+      h1:   { where: "optical", in: [128, 4, 4], out: [128],
+              ops: [{ k: "GAP" }, { k: "Linear", note: "128→128" }, { k: "ReLU" }] },
+      h2:   { where: "optical", in: [128], out: [10], ops: [{ k: "Linear", note: "128→10" }] },
     },
-    maxSpatial: 64, maxChan: 128, maxFc: 1024,
+    maxSpatial: 64, maxChan: 128, maxFc: 128,
   },
 };
 
@@ -225,7 +252,13 @@ function hideBanner() { $("banner").className = "hidden"; }
 function lockInputs(lock) {
   $("btn-sample").disabled = lock;
   $("class-select").disabled = lock;
+  $("model-select").disabled = lock;
   $("file").disabled = lock;
+  document.querySelectorAll('input[name="backend"]').forEach((input) => {
+    input.disabled = lock;
+  });
+  $("backend-switch").classList.toggle("opacity-50", lock);
+  $("backend-switch").classList.toggle("pointer-events-none", lock);
   $("file").parentElement.classList.toggle("opacity-40", lock);
   $("file").parentElement.classList.toggle("pointer-events-none", lock);
 }
@@ -236,15 +269,22 @@ function fmtLat(s) { return s >= 0.1 ? `${s.toFixed(2)}s` : `${(s * 1000).toFixe
 
 async function refreshHealth() {
   try {
-    const h = await j(await fetch("/api/health"));
+    const h = await j(await fetch(
+      `/api/health?backend=${encodeURIComponent(currentBackend)}`));
     const conf = {
-      "gazelle-osim": ["bg-photon", "text-photon", "真机光计算 gazelle-osim 已连接"],
-      "fake-optical": ["bg-gold", "text-gold", "降级模式: 本地 fake 引擎"],
-      "down": ["bg-red-500", "text-red-400", "远程不可用 — 推理将走降级链"],
-    }[h.remote] || ["bg-slate-600", "text-slate-400", `remote: ${h.remote}`];
+      "fp32-local": ["bg-slate-400", "text-slate-300", "本地 FP32 电计算就绪"],
+      "gazelle-osim": ["bg-photon", "text-photon", "本地 osimulator 已连接"],
+      "gazelle-hardware": ["bg-photon", "text-photon", "Gazelle 真机已连接"],
+      "gazelle-hardware-ssh": ["bg-photon", "text-photon", "Gazelle SSH 隧道已连接"],
+      "gazelle-hardware-serial": ["bg-photon", "text-photon", "Gazelle 串口引导已连接"],
+      "numpy-clean": ["bg-gold", "text-gold", "离线量化参考"],
+      "down": ["bg-red-500", "text-red-400",
+        `${BACKENDS[currentBackend].label} 不可用`],
+    }[h.remote] || ["bg-slate-600", "text-slate-400", `engine: ${h.remote}`];
     $("health-dot").className = `w-2.5 h-2.5 rounded-full ${conf[0]}`;
     $("health-text").className = `text-xs ${conf[1]}`;
     $("health-text").textContent = conf[2];
+    $("health-text").title = h.detail || "";
   } catch (e) {
     $("health-text").textContent = "health 检查失败";
   }
@@ -256,7 +296,8 @@ async function loadMetrics(model) {
   const rows = [
     ["光计算占比", pct(m.optic_ratio)],
     ["总算力", `${m.mops_total} MOPs (vs Model 1: ${m.mops_vs_model1})`],
-    ["osim 全量精度", `${pct(m.osim_full_acc)} (n=${m.osim_full_n})`],
+    [model === "model3" ? "osim 全量精度" : "Gazelle 真机全量",
+      `${pct(m.osim_full_acc)} (n=${m.osim_full_n})`],
     ["int8 val 精度", pct(m.val_int8)],
     ["硬件对齐率", pct(m.hw_align, 1)],
     ["参数量", m.params.toLocaleString()],
@@ -269,7 +310,8 @@ async function loadMetrics(model) {
   $("chips").innerHTML = [
     ["光算占比", pct(m.optic_ratio)],
     ["算力削减", m.mops_vs_model1],
-    ["osim 全量", `${pct(m.osim_full_acc)} (n=${m.osim_full_n})`],
+    [model === "model3" ? "osim 全量" : "真机全量",
+      `${pct(m.osim_full_acc)} (n=${m.osim_full_n})`],
     ["硬件对齐", pct(m.hw_align, 1)],
     ["int8 val", pct(m.val_int8)],
   ].map(([k, v]) => `<span class="chip">${k} <b class="text-photon">${v}</b></span>`).join("");
@@ -283,8 +325,9 @@ function buildStages() {
     <div class="w-full max-w-[1100px] px-8">
       <div class="text-center mb-5 reveal-item">
         <span class="stage-title text-2xl font-bold"></span>
-        <span class="text-[10px] px-1.5 py-0.5 rounded border border-photon/50 text-photon ml-2">光</span>
-        <div class="stage-spec text-xs text-slate-500 mt-2">&nbsp;</div>
+        <span class="text-[10px] px-1.5 py-0.5 rounded border border-photon/50 text-photon ml-2">${currentBackend === "electronic" ? "电" : "光"}</span>
+        <div class="stage-spec text-xs text-slate-400 mt-2">&nbsp;</div>
+        <div class="stage-analysis text-xs text-slate-500 mt-2 max-w-3xl mx-auto leading-5"></div>
       </div>
       <div class="card reveal-item mb-5 stage-arch"></div>
       <div class="grid grid-cols-[1fr_300px] gap-6 items-center">
@@ -359,9 +402,12 @@ function bucketLabel(edges, i) {
 function fillStage(sec, name) {
   const ol = inferData.optical.layers.find((l) => l.name === name);
   const fl = inferData.fp32.layers.find((l) => l.name === name);
-  sec.querySelector(".stage-title").textContent = name;
+  const stage = STAGES().find((s) => s.name === name);
+  sec.querySelector(".stage-title").textContent = stage?.label || name;
   sec.querySelector(".stage-spec").textContent =
     `${ol.spec} · shape [${ol.shape.join(",")}]`;
+  sec.querySelector(".stage-analysis").textContent =
+    ol.analysis || stage?.analysis || "";
   sec.querySelector(".stage-arch").innerHTML = archSVG(name);
   sec.querySelector(".stage-fig").innerHTML = ol.grid_b64
     ? `<img class="grid-img rounded border border-edge w-full" alt="${name}"
@@ -402,13 +448,14 @@ function fillStage(sec, name) {
 function fillResult() {
   const { fp32, optical, meta } = inferData;
   refreshHealth();
+  $("selected-result-label").textContent = BACKENDS[meta.backend].result;
   $("pred-fp32").textContent = fp32.pred;
   $("pred-opt").textContent = optical.pred;
   $("verdict").innerHTML = meta.correct === null
     ? `<span class="text-slate-500">上传图: 仅展示预测</span>`
     : meta.correct
-      ? `<span class="text-photon">✓ 光路径预测正确 (label: ${meta.label})</span>`
-      : `<span class="text-red-400">✗ 光路径预测错误 (label: ${meta.label})</span>`;
+      ? `<span class="text-photon">✓ 所选路径预测正确 (label: ${meta.label})</span>`
+      : `<span class="text-red-400">✗ 所选路径预测错误 (label: ${meta.label})</span>`;
   const maxP = Math.max(...Object.values(optical.probs));
   $("probs").innerHTML = Object.entries(optical.probs).map(([cls, p]) => {
     const f = fp32.probs[cls] ?? 0;
@@ -426,9 +473,11 @@ function fillResult() {
 function fillStem() {
   const ol = inferData.optical.layers[0];   // stem (电层, grid 为 光路|电路 两实现对比)
   const fl = inferData.fp32.layers[0];
+  const stemAnalysis = MODELS[currentModel].stemAnalysis || "";
   $("stem-body").innerHTML = `
-    <div class="text-xs text-slate-500 mb-2">${ol.spec} · [${ol.shape.join(",")}]
+    <div class="text-xs text-slate-400 mb-2">${ol.spec} · [${ol.shape.join(",")}]
       · 电实测 ${fmtLat(fl.latency_s)}</div>
+    <div class="text-xs text-slate-500 leading-5 mb-3">${stemAnalysis}</div>
     <img class="grid-img rounded border border-edge w-full" alt="stem"
          src="data:image/png;base64,${ol.grid_b64}">`;
 }
@@ -485,7 +534,7 @@ async function startInfer() {
   const t0 = performance.now();
   const myTimer = setInterval(() => {
     $("infer-status").textContent =
-      `光计算推理中… ${((performance.now() - t0) / 1000).toFixed(1)}s`;
+      `${BACKENDS[currentBackend].label} 推理中… ${((performance.now() - t0) / 1000).toFixed(1)}s`;
   }, 100);
   try {
     const body = await j(await fetch("/api/infer", {
@@ -497,11 +546,11 @@ async function startInfer() {
     inferState = "done";
     hideBanner();
     if (body.meta.degraded) {
-      showBanner("warn", "⚠ 远程光计算不可用, 已降级为本地 fake 引擎 (meta.degraded=true)");
+      showBanner("warn", `⚠ ${body.meta.target} 不可用，已降级为 ${body.optical.engine}`);
     }
     fillStem();
     revealVisible();
-    $("infer-status").textContent = "✓ 推理完成 · 滚动查看逐 stage 对比";
+    $("infer-status").textContent = `✓ ${body.optical.engine} 完成 · 滚动查看逐层光|电对比`;
   } catch (e) {
     if (seq !== inferSeq) return;
     inferState = "error";
@@ -517,7 +566,8 @@ async function startInfer() {
 /* ---------- 输入 ---------- */
 
 function setImage(b64, label, index) {
-  current = { image_b64: b64, label: label ?? null, model: currentModel };
+  current = { image_b64: b64, label: label ?? null,
+              model: currentModel, backend: currentBackend };
   $("img").src = "data:image/jpeg;base64," + b64;
   $("label").textContent = label ?? "(上传图, 无 ground truth)";
   $("index").textContent = index ?? "-";
@@ -558,6 +608,22 @@ function applyModelSelection() {
 }
 
 $("model-select").onchange = applyModelSelection;
+function applyBackendSelection(rerun = true) {
+  const selected = document.querySelector('input[name="backend"]:checked');
+  currentBackend = selected ? selected.value : "osimulator";
+  const cfg = BACKENDS[currentBackend];
+  $("backend-help").textContent = cfg.help;
+  $("selected-result-label").textContent = cfg.result;
+  if (current) {
+    current.backend = currentBackend;
+    if (rerun) startInfer();
+  }
+  refreshHealth();
+}
+
+document.querySelectorAll('input[name="backend"]').forEach((input) => {
+  input.onchange = () => applyBackendSelection(true);
+});
 
 /* ---------- 启动 ---------- */
 
@@ -565,6 +631,6 @@ buildStages();
 buildDots();
 $("stem-arch").innerHTML = archSVG("stem");
 observeScreens();
-refreshHealth();
+applyBackendSelection(false);
 loadMetrics(currentModel).catch(() => {});
 loadSample().catch((e) => showBanner("error", `抽图失败: ${e.message}`));

@@ -3,13 +3,29 @@
 const $ = (id) => document.getElementById(id);
 
 const MODELS = [
-  { id: 1, color: "#f472b6", label: "Model 1", cssClass: "text-m1" },
-  { id: 2, color: "#a78bfa", label: "Model 2", cssClass: "text-m2" },
   { id: 3, color: "#22d3ee", label: "Model 3", cssClass: "text-m3" },
+  { id: 9, color: "#a78bfa", label: "M9", cssClass: "text-m9" },
+  { id: 10, color: "#fbbf24", label: "M10", cssClass: "text-m10" },
 ];
+
+const BACKENDS = {
+  osimulator: {
+    label: "本地 osimulator",
+    help: "三种模型均通过本地 LT-Simulator 执行逐层光计算。",
+  },
+  gazelle_ssh: {
+    label: "Gazelle SSH · uisrc@192.168.31.158",
+    help: "三种模型均经 SSH 隧道访问板端 /matmul；板卡不可达时逐卡明确降级。",
+  },
+  gazelle_serial: {
+    label: "Gazelle 串口",
+    help: "串口 console 发现板卡 IP 后，三种模型访问板端 /matmul。",
+  },
+};
 
 let currentImageB64 = null;
 let currentLabel = null;
+let currentBackend = "osimulator";
 let inferRunning = false;
 let elapsedTimers = {};
 
@@ -128,7 +144,7 @@ function renderResult(modelId, result) {
               '<span class="text-red-400 text-xs">✗ 错误</span>';
 
   const degradedHtml = result.degraded ?
-    '<div class="text-xs text-yellow-500 mt-2">⚠ 降级: fake-optical</div>' : "";
+    `<div class="text-xs text-yellow-500 mt-2">⚠ ${result.target || BACKENDS[currentBackend].label} 不可用 → ${result.engine}</div>` : "";
 
   container.innerHTML = `
     <div class="w-full fade-in">
@@ -170,9 +186,12 @@ function renderError(modelId, err) {
 
 async function runInference() {
   if (!currentImageB64 || inferRunning) return;
+  const backend = currentBackend;
   inferRunning = true;
   $("btn-infer").disabled = true;
-  $("infer-status").textContent = "推理中… 三模型并行请求";
+  document.querySelectorAll('input[name="compare-backend"]').forEach((el) => { el.disabled = true; });
+  $("compare-backend-switch").classList.add("opacity-50", "pointer-events-none");
+  $("infer-status").textContent = `三模型并行请求中：${BACKENDS[backend].label}`;
   $("sec-summary").style.display = "none";
 
   const results = {};
@@ -183,7 +202,7 @@ async function runInference() {
       const res = await fetch("/api/compare-infer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_b64: currentImageB64, model_id: m.id }),
+        body: JSON.stringify({ image_b64: currentImageB64, model_id: m.id, backend }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -200,7 +219,9 @@ async function runInference() {
   await Promise.all(promises);
   inferRunning = false;
   $("btn-infer").disabled = false;
-  $("infer-status").textContent = "推理完成";
+  document.querySelectorAll('input[name="compare-backend"]').forEach((el) => { el.disabled = false; });
+  $("compare-backend-switch").classList.remove("opacity-50", "pointer-events-none");
+  $("infer-status").textContent = `推理完成 · ${BACKENDS[backend].label}`;
 
   if (Object.keys(results).length > 0) {
     renderSummary(results);
@@ -229,24 +250,32 @@ async function renderSummary(results) {
   $("sec-summary").style.display = "block";
 
   const tbody = $("summary-tbody");
+  const pctOrDash = (v) => v == null ? "-" : `${(v * 100).toFixed(2)}%`;
   const rows = [
     { label: "预测结果", key: (mid) => results[mid]?.pred || "-" },
-    { label: "推理耗时", key: (mid) => results[mid] ? `${results[mid].latency_total_s.toFixed(2)}s` : "-" },
-    { label: "引擎", key: (mid) => results[mid]?.engine || "-" },
+    { label: "本次耗时", key: (mid) => results[mid] ? `${results[mid].latency_total_s.toFixed(2)}s` : "-" },
+    { label: "本次引擎", key: (mid) => results[mid]?.engine || "-" },
+    { label: "执行目标", key: (mid) => results[mid]?.target || "-" },
     { label: "参数量", key: (mid) => metrics[mid] ? formatNum(metrics[mid].params) : "-" },
     { label: "MACs/张", key: (mid) => metrics[mid] ? formatNum(metrics[mid].macs_per_image) : "-" },
-    { label: "光计算占比", key: (mid) => metrics[mid] ? `${(metrics[mid].optic_ratio * 100).toFixed(1)}%` : "-" },
-    { label: "osim 精度", key: (mid) => metrics[mid] ? `${(metrics[mid].osim_acc * 100).toFixed(2)}%` : "-" },
-    { label: "QAT 精度", key: (mid) => metrics[mid] ? `${(metrics[mid].qat_acc * 100).toFixed(2)}%` : "-" },
-    { label: "真机单张耗时", key: (mid) => metrics[mid] ? `${metrics[mid].per_image_s}s` : "-" },
+    { label: "干净/QAT 参考", key: (mid) => pctOrDash(metrics[mid]?.reference_acc) },
+    { label: "osimulator 全量", key: (mid) => pctOrDash(metrics[mid]?.osim_acc) },
+    { label: "Gazelle 真机全量", key: (mid) => {
+        const m = metrics[mid];
+        return m?.hardware_acc == null ? "-" :
+          `${pctOrDash(m.hardware_acc)} (n=${m.hardware_n})`;
+      } },
+    { label: "真机−干净 gap", key: (mid) =>
+        metrics[mid]?.hardware_gap_pt == null ? "-" :
+          `${metrics[mid].hardware_gap_pt.toFixed(2)} pt` },
   ];
 
   tbody.innerHTML = rows.map((r) => `
     <tr class="border-b border-edge/50">
       <td class="py-2 px-2 text-slate-400">${r.label}</td>
-      <td class="py-2 px-2 text-center text-m1">${r.key("1")}</td>
-      <td class="py-2 px-2 text-center text-m2">${r.key("2")}</td>
       <td class="py-2 px-2 text-center text-m3">${r.key("3")}</td>
+      <td class="py-2 px-2 text-center text-m9">${r.key("9")}</td>
+      <td class="py-2 px-2 text-center text-m10">${r.key("10")}</td>
     </tr>`).join("");
 
   renderLatencyChart(results);
@@ -266,13 +295,17 @@ function renderLatencyChart(results) {
       <div class="text-xs font-bold mb-2" style="color:${m.color}">${m.label} (总: ${r.latency_total_s.toFixed(2)}s)</div>
       <div class="flex flex-col gap-1">
         ${r.layers.map((l) => `
-          <div class="flex items-center gap-2">
-            <div class="text-[10px] text-slate-500 w-16 truncate">${l.name}</div>
-            <div class="flex-1 h-4 bg-ink rounded overflow-hidden">
-              <div class="h-full bar-grow rounded" style="width:${(l.latency_s / maxLatency * 100).toFixed(1)}%;background:${m.color};opacity:${l.where === 'optical' ? '0.8' : '0.4'};"></div>
+          <div class="border-b border-edge/40 pb-2 last:border-0">
+            <div class="flex items-center gap-2">
+              <div class="text-[10px] text-slate-300 w-14 truncate">${l.name}</div>
+              <div class="flex-1 h-3 bg-ink rounded overflow-hidden">
+                <div class="h-full bar-grow rounded" style="width:${(l.latency_s / maxLatency * 100).toFixed(1)}%;background:${m.color};opacity:${l.where === 'optical' ? '0.8' : '0.4'};"></div>
+              </div>
+              <div class="text-[10px] text-slate-400 w-14 text-right">${l.latency_s.toFixed(3)}s</div>
+              <div class="text-[9px] w-6 ${l.where === 'optical' ? 'text-photon' : 'text-elec'}">${l.where === 'optical' ? '光' : '电'}</div>
             </div>
-            <div class="text-[10px] text-slate-400 w-14 text-right">${l.latency_s.toFixed(3)}s</div>
-            <div class="text-[9px] w-6 ${l.where === 'optical' ? 'text-photon' : 'text-elec'}">${l.where === 'optical' ? '光' : '电'}</div>
+            <div class="text-[10px] text-slate-500 mt-1 ml-16">${l.spec || ""}</div>
+            ${l.analysis ? `<div class="text-[10px] text-slate-600 mt-1 ml-16 leading-4">${l.analysis}</div>` : ""}
           </div>`).join("")}
       </div>`;
     chart.appendChild(section);
@@ -288,4 +321,29 @@ function formatNum(n) {
 // ============================================================
 //  Init
 // ============================================================
+function applyBackendSelection() {
+  const checked = document.querySelector('input[name="compare-backend"]:checked');
+  currentBackend = checked ? checked.value : "osimulator";
+  const cfg = BACKENDS[currentBackend];
+  $("compare-backend-help").textContent = cfg.help;
+  for (const m of MODELS) {
+    $(`target-m${m.id}`).textContent = `执行目标：${cfg.label}`;
+  }
+  resetCards();
+  if (currentImageB64) {
+    $("infer-status").textContent = `类别: ${currentLabel || "上传图"} — 已选择 ${cfg.label}`;
+  }
+}
+
+document.querySelectorAll('input[name="compare-backend"]').forEach((el) => {
+  el.addEventListener("change", applyBackendSelection);
+});
+
+const requestedBackend = new URLSearchParams(location.search).get("backend");
+if (requestedBackend && BACKENDS[requestedBackend]) {
+  const requestedRadio = document.querySelector(
+    `input[name="compare-backend"][value="${requestedBackend}"]`);
+  if (requestedRadio) requestedRadio.checked = true;
+}
+applyBackendSelection();
 loadClasses();

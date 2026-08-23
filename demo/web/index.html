@@ -27,6 +27,12 @@ tailwind.config = {
   html { scroll-snap-type: y proximity; scroll-behavior: smooth; }
   .screen { min-height: 100vh; scroll-snap-align: start;
             display: flex; align-items: center; justify-content: center; }
+  .backend-choice span { display:block; padding:.45rem .35rem; border:1px solid #1e293b;
+                         border-radius:.5rem; color:#94a3b8; font-size:10px;
+                         text-align:center; transition:.2s ease; }
+  .backend-choice input:checked + span { color:#22d3ee; border-color:#22d3ee;
+                         background:rgba(34,211,238,.1);
+                         box-shadow:0 0 10px rgba(34,211,238,.16); }
 
   .glow-photon { text-shadow: 0 0 12px rgba(34, 211, 238, .55); }
   .grid-img { image-rendering: pixelated; }
@@ -138,6 +144,30 @@ tailwind.config = {
             <option value="model9">M9 · w075ds3</option>
           </select>
         </div>
+        <fieldset id="backend-switch" class="border border-edge rounded-xl p-2">
+          <legend class="px-1 text-[10px] text-slate-500">执行后端 · 与本地 FP32 逐层对比</legend>
+          <div class="grid grid-cols-2 gap-1.5">
+            <label class="backend-choice cursor-pointer">
+              <input class="sr-only" type="radio" name="backend" value="electronic">
+              <span>传统电计算</span>
+            </label>
+            <label class="backend-choice cursor-pointer">
+              <input class="sr-only" type="radio" name="backend" value="osimulator" checked>
+              <span>osimulator</span>
+            </label>
+            <label class="backend-choice cursor-pointer">
+              <input class="sr-only" type="radio" name="backend" value="gazelle_ssh">
+              <span>Gazelle · SSH</span>
+            </label>
+            <label class="backend-choice cursor-pointer">
+              <input class="sr-only" type="radio" name="backend" value="gazelle_serial">
+              <span>Gazelle · 串口</span>
+            </label>
+          </div>
+          <p id="backend-help" class="text-[9px] leading-4 text-slate-500 mt-2">
+            本地 LT-Simulator；每层激活与 FP32 电计算自动计算余弦相似度。
+          </p>
+        </fieldset>
         <div class="flex gap-2">
           <select id="class-select"
                   class="bg-panel border border-edge rounded-lg text-xs px-2 py-2 flex-1"></select>
@@ -180,7 +210,7 @@ tailwind.config = {
             <div id="pred-fp32" class="text-xl font-bold">-</div>
           </div>
           <div>
-            <div class="text-xs text-photon mb-1">int8 光计算</div>
+            <div id="selected-result-label" class="text-xs text-photon mb-1">osimulator 光计算</div>
             <div id="pred-opt" class="text-xl font-bold text-photon glow-photon">-</div>
           </div>
         </div>
@@ -201,14 +231,14 @@ tailwind.config = {
       </p>
     </div>
     <div class="mt-6 text-center reveal-item">
-      <a href="/compare.html" class="inline-block rounded-lg px-6 py-3 text-sm font-bold bg-photon/10 border border-photon text-photon hover:bg-photon/20 transition">
+      <a href="/compare.html?v=20260824c" class="inline-block rounded-lg px-6 py-3 text-sm font-bold bg-photon/10 border border-photon text-photon hover:bg-photon/20 transition">
         三模型对比推理 →
       </a>
-      <p class="text-xs text-slate-500 mt-2">同图对比 Model 1 / 2 / 3 光计算推理结果与耗时</p>
+      <p class="text-xs text-slate-500 mt-2">同图对比 Model 3 / M9 / M10 的指定后端结果与耗时</p>
     </div>
   </div>
 </section>
 
-<script src="app.js"></script>
+<script src="app.js?v=20260824c"></script>
 </body>
 </html>

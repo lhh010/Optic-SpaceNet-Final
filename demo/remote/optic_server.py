@@ -28,6 +28,7 @@ import io
 import json
 import os
 import sys
+import threading
 import time
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -417,6 +418,62 @@ def run_inference(ctx, image_bytes, model_id=3):
     }
 
 
+
+
+def run_matmul(ctx, payload, weight_cache, matmul_lock):
+    """Gazelle-compatible integer MVM for M9/M10 and selectable Model 3."""
+    import hashlib
+
+    if "weight_b64" in payload:
+        shape = tuple(int(v) for v in payload.get("weight_shape", []))
+        if len(shape) != 2 or min(shape) <= 0:
+            raise ValueError("weight_shape must be [k,n]")
+        raw = base64.b64decode(payload["weight_b64"], validate=True)
+        weight = np.frombuffer(raw, dtype=np.int8)
+        if weight.size != shape[0] * shape[1]:
+            raise ValueError("weight byte count does not match weight_shape")
+        weight = np.ascontiguousarray(weight.reshape(shape))
+        weight_id = hashlib.md5(weight.tobytes()).hexdigest()
+        with matmul_lock:
+            weight_cache[weight_id] = weight
+        return {"weight_id": weight_id, "cached": True}
+
+    weight_id = str(payload.get("weight_id", ""))
+    with matmul_lock:
+        weight = weight_cache.get(weight_id)
+    if weight is None:
+        raise ValueError("unknown weight_id; upload weight_b64 first")
+
+    act_shape = tuple(int(v) for v in payload.get("act_shape", []))
+    if len(act_shape) != 2 or min(act_shape) <= 0:
+        raise ValueError("act_shape must be [m,k]")
+    act_raw = base64.b64decode(payload["act_b64"], validate=True)
+    act = np.frombuffer(act_raw, dtype=np.uint8)
+    if act.size != act_shape[0] * act_shape[1]:
+        raise ValueError("activation byte count does not match act_shape")
+    act = np.ascontiguousarray(act.reshape(act_shape))
+    if act.shape[1] != weight.shape[0]:
+        raise ValueError(
+            "matmul k mismatch: %d vs %d" %
+            (act.shape[1], weight.shape[0]))
+
+    with matmul_lock:
+        if ctx.engine.use_real:
+            x3 = act.astype(np.int32, copy=False)[None, :, :]
+            w3 = weight.astype(np.int32, copy=False)[None, :, :]
+            raw_result = ctx.engine._real_model(x3, w3, inputType="uint8")
+            if torch.is_tensor(raw_result):
+                out = raw_result.detach().cpu().numpy()
+            else:
+                out = np.asarray(raw_result)
+            if out.ndim == 3:
+                out = out[0]
+        else:
+            out = act.astype(np.float64) @ weight.astype(np.float64)
+    out = np.asarray(out, dtype=np.float64).reshape(
+        act.shape[0], weight.shape[1])
+    return {"shape": list(out.shape), "data": out.ravel().tolist()}
+
 # ============================================================
 #  HTTP layer (stdlib only)
 # ============================================================
@@ -446,6 +503,7 @@ class OpticHandler(BaseHTTPRequestHandler):
                 "status": "ok",
                 "engine": ctx.engine_label,
                 "models": sorted(ctx.models.keys()),
+                "matmul": True,
                 "uptime_s": round(time.time() - ctx.started_at, 3),
             })
         else:
@@ -453,6 +511,23 @@ class OpticHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path, qs = self._parse_query()
+        if path == "/matmul":
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                if length <= 0 or length > 64 * 1024 * 1024:
+                    raise ValueError("invalid request size")
+                payload = json.loads(self.rfile.read(length))
+                result = run_matmul(
+                    self.server.ctx, payload, self.server.weight_cache,
+                    self.server.matmul_lock)
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)})
+            except Exception as exc:
+                traceback.print_exc()
+                self._send_json(500, {"error": "matmul failed: %s" % exc})
+            else:
+                self._send_json(200, result)
+            return
         if path != "/infer":
             self._send_json(404, {"error": f"unknown route {path}"})
             return
@@ -486,6 +561,8 @@ def create_server(host="0.0.0.0", port=8765, weight_path=None, fake=None,
     ctx = ModelContext(weight_path=weight_path, fake=fake, model_ids=model_ids)
     server = ThreadingHTTPServer((host, port), OpticHandler)
     server.ctx = ctx
+    server.weight_cache = {}
+    server.matmul_lock = threading.RLock()
     print(f"[optic_server] engine={ctx.engine_label} "
           f"models={sorted(ctx.models.keys())} "
           f"listening on {host}:{server.server_address[1]}", flush=True)

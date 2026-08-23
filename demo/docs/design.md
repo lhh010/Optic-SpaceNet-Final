@@ -100,14 +100,14 @@ demo/
                           ├─ 本地 torch 电计算 (model_trace 同源 Model 3; stem/BN/ReLU/Pool)
                           ├─ 光层 matmul ── HTTP :8000 ──▶ 板上 server_gazelle.py
                           │                                  └─ compass_sdk ──▶ 光芯片
-                          └─ PathResult (engine="gazelle-osim", 逐层激活 act_b64)
+                          └─ PathResult (engine="gazelle-hardware", 逐层激活 act_b64)
 ```
 
 - 新增文件: `demo/server/gazelle_client.py` (接口与 remote_client 相同:
   health/infer/RemoteUnavailable, app.py/compare_models.py 仅换 import);
   `demo/server/gazelle_engine.py` (HttpBackend/NumpyBackend/GazelleOpticalEngine,
   自 opticspacenet 复制, 依赖 src/core/optic_layers.py)。
-- `demo/web/` 前端零改动; 状态灯标签沿用 "gazelle-osim" (青) / "fake-optical" (金) / "down" (红)。
+- Gazelle 真机结果标记为 `gazelle-hardware`; osimulator 保持 `gazelle-osim`; 离线精确参考标记为 `numpy-clean`。
 - 降级链不变: 真机失败 → RemoteUnavailable → 本地 fake 引擎 (meta.degraded=true)。
 
 **连接与启动**:
@@ -116,14 +116,18 @@ demo/
 2. 本地 (repo 根):
    `GAZELLE_HOST=192.168.31.158 uvicorn demo.server.app:app --port 8000`
 3. 离线联调 (不占板): `GAZELLE_FAKE=1 uvicorn demo.server.app:app --port 8000`
-   (光层走 numpy 精确参考, health 仍报 gazelle-osim 便于前端联调, 现场切回真机前注意核对)。
+   (光层走 numpy 精确参考并明确标记为 `numpy-clean`, 不伪装成真机结果)。
 
 **环境变量**: GAZELLE_HOST(192.168.31.158) / GAZELLE_PORT(8000) /
 GAZELLE_WEIGHT(默认 weights/spacenet_v2_phase4_v3_int8.pth) /
 GAZELLE_CALIB(可选逐通道修正 npz) / GAZELLE_FAKE / GAZELLE_TIMEOUT(300)。
 
-**compare 页面**: 仅 Model 3 接入真机; Model 1/2 请求自动降级本地 fake
-(gazelle_client 对 model_id≠3 raise RemoteUnavailable → compare_models 回退)。
+**compare 页面（当前）**: 三张卡片为 Model 3 / M9 / M10。浏览器用
+`Promise.all` 同时发出三个请求；后端按模型固定路由：Model 3 → osimulator
+(`OPTIC_REMOTE_URL`)，M9/M10 → Gazelle (`192.168.31.158:8000`)。任一路径
+失败只降级自身：Model 3 → fake-optical，M9/M10 → numpy-clean，并在响应中
+设置 `degraded=true`，不会把离线参考误标为真机。Gazelle 由最新 SSH
+`ssh uisrc@192.168.31.158` 管理板上 `server_gazelle.py`。
 
 ## 2026-08-23 更新 (2): 模型选择 (Model 3 / M9 / M10)
 
@@ -146,6 +150,10 @@ GAZELLE_CALIB(可选逐通道修正 npz) / GAZELLE_FAKE / GAZELLE_TIMEOUT(300)�
 - `demo/web/app.js`: MODELS 配置表 (每模型 label/stages/arch/归一化基准);
   STAGES/ARCH 按当前模型取; 推理请求带 model; 模型切换自动重推理并刷新指标;
   未知逐层 MOPs 显示 "-" (M9/M10 未做官方逐层拆分, 不编造数字)。
+- M9/M10 的真实 trace 为 stem + s1a/s1ds/s2a/s2b/s2ds/s3a/s3b/h1/h2。
+  前端与后端均展示逐层 `analysis` 文本；结构尺寸直接按两份 checkpoint 核验：
+  M9 通道 12/24/48/96、head 96→96→10；M10 通道 16/32/64/128、
+  head 128→128→10；空间尺寸 64→16→8→4。stem 为 3×3/s2（非旧文案 5×5）。
 
 **联调提示**: 本机无 torch 时前端可用 `GAZELLE_FAKE=1` (numpy 参考) 联调;
 真机窗口按 SOP 走放行判据。M9/M10 逐列校准 json 必须同窗口 (stale 失效)。
@@ -173,3 +181,30 @@ GAZELLE_CALIB(可选逐通道修正 npz) / GAZELLE_FAKE / GAZELLE_TIMEOUT(300)�
 start.sh (环境/菜单), board_connect.sh (SSH/串口直连 Gazelle), calib_board.sh
 (真机校准: compass_cali→probe→标量/逐列 calib→拉回), run_sample_verify.py
 (M9/M10 200 张抽样验证), make_test200.py。
+
+## 2026-08-24 更新：首屏可选执行后端与逐层双路对比
+
+主演示页保持原视觉体系，新增四选一执行后端：本地 FP32 电计算、本地
+`osimulator`、Gazelle（SSH）和 Gazelle（串口）。无论选择哪个后端，都先以
+同一模型的原始浮点权重执行 FP32 参考路径，再把所选路径的同名层激活进行
+共享色标可视化，并计算余弦相似度。
+
+- Model 3 的 FP32 参考使用 PyTorch；M9/M10 新增未量化原始权重的 NumPy
+  FP32 前向，避免把 `numpy-clean` 量化结果误称为普通电计算。
+- `osimulator` 通过本地常驻 `optic_server.py` 的 `/matmul` 接口运行 Model 3、
+  M9、M10 的各个光层；激活以 `act_b64` 回传并在本地统一渲染。
+- SSH 模式使用最新连接 `ssh uisrc@192.168.31.158` 建立到板端 `:8000` 的
+  本地隧道；串口模式经 console 登录和发现板卡 IP 后访问相同 `/matmul`
+  协议。Gazelle SDK 本身不提供串口矩阵 RPC，因此串口只承担连接引导。
+  线上最新 `demo_hw` 的 path B 约 3.2s/张，但其 runner 只回 logits/跑批结果，
+  不暴露任意上传图片的逐层激活。本页为满足逐层可视化，明确使用 SSH 隧道承载
+  `/matmul` path A，不宣称 path B 的速度。
+
+- 连接失败会显示具体原因并降级为 `numpy-quantized-fallback`，
+  `meta.degraded=true`；降级结果不会标记为 Gazelle 或 osimulator。
+
+三模型并行页固定展示 Model 3 / M9 / M10，并允许在开始前统一选择 osimulator、
+Gazelle SSH 或 Gazelle 串口；浏览器同时发起三个带同一 backend 字段的请求。
+M9/M10 的逐层文案和尺寸按 checkpoint 与
+`run_ds3_gazelle.py` 的 canonical 链路校正；现有结构示意图继续按这些真实
+层边界展示。

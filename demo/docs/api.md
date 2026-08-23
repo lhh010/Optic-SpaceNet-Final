@@ -8,17 +8,18 @@
 ```jsonc
 // 一条推理路径的结果
 PathResult = {
-  "engine":  "fp32-local" | "gazelle-osim" | "fake-optical",
+  "engine":  "fp32-local" | "gazelle-osim" | "gazelle-hardware" | "numpy-clean" | "fake-optical",
   "pred":    "Forest",                 // top-1 类别 (英文类名)
   "probs":   { "AnnualCrop": 0.001, "...": 0.0 },  // 10 类 softmax, 按概率降序
   "latency_total_s": 2.53,
-  "layers": [Layer]                    // 固定 6 层, 顺序如下
+  "layers": [Layer]                    // Model 3 为 6 层；M9/M10 为 10 层
 }
 
 Layer = {
   "name":   "stem" | "stage1" | "stage2" | "stage3" | "fc1" | "fc2",
   "where":  "electronic" | "optical",    // stem=electronic, 其余 5 层=optical
   "spec":   "Conv2d 3→8 1×1",            // 人类可读结构描述
+  "analysis": "该层的设计动机与 Gazelle 映射说明" | null,
   "shape":  [8, 64, 64],                 // 激活形状 (C,H,W); fc 层为 [256]/[10]
   "latency_s": 1.21,                     // 该层耗时 (光路径含引擎调用)
   "act_b64": "...",                      // np.savez 的 float16 激活, base64
@@ -46,10 +47,21 @@ Layer = {
 
 ## 本地后端 (FastAPI, `:8000`)
 
-### `GET /api/health`
+### `GET /api/health?backend=osimulator`
 ```jsonc
-{ "local": "ok", "remote": "gazelle-osim" | "fake-optical" | "down" }
+{
+  "local": "ok",
+  "remote": "fp32-local" | "gazelle-osim" | "gazelle-hardware-ssh"
+            | "gazelle-hardware-serial" | "down",
+  "backend": "electronic" | "osimulator" | "gazelle_ssh" | "gazelle_serial",
+  "detail": "探针或不可用原因",
+  "backends": ["electronic", "osimulator", "gazelle_ssh", "gazelle_serial"],
+  "gazelle_host": "192.168.31.158",
+  "gazelle_port": 8000
+}
 ```
+探针只检查当前人工选择的后端。串口是板卡 console：用于登录并发现 IP；
+Gazelle SDK 没有串口矩阵 RPC，因此推理矩阵随后访问板端 HTTP `/matmul`。
 
 ### `GET /api/sample?class=Forest&random=true`
 从干净 test 集 (seed=42) 抽图。
@@ -59,20 +71,27 @@ Layer = {
 - `class` 省略或 `random` → 随机类随机图; 指定类 → 该类内随机。
 
 ### `POST /api/infer`
-请求: `{ "image_b64": "...(jpeg/png, 任意尺寸, 服务端转 64×64)", "label": "Forest" | null }`
+请求: `{ "image_b64": "...(jpeg/png, 任意尺寸, 服务端转 64×64)", "label": "Forest" | null, "model": "model3" | "model9" | "model10", "backend": "electronic" | "osimulator" | "gazelle_ssh" | "gazelle_serial" }`
 ```jsonc
 {
-  "fp32":    PathResult,   // engine="fp32-local"
-  "optical": PathResult,   // engine="gazelle-osim" | "fake-optical"
+  "fp32":    PathResult,   // Model3: fp32-local；M9/M10: numpy-fp32
+  "optical": PathResult,   // 所选后端结果；electronic 时与 fp32 相同
   "meta": {
-    "degraded": false,           // true = 远程失败, 光路径走了本地 fake 引擎
+    "degraded": false,           // true = 目标后端失败或显式 GAZELLE_FAKE
+    "degraded_reason": null,
+    "backend": "electronic" | "osimulator" | "gazelle_ssh" | "gazelle_serial",
+    "target": "本地 FP32 电计算" | "本地 osimulator" | "Gazelle（SSH）" | "Gazelle（串口）",
+    "reference_engine": "fp32-local" | "numpy-fp32",
+    "selected_engine": "fp32-local" | "numpy-fp32" | "gazelle-osim" | "gazelle-hardware-ssh" | "gazelle-hardware-serial" | "numpy-quantized-fallback",
     "remote_latency_s": 2.53,
     "label": "Forest" | null,    // test 集抽样时带 ground truth, 上传图为 null
     "correct": true | null       // label 存在时, 光路径是否预测正确
   }
 }
 ```
-错误: 远程超时 (30s) → 自动降级, 不报错; 本地模型故障 → 503 `{ "detail": "..." }`。
+后端不可用时返回明确标记的 `numpy-quantized-fallback`，并设置
+`meta.degraded=true`；不会把离线结果标记成 Gazelle 真机结果。本地模型故障 →
+503 `{ "detail": "..." }`。
 
 ### `GET /api/metrics`
 展板静态数据 (出处见 `docs/SUMMARY.md`):
@@ -83,6 +102,23 @@ Layer = {
   "val_int8": 0.9183, "params": 267944, "per_image_s": 2.5
 }
 ```
+
+## 三模型并行接口
+
+### POST /api/compare-infer
+请求字段：image_b64、model_id（3、9 或 10）与 backend：
+`osimulator | gazelle_ssh | gazelle_serial`。
+
+浏览器对 Model 3、M9、M10 并行发起三次请求，三者统一使用用户选择的后端；
+某一模型失败不会取消另外两个。响应为单个 PathResult，另带 backend、target、
+degraded 与 degraded_reason 字段。
+
+任一所选后端不可用时，该模型回退 numpy-clean 并设置 degraded=true，绝不把
+本地参考标成 osimulator 或 Gazelle 真机。
+
+### GET /api/compare-metrics
+返回 Model 3 / M9 / M10 的参数量、MACs、参考精度和 M9/M10 真机全量 5400
+口径（M9 94.43%，M10 95.33%）。
 
 ## 远程光计算服务 (容器内 stdlib, `:8765`)
 
