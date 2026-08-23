@@ -124,3 +124,28 @@ GAZELLE_CALIB(可选逐通道修正 npz) / GAZELLE_FAKE / GAZELLE_TIMEOUT(300)�
 
 **compare 页面**: 仅 Model 3 接入真机; Model 1/2 请求自动降级本地 fake
 (gazelle_client 对 model_id≠3 raise RemoteUnavailable → compare_models 回退)。
+
+## 2026-08-23 更新 (2): 模型选择 (Model 3 / M9 / M10)
+
+**需求**: 前端不改变外观, 增加模型选择下拉, 支持用 M9/M10 (真机全量 94.43% /
+95.33%) 做图像分类。
+
+**改动**:
+- `demo/server/ds3net.py`: 自 final_1/demo_hw 复制 (M9/M10 numpy 前向, 镜像
+  run_ds3_gazelle.py canonical 链路), 新增 `forward_traced` 逐层返回激活
+  (7 光层 + stem + head), 供前端光|电逐层对比。
+- `demo/server/gazelle_client.py`: 支持 `model_name=model3|model9|model10`;
+  infer 增 `clean=True` (NumpyBackend 干净参考, 供 fp32 侧对比); 权重路径
+  env `GAZELLE_WEIGHT_9/10` (默认 ~/jichuangsai/osim/eurosat_research/weights/),
+  逐列校准 env `GAZELLE_CALIB_9/10`。
+- `demo/server/app.py`: `/api/infer` 请求体增 `model` 字段; fp32/optical 均按
+  模型生成 (model3: torch FP32/光; model9/10: numpy 干净参考/真机光);
+  降级链不变。`/api/metrics?model=` 按模型返回静态展板指标。
+- `demo/server/metrics.py`: 新增 METRICS_M9 / METRICS_M10。
+- `demo/web/index.html`: 输入卡新增模型选择下拉 (样式与 class-select 一致)。
+- `demo/web/app.js`: MODELS 配置表 (每模型 label/stages/arch/归一化基准);
+  STAGES/ARCH 按当前模型取; 推理请求带 model; 模型切换自动重推理并刷新指标;
+  未知逐层 MOPs 显示 "-" (M9/M10 未做官方逐层拆分, 不编造数字)。
+
+**联调提示**: 本机无 torch 时前端可用 `GAZELLE_FAKE=1` (numpy 参考) 联调;
+真机窗口按 SOP 走放行判据。M9/M10 逐列校准 json 必须同窗口 (stale 失效)。

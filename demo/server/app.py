@@ -65,6 +65,7 @@ def _get_test_set():
 class InferRequest(BaseModel):
     image_b64: str
     label: str | None = None
+    model: str = "model3"   # model3 | model9 | model10 (前端模型选择)
 
 
 @app.get("/api/health")
@@ -107,6 +108,7 @@ def sample(class_: str | None = Query(None, alias="class"),
 
 @app.post("/api/infer")
 def infer(req: InferRequest):
+    model = req.model if req.model in ("model3", "model9", "model10") else "model3"
     try:
         image_bytes = base64.b64decode(req.image_b64)
         img_tensor = inference_local.preprocess(image_bytes)
@@ -114,16 +116,23 @@ def infer(req: InferRequest):
         raise HTTPException(400, f"image decode failed: {e}")
 
     try:
-        fp32 = inference_local.infer_fp32(img_tensor)
+        if model == "model3":
+            fp32 = inference_local.infer_fp32(img_tensor)
+        else:
+            # M9/M10 干净参考: 同模型 numpy 路径 (NumpyBackend), 与光学路径同层链
+            fp32 = remote_client.infer(req.image_b64, model_name=model, clean=True)
     except Exception as e:
-        raise HTTPException(503, f"local fp32 inference failed: {e}")
+        raise HTTPException(503, f"local fp32 reference failed: {e}")
 
     t0 = time.perf_counter()
     try:
-        optical = remote_client.infer(req.image_b64)
+        optical = remote_client.infer(req.image_b64, model_name=model)
         degraded = False
     except RemoteUnavailable:
-        optical = inference_local.infer_fake(img_tensor)
+        if model == "model3":
+            optical = inference_local.infer_fake(img_tensor)
+        else:
+            optical = remote_client.infer(req.image_b64, model_name=model, clean=True)
         degraded = True
     remote_latency = time.perf_counter() - t0
 
@@ -142,12 +151,19 @@ def infer(req: InferRequest):
             "remote_latency_s": round(remote_latency, 6),
             "label": req.label,
             "correct": correct,
+            "model": model,
         },
     }
 
 
 @app.get("/api/metrics")
-def metrics():
+def metrics(model: str = Query("model3", alias="model")):
+    if model == "model9":
+        from demo.server.metrics import METRICS_M9 as M
+        return M
+    if model == "model10":
+        from demo.server.metrics import METRICS_M10 as M
+        return M
     return METRICS
 
 

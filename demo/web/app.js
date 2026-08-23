@@ -6,44 +6,123 @@
 const $ = (id) => document.getElementById(id);
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-const STAGES = [
-  { name: "stage1", label: "Stage 1" },
-  { name: "stage2", label: "Stage 2" },
-  { name: "stage3", label: "Stage 3" },
-  { name: "fc1",    label: "FC 1" },
-  { name: "fc2",    label: "FC 2 · logits" },
-];
+let currentModel = "model3";   // model3 | model9 | model10 (前端模型选择)
 
-/* 逐层结构静态表 (镜像后端 demo/server/model_trace.py 的 EXPECTED_SHAPES /
-   LAYER_SPECS / LAYER_WHERE)。纯前端可视化, 不走 API, 运行时恒定。
-   shape: conv 层 [C,H,W]; fc 层 [N] (1 维体)。ops: 该层算子链, note 为核/步长标注。 */
-const ARCH = {
-  stem:   { where: "electronic", in: [3, 64, 64],  out: [8, 64, 64],
-            ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
-  stage1: { where: "optical", in: [8, 64, 64], out: [16, 16, 16],
-            ops: [{ k: "Conv", note: "2×2 /s2" }, { k: "BN" }, { k: "ReLU" }, { k: "MaxPool", note: "2×2" }] },
-  stage2: { where: "optical", in: [16, 16, 16], out: [32, 8, 8],
-            ops: [{ k: "Conv", note: "2×2 /s2" }, { k: "BN" }, { k: "ReLU" }] },
-  stage3: { where: "optical", in: [32, 8, 8], out: [16, 8, 8],
-            ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
-  fc1:    { where: "optical", in: [1024], out: [256],
-            ops: [{ k: "Linear" }, { k: "ReLU" }] },
-  fc2:    { where: "optical", in: [256], out: [10],
-            ops: [{ k: "Linear" }] },
+/* 每模型配置: 滚动叙事屏 (STAGES) + 逐层结构静态表 (ARCH, 仅可视化示意,
+   运行时恒定, 不走 API) + 尺寸归一化基准。视觉样式完全共用。 */
+const MODELS = {
+  model3: {
+    label: "Model 3 · SpaceNet V2 + KD",
+    title: "Model 3 · SpaceNet V2 + KD · int8 · EuroSAT 10 类",
+    stages: [
+      { name: "stage1", label: "Stage 1" },
+      { name: "stage2", label: "Stage 2" },
+      { name: "stage3", label: "Stage 3" },
+      { name: "fc1",    label: "FC 1" },
+      { name: "fc2",    label: "FC 2 · logits" },
+    ],
+    arch: {
+      stem:   { where: "electronic", in: [3, 64, 64],  out: [8, 64, 64],
+                ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
+      stage1: { where: "optical", in: [8, 64, 64], out: [16, 16, 16],
+                ops: [{ k: "Conv", note: "2×2 /s2" }, { k: "BN" }, { k: "ReLU" }, { k: "MaxPool", note: "2×2" }] },
+      stage2: { where: "optical", in: [16, 16, 16], out: [32, 8, 8],
+                ops: [{ k: "Conv", note: "2×2 /s2" }, { k: "BN" }, { k: "ReLU" }] },
+      stage3: { where: "optical", in: [32, 8, 8], out: [16, 8, 8],
+                ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
+      fc1:    { where: "optical", in: [1024], out: [256],
+                ops: [{ k: "Linear" }, { k: "ReLU" }] },
+      fc2:    { where: "optical", in: [256], out: [10],
+                ops: [{ k: "Linear" }] },
+    },
+    maxSpatial: 64, maxChan: 32, maxFc: 1024,
+  },
+  model9: {
+    label: "M9 · w075ds3",
+    title: "M9 · w075ds3 · 真机全量 5400 = 94.43% · EuroSAT 10 类",
+    stages: [
+      { name: "s1a",  label: "Stage1 · 1×1" },
+      { name: "s1ds", label: "Stage1 · 3×3/s2 下采样" },
+      { name: "s2a",  label: "Stage2 · 1×1" },
+      { name: "s2b",  label: "Stage2 · 1×1" },
+      { name: "s2ds", label: "Stage2 · 3×3/s2 下采样" },
+      { name: "s3a",  label: "Stage3 · 1×1" },
+      { name: "s3b",  label: "Stage3 · 1×1" },
+      { name: "h1",   label: "Head FC 1" },
+      { name: "h2",   label: "Head FC 2 · logits" },
+    ],
+    arch: {
+      stem: { where: "electronic", in: [3, 64, 64], out: [12, 32, 32],
+              ops: [{ k: "Conv", note: "5×5 /s2" }, { k: "BN" }, { k: "ReLU" }, { k: "MaxPool" }] },
+      s1a:  { where: "optical", in: [12, 32, 32], out: [24, 32, 32],
+              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
+      s1ds: { where: "optical", in: [24, 32, 32], out: [24, 16, 16],
+              ops: [{ k: "Conv", note: "3×3 /s2" }, { k: "BN" }, { k: "ReLU" }] },
+      s2a:  { where: "optical", in: [24, 16, 16], out: [48, 16, 16],
+              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
+      s2b:  { where: "optical", in: [48, 16, 16], out: [48, 16, 16],
+              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
+      s2ds: { where: "optical", in: [48, 16, 16], out: [48, 8, 8],
+              ops: [{ k: "Conv", note: "3×3 /s2" }, { k: "BN" }, { k: "ReLU" }] },
+      s3a:  { where: "optical", in: [48, 8, 8], out: [96, 8, 8],
+              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
+      s3b:  { where: "optical", in: [96, 8, 8], out: [96, 8, 8],
+              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
+      h1:   { where: "optical", in: [96], out: [128], ops: [{ k: "Linear" }, { k: "ReLU" }] },
+      h2:   { where: "optical", in: [128], out: [10], ops: [{ k: "Linear" }] },
+    },
+    maxSpatial: 64, maxChan: 128, maxFc: 1024,
+  },
+  model10: {
+    label: "M10 · ds3pool3",
+    title: "M10 · ds3pool3 · 真机全量 5400 = 95.33% · EuroSAT 10 类",
+    stages: [
+      { name: "s1a",  label: "Stage1 · 1×1" },
+      { name: "s1ds", label: "Stage1 · 3×3/s2 下采样" },
+      { name: "s2a",  label: "Stage2 · 1×1" },
+      { name: "s2b",  label: "Stage2 · 1×1" },
+      { name: "s2ds", label: "Stage2 · 3×3/s2 下采样" },
+      { name: "s3a",  label: "Stage3 · 1×1" },
+      { name: "s3b",  label: "Stage3 · 1×1" },
+      { name: "h1",   label: "Head FC 1" },
+      { name: "h2",   label: "Head FC 2 · logits" },
+    ],
+    arch: {
+      stem: { where: "electronic", in: [3, 64, 64], out: [16, 32, 32],
+              ops: [{ k: "Conv", note: "5×5 /s2" }, { k: "BN" }, { k: "ReLU" }, { k: "MaxPool", note: "3×3/s2" }] },
+      s1a:  { where: "optical", in: [16, 32, 32], out: [32, 32, 32],
+              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
+      s1ds: { where: "optical", in: [32, 32, 32], out: [32, 16, 16],
+              ops: [{ k: "Conv", note: "3×3 /s2" }, { k: "BN" }, { k: "ReLU" }] },
+      s2a:  { where: "optical", in: [32, 16, 16], out: [64, 16, 16],
+              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
+      s2b:  { where: "optical", in: [64, 16, 16], out: [64, 16, 16],
+              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
+      s2ds: { where: "optical", in: [64, 16, 16], out: [64, 8, 8],
+              ops: [{ k: "Conv", note: "3×3 /s2" }, { k: "BN" }, { k: "ReLU" }] },
+      s3a:  { where: "optical", in: [64, 8, 8], out: [128, 8, 8],
+              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
+      s3b:  { where: "optical", in: [128, 8, 8], out: [128, 8, 8],
+              ops: [{ k: "Conv", note: "1×1" }, { k: "BN" }, { k: "ReLU" }] },
+      h1:   { where: "optical", in: [128], out: [128], ops: [{ k: "Linear" }, { k: "ReLU" }] },
+      h2:   { where: "optical", in: [128], out: [10], ops: [{ k: "Linear" }] },
+    },
+    maxSpatial: 64, maxChan: 128, maxFc: 1024,
+  },
 };
 
-/* 跨 6 层归一化的尺寸基准: 让体块大小在屏间可比 (8×64×64 大 → 10 小)。 */
-const ARCH_MAX_SPATIAL = 64;    // 最大 H/W (stem/stage1 输入)
-const ARCH_MAX_CHAN = 32;       // 最大通道 (stage2 输出)
-const ARCH_MAX_FC = 1024;       // 最大 fc 宽度 (fc1 输入)
+const STAGES = () => MODELS[currentModel].stages;        // 滚动叙事屏 (按模型)
+const ARCH = (name) => MODELS[currentModel].arch[name];  // 层结构表 (按模型)
+function getMax(name) { return MODELS[currentModel][name]; }
 
+/* 跨 6 层归一化的尺寸基准: 让体块大小在屏间可比 (8×64×64 大 → 10 小)。 */
 /* 一个 tensor 体块 (isometric 堆叠板): 正面 = 空间 H×W, 偏移深度面 = 通道堆叠感。
    conv 体 [C,H,W]: 正面边长 ∝ H/W, 深度 ∝ C; fc 体 [N]: 退化成 1 维竖条, 高 ∝ N。 */
 function archVolume(shape, x, cy, color) {
   const stroke = color, fill = "#0b1120";
   if (shape.length === 1) {                       // fc: 1 维竖条
     const n = shape[0];
-    const h = 24 + (n / ARCH_MAX_FC) * 66;         // 24..90
+    const h = 24 + (n / getMax("maxFc")) * 66;     // 24..90
     const w = 26;
     const y = cy - h / 2;
     return `<g>
@@ -54,8 +133,8 @@ function archVolume(shape, x, cy, color) {
     </g>`;
   }
   const [c, hh] = shape;                            // conv: [C,H,W] (H==W)
-  const side = 34 + (hh / ARCH_MAX_SPATIAL) * 62;   // 34..96 正面边长
-  const depth = 6 + (c / ARCH_MAX_CHAN) * 20;       // 6..26 深度偏移(通道感)
+  const side = 34 + (hh / getMax("maxSpatial")) * 62;   // 34..96 正面边长
+  const depth = 6 + (c / getMax("maxChan")) * 20;       // 深度偏移(通道感)
   const x0 = x, y0 = cy - side / 2;
   const dx = depth, dy = -depth;
   // 顶面 + 侧面(深度) + 正面, 组成 isometric 板
@@ -103,7 +182,7 @@ function archArrow(x1, x2, cy, color) {
 /* 整宽 tensor-flow band: [输入体] → [算子链] → [输出体]。
    optical 层用 photon 青, stem(电层)用 elec 灰。三组 .arch-part 错峰揭示。 */
 function archSVG(name) {
-  const a = ARCH[name];
+  const a = ARCH(name);
   if (!a) return "";
   const color = a.where === "optical" ? "#22d3ee" : "#94a3b8";
   const W = 760, H = 150, cy = 74;
@@ -171,8 +250,8 @@ async function refreshHealth() {
   }
 }
 
-async function loadMetrics() {
-  const m = await j(await fetch("/api/metrics"));
+async function loadMetrics(model) {
+  const m = await j(await fetch(`/api/metrics?model=${model || "model3"}`));
   const pct = (x, d = 2) => `${(x * 100).toFixed(d)}%`;
   const rows = [
     ["光计算占比", pct(m.optic_ratio)],
@@ -199,7 +278,7 @@ async function loadMetrics() {
 /* ---------- stage 屏 DOM 生成 ---------- */
 
 function buildStages() {
-  $("stages").innerHTML = STAGES.map((s) => `
+  $("stages").innerHTML = STAGES().map((s) => `
   <section id="sec-${s.name}" class="screen" data-stage="${s.name}" data-label="${s.label}">
     <div class="w-full max-w-[1100px] px-8">
       <div class="text-center mb-5 reveal-item">
@@ -313,8 +392,10 @@ function fillStage(sec, name) {
   requestAnimationFrame(() => requestAnimationFrame(() =>
     hist.querySelectorAll(".hist-bar").forEach((b) =>
       b.style.height = `${b.dataset.h}%`)));
-  sec.querySelector(".stage-theo").textContent = fmtLat(ol.theoretical_s);
-  sec.querySelector(".stage-mops").textContent = `${ol.mops} MOPs`;
+  sec.querySelector(".stage-theo").textContent =
+    ol.theoretical_s != null ? fmtLat(ol.theoretical_s) : "-";
+  sec.querySelector(".stage-mops").textContent =
+    ol.mops != null ? `${ol.mops} MOPs` : "-";
   sec.querySelector(".stage-elec").textContent = fmtLat(fl.latency_s);
 }
 
@@ -436,7 +517,7 @@ async function startInfer() {
 /* ---------- 输入 ---------- */
 
 function setImage(b64, label, index) {
-  current = { image_b64: b64, label: label ?? null };
+  current = { image_b64: b64, label: label ?? null, model: currentModel };
   $("img").src = "data:image/jpeg;base64," + b64;
   $("label").textContent = label ?? "(上传图, 无 ground truth)";
   $("index").textContent = index ?? "-";
@@ -465,6 +546,19 @@ $("file").onchange = (ev) => {
   rd.readAsDataURL(f);
 };
 
+/* ---------- 模型选择 ---------- */
+
+function applyModelSelection() {
+  currentModel = $("model-select").value;
+  const cfg = MODELS[currentModel];
+  $("model-title").textContent = cfg.label + " · int8";
+  $("model-subtitle").textContent = cfg.title;
+  if (current) { current.model = currentModel; startInfer(); }
+  loadMetrics(currentModel).catch(() => {});
+}
+
+$("model-select").onchange = applyModelSelection;
+
 /* ---------- 启动 ---------- */
 
 buildStages();
@@ -472,5 +566,5 @@ buildDots();
 $("stem-arch").innerHTML = archSVG("stem");
 observeScreens();
 refreshHealth();
-loadMetrics().catch(() => {});
+loadMetrics(currentModel).catch(() => {});
 loadSample().catch((e) => showBanner("error", `抽图失败: ${e.message}`));

@@ -1,33 +1,34 @@
-"""Gazelle 真机客户端 — 替代 remote_client(容器 osimulator 路径)。
+"""Gazelle 真机客户端 — 替代 remote_client(容器 osimulator 路径), 支持多模型。
 
-接口与 remote_client 完全一致 (health/infer/RemoteUnavailable), 因此
-app.py 只需把 import 换成 gazelle_client, 前端 (demo/web) 零改动:
+接口与 remote_client 一致 (health/infer/RemoteUnavailable), 因此 app.py 只需
+把 import 换成 gazelle_client, 前端 (demo/web) 仅新增模型选择下拉。
 
-  GET  /api/health  → 真机探针 (HttpBackend 小 matmul) → {"status","engine"}
-  POST /api/infer   → 光电分离: 本地 torch 电计算 (stem/BN/ReLU/Pool) +
-                      光层 matmul 经 HttpBackend → 板上 server_gazelle.py
-                      → compass_sdk → Gazelle 光芯片
+支持模型 (model_name):
+  model3   SpaceNet V2 + KD (复赛主线, torch 前向 + optic_layers 光层替换)
+  model9   M9 w075ds3 (≤2M 预算冠军, 真机全量 94.43%)
+  model10  M10 ds3pool3 (SOTA, 真机全量 95.33%)   ← numpy 前向 (ds3net.py,
+           逐行镜像 run_ds3_gazelle.py, 与板端 canonical 链路一致)
 
-数据流:
+数据流 (光电分离):
   浏览器 ── /api/infer ──▶ gazelle_client ── HTTP :8000 ──▶ 板上 server_gazelle.py
-                              │ (torch 电计算, model_trace 同源 Model 3)
+                              │ (电计算: stem/BN/ReLU/GAP; 光层 matmul 走 HTTP)
                               ▼
-                       PathResult (engine="gazelle-osim", 与 optic_server 同构,
-                       含逐层激活 act_b64 → 前端光|电逐层对比)
+                       PathResult (engine="gazelle-osim", 逐层激活 act_b64)
 
-降级链: 任何失败 raise RemoteUnavailable → app.py 回退本地 fake 引擎
-(meta.degraded=true, 前端黄色提示) —— 与旧路径行为一致。
+降级链: 任何失败 raise RemoteUnavailable → app.py 回退本地 fake/干净参考。
 
-连接: 板上 `ssh uisrc@192.168.31.158` (密码 5182) 运行
-      `server_gazelle.py` (:8000); 本机无需装 compass_sdk/osimulator。
+连接: 板上 `ssh uisrc@192.168.31.158` (密码 5182) 运行 `server_gazelle.py` (:8000)。
 
 环境变量:
-  GAZELLE_HOST    板上 IP (默认 192.168.31.158)
-  GAZELLE_PORT    板上服务端口 (默认 8000)
-  GAZELLE_WEIGHT  Model 3 权重 (默认 <repo>/weights/spacenet_v2_phase4_v3_int8.pth)
-  GAZELLE_CALIB   可选逐通道修正 .npz (analyze_layers 产物, 键=权重md5)
-  GAZELLE_FAKE=1  离线 numpy 参考 (不占板, 联调用)
-  GAZELLE_TIMEOUT 单次 HTTP 超时秒 (默认 300)
+  GAZELLE_HOST       板上 IP (默认 192.168.31.158)
+  GAZELLE_PORT       板上服务端口 (默认 8000)
+  GAZELLE_WEIGHT     Model 3 权重 (默认 <repo>/weights/spacenet_v2_phase4_v3_int8.pth)
+  GAZELLE_WEIGHT_9   M9 权重 (默认 <eurosat_research>/weights/m9_j1w075ds3_v8probe15.pth)
+  GAZELLE_WEIGHT_10  M10 权重 (默认 <eurosat_research>/weights/m10_ds3pool3_v8probe15.pth)
+  GAZELLE_CALIB      Model 3 逐通道修正 npz (analyze_layers 产物)
+  GAZELLE_CALIB_9/10 M9/M10 逐列 calib json (calibrate_col.py 产物, 同窗口)
+  GAZELLE_FAKE=1     离线 numpy 参考 (不占板, 联调用)
+  GAZELLE_TIMEOUT    单次 HTTP 超时秒 (默认 300)
 """
 import base64
 import io
@@ -40,7 +41,6 @@ REPO_ROOT = os.path.dirname(os.path.dirname(_HERE))           # repo root
 for _p in (_HERE, os.path.join(REPO_ROOT, "src")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
-# optic_layers (src/core) 由 app.py 的 _pathsetup 注入; 直接 import 兜底:
 _CORE = os.path.join(REPO_ROOT, "src", "core")
 if _CORE not in sys.path:
     sys.path.insert(0, _CORE)
@@ -52,6 +52,7 @@ from demo.server import model_trace  # noqa: E402
 from demo.server.inference_local import preprocess  # noqa: E402
 from demo.server.gazelle_engine import (  # noqa: E402
     HttpBackend, NumpyBackend, GazelleOpticalEngine)
+from demo.server import ds3net  # noqa: E402
 from optic_layers import build_optical_model  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -59,10 +60,20 @@ from optic_layers import build_optical_model  # noqa: E402
 # ---------------------------------------------------------------------------
 GAZELLE_HOST = os.environ.get("GAZELLE_HOST", "192.168.31.158")
 GAZELLE_PORT = int(os.environ.get("GAZELLE_PORT", "8000"))
+_ER_WEIGHTS = os.path.join(os.path.dirname(REPO_ROOT), "osim",
+                           "eurosat_research", "weights")
 GAZELLE_WEIGHT = os.environ.get(
     "GAZELLE_WEIGHT",
     os.path.join(REPO_ROOT, "weights", "spacenet_v2_phase4_v3_int8.pth"))
+GAZELLE_WEIGHT_9 = os.environ.get(
+    "GAZELLE_WEIGHT_9",
+    os.path.join(_ER_WEIGHTS, "m9_j1w075ds3_v8probe15.pth"))
+GAZELLE_WEIGHT_10 = os.environ.get(
+    "GAZELLE_WEIGHT_10",
+    os.path.join(_ER_WEIGHTS, "m10_ds3pool3_v8probe15.pth"))
 GAZELLE_CALIB = os.environ.get("GAZELLE_CALIB", "")
+GAZELLE_CALIB_9 = os.environ.get("GAZELLE_CALIB_9", "")
+GAZELLE_CALIB_10 = os.environ.get("GAZELLE_CALIB_10", "")
 GAZELLE_FAKE = os.environ.get("GAZELLE_FAKE", "0") == "1"
 GAZELLE_TIMEOUT = float(os.environ.get("GAZELLE_TIMEOUT", "300"))
 
@@ -73,15 +84,28 @@ CLASSES = [
     "Pasture", "PermanentCrop", "Residential", "River", "SeaLake",
 ]
 
+MODEL_DEFS = {
+    "model3": {"label": "Model 3 · SpaceNet V2 + KD",
+               "weight": GAZELLE_WEIGHT, "calib": GAZELLE_CALIB,
+               "stem_pool": None, "head_elec": False},
+    "model9": {"label": "M9 · w075ds3 (1.52M MACs)",
+               "weight": GAZELLE_WEIGHT_9, "calib": GAZELLE_CALIB_9,
+               "stem_pool": "max", "head_elec": False},
+    "model10": {"label": "M10 · ds3pool3 (2.56M MACs)",
+                "weight": GAZELLE_WEIGHT_10, "calib": GAZELLE_CALIB_10,
+                "stem_pool": "max3", "head_elec": False},
+}
+
 
 class RemoteUnavailable(Exception):
     """Gazelle 真机不可用 (app.py 捕获后降级本地 fake 引擎)。"""
 
 
 # ---------------------------------------------------------------------------
-# 模型单例 (惰性加载)
+# 模型单例 (惰性加载, 按 model_name)
 # ---------------------------------------------------------------------------
-_state = {"model": None, "engine": None}
+_state = {"model3": None, "model9": None, "model10": None,
+         "model3_clean": None}
 
 
 def _load_correction(path):
@@ -102,30 +126,45 @@ def _get_backend():
                        timeout=GAZELLE_TIMEOUT)
 
 
-def _get_model():
-    """返回 (optical_model, engine); 进程级单例, 懒加载。"""
-    if _state["model"] is None:
+def _get_model3():
+    """Model 3: torch 前向 + optic_layers 光层替换 (与旧路径一致)。"""
+    if _state["model3"] is None:
         if not os.path.isfile(GAZELLE_WEIGHT):
             raise RemoteUnavailable("weight not found: %s" % GAZELLE_WEIGHT)
-        backend = _get_backend()
         correction = None
         if GAZELLE_CALIB and os.path.isfile(GAZELLE_CALIB):
             correction = _load_correction(GAZELLE_CALIB)
-        engine = GazelleOpticalEngine(backend, correction=correction)
+        engine = GazelleOpticalEngine(_get_backend(), correction=correction)
         model = model_trace.build_student(GAZELLE_WEIGHT)
-        # stem(1×1 3→8) 电计算; stage1/2/3 + fc1/fc2 光计算 (int8)
         build_optical_model(model, engine, pad_to_8=True,
                             input_bit=8, weight_bit=8,
                             keep_first_conv_electronic=True,
                             convert_linear=True)
         model.eval()
-        _state["model"] = model
-        _state["engine"] = engine
-    return _state["model"], _state["engine"]
+        _state["model3"] = (model, engine)
+    return _state["model3"]
+
+
+def _get_ds3(model_name):
+    """M9/M10: ds3net numpy 前向 (镜像 run_ds3_gazelle.py)。"""
+    if _state[model_name] is None:
+        d = MODEL_DEFS[model_name]
+        if not os.path.isfile(d["weight"]):
+            raise RemoteUnavailable("weight not found: %s" % d["weight"])
+        ws, meta = ds3net.load_ds3(d["weight"], d["stem_pool"])
+        cc = ds3net.load_calib_col(d["calib"])
+        _state[model_name] = (ws, meta, cc)
+    return _state[model_name]
+
+
+def _get_model(model_name):
+    if model_name == "model3":
+        return _get_model3()
+    return _get_ds3(model_name)
 
 
 # ---------------------------------------------------------------------------
-# 接口: health / infer (与 remote_client 同签名)
+# 接口: health / infer (与 remote_client 同签名 + model 选择)
 # ---------------------------------------------------------------------------
 def health(base_url=None):
     """探针: 板上服务可达 + 返回有限数值 → ok。不可用 raise RemoteUnavailable。"""
@@ -147,22 +186,65 @@ def health(base_url=None):
             "detail": "raw=[%s]" % str(got[:4])}
 
 
-def _encode_act(act_tensor):
-    arr = act_tensor.detach().cpu().numpy()[0].astype(np.float16)
+def _encode_act(act):
+    """act: torch.Tensor 或 np.ndarray → act_b64 (float16 npz, 与 optic_server 一致)。"""
+    if act is None:
+        return None
+    if torch.is_tensor(act):
+        arr = act.detach().cpu().numpy()[0].astype(np.float16)
+    else:
+        arr = np.asarray(act, dtype=np.float32)[0].astype(np.float16)
     buf = io.BytesIO()
     np.savez(buf, act=arr)
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def infer(image_b64, base_url=None, model_id=None):
-    """POST 语义: 本地电计算 + 真机光计算 → PathResult (optic_server 同构)。
+def _path_result(logits, layers, model_name, clean):
+    """组装 PathResult (与 optic_server 同构; engine 标签统一 gazelle-osim)。"""
+    lg = logits[0] if torch.is_tensor(logits) else logits[0]
+    if torch.is_tensor(lg):
+        probs_t = torch.softmax(lg, dim=0).tolist()
+        pred_i = int(lg.argmax())
+    else:
+        e = np.exp(lg - lg.max())
+        probs_t = (e / e.sum()).tolist()
+        pred_i = int(np.argmax(lg))
+    order = np.argsort(-np.asarray(probs_t))
+    prob_dict = {CLASSES[i]: round(float(probs_t[i]), 6) for i in order.tolist()}
+    out_layers = [{
+        "name": l["name"], "where": l["where"], "spec": l["spec"],
+        "shape": l.get("shape") or list(l["act"].shape[1:]),
+        "latency_s": round(l.get("latency_s", 0.0), 6),
+        "act_b64": _encode_act(l["act"]),
+    } for l in layers]
+    return {
+        "engine": ENGINE_LABEL,
+        "model": model_name,
+        "pred": CLASSES[pred_i],
+        "probs": prob_dict,
+        "latency_total_s": round(sum(l.get("latency_s", 0.0) for l in layers), 6),
+        "layers": out_layers,
+        "clean": clean,
+    }
 
-    当前真机链路只挂载 Model 3 (主演示页); compare 页面的 Model 1/2
-    请求将 raise RemoteUnavailable → compare_models 自动降级本地 fake。"""
-    if model_id not in (None, 3):
-        raise RemoteUnavailable(
-            "真机链路仅挂载 Model 3; Model %s 走本地 fake 降级" % model_id)
-    model, engine = _get_model()
+
+def infer(image_b64, base_url=None, model_id=None, model_name="model3",
+          clean=False):
+    """光电分离推理 → PathResult。
+
+    clean=True → NumpyBackend (无噪声干净参考, 供 fp32 侧对比用)。
+    model_name: model3|model9|model10; model_id=3/9/10 也可 (兼容旧调用)。
+    """
+    if model_id is not None and model_name == "model3":
+        if model_id == 9:
+            model_name = "model9"
+        elif model_id == 10:
+            model_name = "model10"
+        elif model_id != 3:
+            raise RemoteUnavailable("未知 model_id %s (支持 3/9/10)" % model_id)
+    if model_name not in MODEL_DEFS:
+        raise RemoteUnavailable("未知模型 %s (支持 model3/model9/model10)" % model_name)
+
     try:
         image_bytes = base64.b64decode(image_b64)
         img_tensor = preprocess(image_bytes)
@@ -171,29 +253,37 @@ def infer(image_b64, base_url=None, model_id=None):
 
     t0 = time.perf_counter()
     try:
-        traced = model_trace.forward_traced(model, img_tensor)
+        if model_name == "model3":
+            if clean:
+                if _state["model3_clean"] is None:
+                    eng = GazelleOpticalEngine(NumpyBackend())
+                    m = model_trace.build_student(MODEL_DEFS["model3"]["weight"])
+                    build_optical_model(m, eng, pad_to_8=True, input_bit=8,
+                                        weight_bit=8,
+                                        keep_first_conv_electronic=True,
+                                        convert_linear=True)
+                    m.eval()
+                    _state["model3_clean"] = m
+                traced = model_trace.forward_traced(_state["model3_clean"],
+                                                    img_tensor)
+                logits, layers = traced["logits"], traced["layers"]
+            else:
+                model, engine = _get_model3()
+                traced = model_trace.forward_traced(model, img_tensor)
+                logits, layers = traced["logits"], traced["layers"]
+        else:
+            ws, meta, cc = _get_ds3(model_name)
+            backend = NumpyBackend() if clean else _get_backend()
+            x = np.asarray(img_tensor.numpy(), dtype=np.float64)
+            logits, layers = ds3net.forward_traced(
+                x, ws, meta, backend, calib_col=cc,
+                head_elec=MODEL_DEFS[model_name]["head_elec"])
+    except RemoteUnavailable:
+        raise
     except Exception as e:
         raise RemoteUnavailable("真机推理失败: %s" % str(e)[:200])
 
-    logits = traced["logits"][0]
-    probs = torch.softmax(logits, dim=0)
-    order = torch.argsort(probs, descending=True)
-    prob_dict = {CLASSES[i]: round(float(probs[i]), 6) for i in order.tolist()}
-
-    layers = [{
-        "name": l["name"],
-        "where": l["where"],
-        "spec": l["spec"],
-        "shape": list(l["act"].shape[1:]),
-        "latency_s": round(l["latency_s"], 6),
-        "act_b64": _encode_act(l["act"]),
-    } for l in traced["layers"]]
-
-    return {
-        "engine": ENGINE_LABEL,
-        "model_id": 3,
-        "pred": CLASSES[int(logits.argmax())],
-        "probs": prob_dict,
-        "latency_total_s": round(sum(l["latency_s"] for l in layers), 6),
-        "layers": layers,
-    }
+    result = _path_result(logits, layers, model_name, clean)
+    result["latency_total_s"] = round(
+        max(result["latency_total_s"], time.perf_counter() - t0), 6)
+    return result
