@@ -80,9 +80,9 @@ def run_mnist(limit, method="dsq", official=False):
     t0 = time.time()
     out, err, rc = ssh_sudo_run(cmd, timeout=900)
     elapsed = time.time() - t0
-    m = re.search(r"FINAL\s+\S+\s+accuracy\s*\([^)]*\):\s*([0-9.]+)%", out)
+    m = re.search(r"FINAL\s+.*accuracy\s*\([^)]*\):\s*([0-9.]+)%", out)
     acc = float(m.group(1)) if m else None
-    nref = re.search(r"NumPy reference accuracy\(same quant path\):\s*([0-9.]+)%", out)
+    nref = re.search(r"NumPy reference accuracy\s*\([^)]*\):\s*([0-9.]+)%", out)
     ref = float(nref.group(1)) if nref else None
     gap = round(abs(acc - ref), 2) if acc is not None and ref is not None else None
     return {"acc": acc, "ref": ref, "gap": gap,
