@@ -65,7 +65,7 @@ def run_ds3(offset, limit, calib_json=None, weights="weights_m10_5400"):
     m = re.search(r"FINAL:\s*([0-9.]+)%", out)
     acc = float(m.group(1)) if m else None
     mtrace = re.findall(r"\[\s*(\d+)/\d+\] acc=([0-9.]+)%", out)
-    logits = _read_npy(remote=logits_path)  # (n,10) 真机 logits
+    logits = _read_npy(remote_path=logits_path)  # (n,10) 真机 logits
     return {"acc": acc, "elapsed_s": round(elapsed, 1),
             "sec_per_img": round(elapsed / max(1, limit), 2) if acc is not None else None,
             "trace": [{"n": int(n), "acc": float(a)} for n, a in mtrace],
