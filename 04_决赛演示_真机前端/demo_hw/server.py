@@ -52,7 +52,9 @@ HW_CHUNK = int(os.environ.get("HW_CHUNK", "2"))              # m<=2 tiling (cano
 CALIB_COL_FILE = os.environ.get("HW_CALIB_COL", "")
 HEAD_ELEC = os.environ.get("DS3_HEAD_ELEC", "0") == "1"
 CHECK_N = int(os.environ.get("HW_CHECK_N", "10"))
-MNIST_DIR = os.environ.get("HW_MNIST_DIR", "")              # 官方 200 张目录
+MNIST_DIR = os.environ.get(
+    "HW_MNIST_DIR",
+    os.path.join(_HERE, "CICC_2026_MNIST_TEST_DATASET", "data_mnist_200_np"))  # 官方 200 张(按类子文件夹 .npy)
 PROBE_BASELINE = float(os.environ.get("HW_PROBE_BASELINE", "4.7"))  # 判据②基线(C2健康口径)
 
 _MODELS = {
@@ -150,9 +152,32 @@ def _mnist_quant(x_float, q):
 
 
 def load_mnist_images(limit=None, offset=0):
-    """官方抽样图: 优先 HW_MNIST_DIR (png 文件名排序; 可选 labels.txt/csv:
-    每行 name,label 或纯 label); 回退 03/mnist/test_images.npy (前 1000 官方测试集)。"""
+    """官方抽样图 (三类):
+    1) HW_MNIST_DIR 为「按类子文件夹 .npy」结构 (CICC_2026_MNIST_TEST_DATASET/data_mnist_200_np/<label>/<i>.npy)
+       子文件夹名即真值标签, 每个 .npy 是 (28,28) uint8 (0-255)。
+    2) HW_MNIST_DIR 为平铺 png/jpg + 可选 labels.txt。
+    3) 回退 03/mnist/test_images.npy (与初赛同源官方测试集)。
+    返回 (images (B,784) float[0,1], labels 或 None, names)。"""
     if MNIST_DIR and os.path.isdir(MNIST_DIR):
+        # 模式①: 按类子文件夹 .npy
+        subdirs = [d for d in os.listdir(MNIST_DIR)
+                   if os.path.isdir(os.path.join(MNIST_DIR, d))]
+        np_files = []
+        for d in sorted(subdirs):
+            for f in sorted(os.listdir(os.path.join(MNIST_DIR, d))):
+                if f.lower().endswith(".npy"):
+                    np_files.append((int(d), os.path.join(MNIST_DIR, d, f)))
+        if np_files:
+            np_files = np_files[offset:offset + (limit or len(np_files))]
+            imgs, labels, names = [], [], []
+            for lbl, p in np_files:
+                a = np.load(p)  # (28,28) uint8
+                imgs.append(np.asarray(a, dtype=np.float32).reshape(-1) / 255.0)
+                labels.append(lbl)
+                names.append(os.path.basename(os.path.dirname(p)) + "/" + os.path.basename(p))
+            return np.stack(imgs).astype(np.float32), \
+                np.array(labels, dtype=np.int64), names
+        # 模式②: 平铺 png/jpg
         names = sorted(f for f in os.listdir(MNIST_DIR)
                        if f.lower().endswith((".png", ".jpg", ".bmp")))
         names = names[offset:offset + (limit or len(names))]
