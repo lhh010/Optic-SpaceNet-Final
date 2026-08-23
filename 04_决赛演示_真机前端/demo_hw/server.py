@@ -225,19 +225,30 @@ def run_eurosat(offset: int = 0, limit: int = CHECK_N):
         r = board.run_ds3(offset, limit, calib_json=current_calib() or None, weights=WEIGHTS)
     except Exception as e:
         raise HTTPException(503, "板上 runner 失败: %s" % e)
-    # 本地 numpy 参考用于 gap + 逐图对比
+    # 本地 numpy 参考用于 gap + 逐图对比 (数据/权重缺失或 offset 越界时
+    # 降级为仅板端结果并附 warn, 不再 TypeError -> 500)
     x, targets, b64s = _eurosat_batch(offset, limit)
-    ref_logits = _local_ref(x) if x is not None else None
+    warn = ""
+    ref_logits = None
+    if x is None:
+        warn = "本地 EuroSAT 数据缺失或 offset 超出测试集范围, 无逐图对比"
+    else:
+        try:
+            ref_logits = _local_ref(x)
+        except Exception as ex:
+            warn = "本地参考计算失败(%s), 无逐图对比" % str(ex)[:80]
     ref = None
     if ref_logits is not None:
         ref = float(np.mean(np.argmax(ref_logits, 1) == targets)) * 100
     gap = round(abs(r["acc"] - ref), 2) if r["acc"] is not None and ref is not None else None
-    rows = _build_rows(offset, b64s, targets, r.get("logits"), ref_logits)
+    rows = (_build_rows(offset, b64s, targets, r.get("logits"), ref_logits)
+            if b64s is not None else [])
     return {"model": MODEL_NAME, "weights": WEIGHTS, "offset": offset, "n": limit,
             "acc": r["acc"], "ref": round(ref, 2) if ref is not None else None,
             "gap": gap, "elapsed_s": r["elapsed_s"],
             "sec_per_img": r["sec_per_img"], "calib": current_calib() or "(none)",
-            "engine": "gazelle-hw:pathB", "trace": r["trace"], "rows": rows}
+            "engine": "gazelle-hw:pathB", "trace": r["trace"], "rows": rows,
+            "warn": warn}
 
 
 @app.get("/api/mnist/run")

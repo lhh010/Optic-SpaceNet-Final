@@ -69,6 +69,7 @@ $("rgo").onclick=async()=>{$("rgo").disabled=true;$("rout").textContent="跑批�
   try{const r=await fetch(`/api/run/eurosat?offset=${$("roff").value}&limit=${$("rlim").value}`);
   const j=await r.json();if(!r.ok)throw new Error(j.detail||r.status);
   let s=`✔ [${j.offset},${j.offset+j.n}) acc <b>${j.acc}%</b> · ${j.elapsed_s}s（${j.sec_per_img}s/张）· ${j.engine}`;
+  if(j.warn)s+=`<br><span style="color:#fbbf24">⚠ ${j.warn}</span>`;
   if(j.ref!==null&&j.ref!==undefined)s+=` · 参考 ${j.ref}% · gap ${j.gap}pt`;
   s+=`<br>校准 ${j.calib}`+(j.trace&&j.trace.length?` · 轨迹 ${j.trace.map(t=>`${t.n}:${t.acc}%`).join(" → ")}`:"");
   s+=`<h3 style="margin:16px 0 8px 0">逐图对比（真机 vs 参考）</h3>`;
