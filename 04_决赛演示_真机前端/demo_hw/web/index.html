@@ -79,7 +79,7 @@ $("mgo").onclick=async()=>{$("mgo").disabled=true;$("mout").textContent="MNIST �
   $("mgo").disabled=false;};
 function topkBar(tk,color){return (tk||[]).map(t=>`<div style="font-size:.8rem">${t.cls} ${(t.p*100).toFixed(1)}%<div class="bar"><i style="width:${t.p*100}%;background:${color}"></i></div></div>`).join("");}
 function rowCard(row){const c=row.hw_correct?"#4ade80":"#f87171";const rc=row.ref_correct?"#4ade80":"#f87171";
-  const agree=row.agree===true?"一致":"<b style="color:#f87171">不一致</b>";
+  const agree=row.agree===true?"一致":"<b style='color:#f87171'>不一致</b>";
   return `<div style="display:flex;gap:12px;border:1px solid #2a3550;border-radius:8px;padding:10px;margin:8px 0">
     <div style="flex:0 0 96px"><img src="data:image/jpeg;base64,${row.img}" style="width:96px;border-radius:6px"><br><span class="meta">#${row.idx}</span></div>
     <div style="flex:1">
