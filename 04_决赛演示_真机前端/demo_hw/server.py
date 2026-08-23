@@ -70,7 +70,7 @@ def health():
 def checks_canary():
     """判据3: MNIST canary — 板端 HW vs numpy 参考 (gap < 0.5pt)。"""
     try:
-        r = board.run_mnist(50, method="dsq")
+        r = board.run_mnist(1000, method="dsq")
     except Exception as e:
         return {"name": "③ MNIST canary", "pass": False, "detail": str(e)[:150]}
     if r["acc"] is None or r["ref"] is None:
@@ -79,7 +79,7 @@ def checks_canary():
                 "detail": "板上 runner 未输出参考(检查日志)"}
     ok = r["gap"] < 0.5
     return {"name": "③ MNIST canary gap < 0.5pt", "pass": bool(ok),
-            "value": "hw %.2f%% vs ref %.2f%%, gap %.2fpt (n=50)"% (r["acc"], r["ref"], r["gap"]),
+            "value": "hw %.2f%% vs ref %.2f%%, gap %.2fpt (n=1000)"% (r["acc"], r["ref"], r["gap"]),
             "detail": "DSQ 三层 MLP, 板上 run_mnist_gazelle 同量化参考"}
 
 
@@ -103,15 +103,21 @@ def checks_minirun():
             "detail": "板上 %d 图(路径B) vs 本地 numpy 干净参考, 偏差<2pt" % CHECK_N}
 
 
-@app.post("/api/checks/ebr")
-def checks_ebr(req: dict):
-    """判据1: EBR 手动录入。"""
+@app.get("/api/checks/ebr")
+def checks_ebr():
+    """判据1: EBR 自动测量 — 板上 compass_evb_test, 解析两通道 EBR。"""
     try:
-        v = float(req.get("ebr"))
-    except (TypeError, ValueError):
-        raise HTTPException(400, "ebr 字段缺失/非数值")
-    return {"name": "① EBR ≥ 8", "pass": bool(v >= 8), "value": str(v),
-            "detail": "板端 compass_evb_test 实测值(现场读数录入)"}
+        e1, e2 = board.run_ebr()
+    except Exception as ex:
+        return {"name": "① EBR ≥ 8", "pass": False, "value": "测量失败",
+                "detail": str(ex)[:150]}
+    if e1 is None or e2 is None:
+        return {"name": "① EBR ≥ 8", "pass": False, "value": "测量失败",
+                "detail": "compass_evb_test 未输出 EBR(检查板子/日志)"}
+    ok = e1 >= 8 and e2 >= 8
+    return {"name": "① EBR ≥ 8", "pass": bool(ok),
+            "value": "%.3f / %.3f" % (e1, e2),
+            "detail": "板上 compass_evb_test 自动测量(需≥8)"}
 
 
 # ---------------- 跑批 ----------------

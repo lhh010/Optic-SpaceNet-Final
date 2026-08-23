@@ -111,6 +111,15 @@ def _read_npy(remote_path, timeout=30):
         return None
 
 
+def run_ebr(timeout=600):
+    """板上 compass_evb_test, 解析 EBR (两通道)。返回 (ebr1, ebr2) 或 (None,None)。"""
+    out, err, rc = ssh_sudo_run("compass_evb_test", timeout=timeout)
+    m = re.search(r"ebr:\s*\[\s*([0-9.]+)\s+([0-9.]+)\s*\]", out)
+    if m:
+        return float(m.group(1)), float(m.group(2))
+    return None, None
+
+
 def probe_board():
     """可达性: SSH 开一个 sudo 无害命令。返回 (ok, detail)。"""
     try:
