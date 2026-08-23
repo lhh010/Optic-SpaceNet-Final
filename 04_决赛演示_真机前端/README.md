@@ -32,9 +32,33 @@ uvicorn demo_hw.server:app --port 8100
 | `HW_MODEL` | `model10` | model10→weights_m10_5400, model9→weights_w075ds3 |
 | `HW_CALIB` | 空 | 板上标量 calib json 文件名(如 `calib_scalar_m10_0823.json`) |
 | `BOARD_HOST` | `192.168.31.158` | 板上 SSH 地址 |
-| `HW_CHECK_N` | `8` | 判据④ mini-run 张数 |
+| `HW_CHECK_N` | `100` | 判据④ mini-run 张数(默认100, 约6-7min, 可调8~500) |
 
 状态灯：绿=SSH 通 + runner 可用(pathB)；「真机不可达」=SSH 不通。
+
+## 1.5 离线/仅局域网运行（现场无外网时）
+
+> demo **运行本身不依赖外网**：权重/数据/官方 MNIST 全在本地，板子走内网(192.168.31.158)。唯一需要外网的是**首次 `pip install` 依赖**——提前装好或带离线 wheelhouse。
+
+**开跑前务必确认（缺一不可）**：
+1. **依赖已装**：`fastapi uvicorn paramiko pillow numpy torch torchvision`（`pip list` 确认；无外网时用 `pip install --no-index --find-links <wheelhouse>` 装或带 `python` 环境整包）；
+2. **本地材料就位**：`03_决赛_EuroSAT真机/eurosat_research/weights/m10_ds3pool3_v8probe15.pth`、`02_复赛_EuroSAT仿真/data/EuroSAT_RGB`（gitignore，本地已在）、`04_.../CICC_2026_MNIST_TEST_DATASET/`（官方200，已入库）；
+3. **板子内网可达**：连「小米主路由器」WiFi(test1234)，`Test-NetConnection 192.168.31.158 -Port 22` 通过；板上 `run_ds3_gazelle.py`/`weights_m10_5400`/`run_mnist_official.py`+官方200 已就位；
+4. **已完成 fresh `compass_cali` + 标量校准**（否则精度低；`/api/calibrate` 可在线重校准，但需约10-12min）。
+
+**离线启动序列（无网络依赖）**：
+```powershell
+# 1) 连内网 WiFi 小米主路由器(test1234) → 确认板子可达
+Test-NetConnection 192.168.31.158 -Port 22   # True
+# 2) 起 demo（指向板子 + 校准）
+cd E:\LT-Simulator\决赛提交包\04_决赛演示_真机前端
+$env:BOARD_HOST="192.168.31.158"; $env:HW_MODEL="model10"; $env:HW_CALIB="calib_scalar_m10_0823b.json"
+python -m uvicorn demo_hw.server:app --port 8100
+# 3) 浏览器打开 http://127.0.0.1:8100（无需外网）
+```
+- 全程只需局域网：浏览器→demo(本地)→SSH(板子)→光算。无任何外网请求。
+- 若现场要用另一台机器当浏览器访问，uvicorn 加 `--host 0.0.0.0`，且那台机器连同一局域网即可。
+- 校准/判据/跑批/逐图对比/MNIST 官方 200 全部离线可用。
 
 ## 2. 校准（15 min 方案）
 
@@ -51,8 +75,8 @@ Demo 通过 `HW_CALIB=calib_scalar_m10_0823.json` 引用。
 ## 3. 演示流程
 
 1. 状态灯绿；
-2. 点「运行 ③④ 判据」：③ MNIST canary、④ EuroSAT mini-run(默认 8 张)；
-3. 「EuroSAT 真机跑批」：默认 [0,8) 张(~26s)，可调 1 张/10 张；显示 hw acc + 参考 + gap；
+2. 点「运行 ③④ 判据」：③ MNIST canary(n=1000)、④ EuroSAT mini-run(页面「④ 张数」可调, 默认100) ；
+3. 「EuroSAT 真机跑批」：默认 [0,8) 张，可调 1~200；显示 hw acc + 参考 + gap + 逐图真机/参考对比；
 4. 「MNIST 官方抽样」：跑官方 200 张(或小数张)；显示 acc/ref/gap。
 
 ## 4. 已知限制 / 待联调
