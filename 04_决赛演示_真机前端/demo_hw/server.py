@@ -222,7 +222,8 @@ def _build_rows(offset, b64s, targets, hw_logits, ref_logits):
         tgt = int(targets[i])
         hw = hw_logits[i] if hw_logits is not None and i < len(hw_logits) else None
         ref = ref_logits[i] if ref_logits is not None else None
-        row = {"idx": offset + i, "img": b64s[i], "true": CLASSES[tgt]}
+        row = {"idx": offset + i, "img": b64s[i], "true": CLASSES[tgt],
+               "hw_missing": bool(hw_logits is None or i >= len(hw_logits))}
         if hw is not None:
             row["hw_top1"] = CLASSES[int(np.argmax(hw))]
             row["hw_topk"] = _topk(hw)
@@ -233,6 +234,8 @@ def _build_rows(offset, b64s, targets, hw_logits, ref_logits):
             row["ref_correct"] = bool(int(np.argmax(ref)) == tgt)
         if hw is not None and ref is not None:
             row["agree"] = bool(int(np.argmax(hw)) == int(np.argmax(ref)))
+        else:
+            row["agree"] = None   # 真机或参考缺失, 不误报"不一致"
         rows.append(row)
     return rows
 

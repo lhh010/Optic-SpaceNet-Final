@@ -78,13 +78,15 @@ $("mgo").onclick=async()=>{$("mgo").disabled=true;$("mout").textContent="MNIST �
   catch(e){$("mout").textContent="✘ 失败："+e.message;}
   $("mgo").disabled=false;};
 function topkBar(tk,color){return (tk||[]).map(t=>`<div style="font-size:.8rem">${t.cls} ${(t.p*100).toFixed(1)}%<div class="bar"><i style="width:${t.p*100}%;background:${color}"></i></div></div>`).join("");}
-function rowCard(row){const c=row.hw_correct?"#4ade80":"#f87171";const rc=row.ref_correct?"#4ade80":"#f87171";
-  const agree=row.agree===true?"一致":"<b style='color:#f87171'>不一致</b>";
+function rowCard(row){const hwMiss=row.hw_missing===true;const c=(row.hw_correct===true)?"#4ade80":(hwMiss?"#93a4c3":"#f87171");const rc=(row.ref_correct===true)?"#4ade80":"#f87171";
+  const hwTxt=hwMiss?"<span class='meta'>真机数据读取失败</span>":(row.hw_top1||"<span class='meta'>-</span>");
+  const agree=(row.agree===true)?"<b style='color:#4ade80'>真机=参考</b>":(row.agree===false)?"<b style='color:#f87171'>真机≠参考</b>":"<span class='meta'>真机数据缺失</span>";
+  const hwBar=hwMiss?"<span class='meta'>无</span>":topkBar(row.hw_topk,"#38bdf8");
   return `<div style="display:flex;gap:12px;border:1px solid #2a3550;border-radius:8px;padding:10px;margin:8px 0">
     <div style="flex:0 0 96px"><img src="data:image/jpeg;base64,${row.img}" style="width:96px;border-radius:6px"><br><span class="meta">#${row.idx}</span></div>
     <div style="flex:1">
-      <div style="margin-bottom:4px"><b>真值</b> ${row.true} · <b>真机</b> <b style="color:${c}">${row.hw_top1||"-"}</b> · <b>参考</b> <b style="color:${rc}">${row.ref_top1||"-"}</b> · ${agree}</div>
-      <div style="display:flex;gap:16px"><div style="flex:1"><span class="meta">真机</span>${topkBar(row.hw_topk,"#38bdf8")}</div><div style="flex:1"><span class="meta">参考</span>${topkBar(row.ref_topk,"#a78bfa")}</div></div>
+      <div style="margin-bottom:4px"><b>真值</b> ${row.true} · <b>真机</b> <b style="color:${c}">${hwTxt}</b> · <b>参考</b> <b style="color:${rc}">${row.ref_top1||"-"}</b> · ${agree}</div>
+      <div style="display:flex;gap:16px"><div style="flex:1"><span class="meta">真机</span>${hwBar}</div><div style="flex:1"><span class="meta">参考</span>${topkBar(row.ref_topk,"#a78bfa")}</div></div>
     </div>
   </div>`;}
 </script>
