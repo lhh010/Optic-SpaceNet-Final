@@ -19,8 +19,8 @@ import run_mnist_gazelle as R
 from compass_sdk.fast_calibration.compass_lib import compass_init
 compass_init(150)
 
-limit = int(sys.argv[1]) if len(sys.argv) > 1 else 200
-offset = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+limit = int(os.environ.get("MNIST_LIMIT", "200"))
+offset = int(os.environ.get("MNIST_OFFSET", "0"))
 
 w1, w2, w3, q = R.load_method(HERE)
 images = np.load(os.path.join(HERE, 'test_images_official200.npy'))

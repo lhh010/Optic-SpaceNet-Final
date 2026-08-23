@@ -73,7 +73,7 @@ def run_mnist(limit, method="dsq", official=False):
     """板上跑 MNIST。official=True 用官方200 (需已上传并调用 run_mnist_official.py)。"""
     if official:
         cmd = ("cd " + MNIST_DIR + " && MNIST_METHOD=" + _quote(method) +
-               " python3 run_mnist_official.py " + str(limit))
+               " MNIST_LIMIT=" + str(limit) + " python3 run_mnist_official.py")
     else:
         cmd = ("cd " + MNIST_DIR + " && MNIST_METHOD=" + _quote(method) +
                " MNIST_LIMIT=" + str(limit) + " python3 run_mnist_gazelle.py")
