@@ -18,7 +18,7 @@
 ## 0. 前置条件
 
 1. 板上已起服务：`sudo env OPTC_PORT=8000 python3 server_gazelle.py`（root，环境变量传参）；
-2. 本地能直达板上 8000 端口（直连网段或隧道均可——只要求 `OPTC_HOST:OPTC_PORT` 可达）；
+2. 本地能直达板上 8000 端口。**2026-08-23 起板子为内网直连**：连 WiFi「小米主路由器」(密码 test1234) → 板 IP `192.168.31.158`，`OPTC_HOST=192.168.31.158` 直连、**无需跳板机/隧道**（旧的 140.206.121.211:2036 + 10.102.13.37 公网路径已失效）。完整流程见同目录 `板子内网直连与上板检查.md`；
 3. 已完成 fresh `compass_cali`（~10min）+ 四项放行判据全过；
 4. 本地依赖：`pip install fastapi uvicorn pillow numpy torch torchvision`。
 
@@ -33,7 +33,7 @@ uvicorn demo_hw.server:app --port 8100
 |---|---|---|
 | `HW_MODEL` | `model10` | `model10`（ds3pool3, SOTA 95.33%）/ `model9`（w075ds3, 94.43%） |
 | `HW_BACKEND` | `http` | `numpy` = 离线干净参考（不占板） |
-| `OPTC_HOST/PORT` | `127.0.0.1:8000` | 板上 server_gazelle 地址，**可直接指板 IP** |
+| `OPTC_HOST/PORT` | `127.0.0.1:8000` | 板上 server_gazelle 地址，**直连板设 `192.168.31.158:8000`**（内网直连，无隧道） |
 | `HW_CHUNK` | `2` | 光算 matmul 行分块；2=FPGA 行回绕规避（canonical），板上 server 实测支持大 m 时可调大加速 |
 | `HW_CALIB_COL` | 空 | 逐列校准 json（calibrate_col.py 产物，同窗口！） |
 | `DS3_HEAD_ELEC` | `0` | `1`=head FC 走电算 |
