@@ -158,24 +158,33 @@ GAZELLE_CALIB(可选逐通道修正 npz) / GAZELLE_FAKE / GAZELLE_TIMEOUT(300)�
 **联调提示**: 本机无 torch 时前端可用 `GAZELLE_FAKE=1` (numpy 参考) 联调;
 真机窗口按 SOP 走放行判据。M9/M10 逐列校准 json 必须同窗口 (stale 失效)。
 
-## 2026-08-23 更新 (3): 上板四项放行判据 (SOP 集成)
+## 2026-08-24 更新：上板四项放行判据改用 canonical path B
 
 前端新增「上板检查」页面 (`/checks.html`, 入口在演示页顶栏), 实现 SOP
 (global/AGENTS.md) 四项放行判据, 全部达标才开窗:
 
-1. **EBR ≥ 8** — 板上 compass_evb_test 读数手动录入 (`/api/checks/ebr`);
-2. **error_std 对基线 <+2%** — evb error_std 录入; 低于基线视为改善自动通过
-   (不被绝对值规则误判); 快速自动探针 (`/api/checks/probe`) 真机已知矩阵
-   vs numpy 参考 rel<2%;
-3. **MNIST canary gap < 0.5pt** (`/api/checks/canary`) — DSQ 三层 ×16 scale,
-   官方抽样 200 张, 真机 vs 同量化 numpy;
-4. **EuroSAT mini-run 正常** (`/api/checks/minirun`) — 当前模型 (model3/9/10)
-   真机 vs numpy 干净参考, 逐图一致率≥80% 且 acc 正常 (默认 n=200,
-   test200 数据由 tools/make_test200.py 生成)。
+1. **EBR ≥ 8** — SSH 自动运行一次 `compass_evb_test`，两通道均需通过；
+2. **error_std 对健康基线恶化 <2%** — 从同一次 EVB 输出读取两通道，基线
+   `4.694 / 4.473`；低于基线视为改善；
+3. **MNIST canary gap <0.5pt** — 板端 `run_mnist_gazelle.py`，n=1000，
+   真机与同量化 NumPy 参考对比；
+4. **EuroSAT mini-run gap <2pt** — M9/M10 板端 `run_ds3_gazelle.py`
+   canonical path B，默认 n=100（可设 1–500），SCP 拉回 logits 后与本地
+   同量化 NumPy 参考比较准确率。
 
-汇总接口 `/api/checks/all` 一键执行 + SOP 纪律提示 (台账/占用侦测/20min
-校准纪律/40min 瞬态)。实现: `demo/server/board_checks.py` (判据逻辑) +
-`app.py` 路由 + `demo/web/checks.html` (前端面板, 视觉样式与主页面一致)。
+执行四项前还必须人工核对 `who` / `ps` / `BOARD_USAGE.md` 并确认冷却≥5min；
+服务端会检查对应模型校准文件存在、模型身份可核验且年龄≤20min。任一前置项
+未满足时四项全部标为 blocked，不会向共享板发送工作负载；离线 NumPy 模式
+永远不能产生上板 PASS。`/api/checks/probe` 仅为短 SSH 连通性诊断，不属于
+四项判据。
+
+path B 判据运行时不得同时存在 `server_gazelle.py`（path A）、其它 ds3/MNIST
+runner 或校准进程；前置检查会自动阻断。这意味着先停止逐层 path-A 板端服务并
+完成 path-B 放行，之后若重新启动 path A 做逐层演示，仍需把“服务初始化后的
+硬件状态变化”记录为未真机验证风险，不能把之前的 path-B PASS 无限期沿用。
+
+实现：`board_runner.py`（SSH path B + SCP + 10s probe TTL）、
+`board_checks.py`（阈值与安全顺序）、`checks.html`（证据/人工确认/结果）。
 
 工具链 (`tools/`): Dockerfile (torch CPU + fastapi + picocom/sshpass/pyserial),
 start.sh (环境/菜单), board_connect.sh (SSH/串口直连 Gazelle), calib_board.sh

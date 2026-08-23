@@ -93,6 +93,25 @@ Gazelle SDK 没有串口矩阵 RPC，因此推理矩阵随后访问板端 HTTP `
 `meta.degraded=true`；不会把离线结果标记成 Gazelle 真机结果。本地模型故障 →
 503 `{ "detail": "..." }`。
 
+### 上板放行检查（canonical path B）
+
+- `GET /api/checks/usage`：只读返回板端 `who`、相关进程和
+  `BOARD_USAGE.md` 尾部，供人工核对；不会运行光计算。
+- `GET /api/checks/probe`：带 10 秒 TTL 的短 SSH 探针，仅诊断连通性。
+- `GET /api/checks/ebr?confirmed_idle=true`：自动运行 EVB，一次返回
+  ①两通道 EBR 与②两通道 error_std。
+- `GET /api/checks/canary?confirmed_idle=true`：板端 MNIST DSQ n=1000。
+- `GET /api/checks/minirun?model=model10&n=100&confirmed_idle=true`：
+  板端 path-B runner + SCP logits，本地计算准确率 gap。
+- `GET /api/checks/all?model=model10&n=100&confirmed_idle=true`：先检查
+  人工空闲确认与校准≤20min，再依次执行四项；任一前置/前序失败会阻止后续
+  重负载。`model` 仅支持 final/main canonical runner 的 `model9|model10`。
+
+`all_pass` 只有在前置条件和四项判据全部通过时才为 true；离线/fake 模式、
+缺失 EBR/error_std、过期或无法确认模型身份的校准文件均不得放行。
+`server_gazelle.py`（path A）、runner 或校准进程仍在运行也会被视为 path-B
+冲突并阻断。
+
 ### `GET /api/metrics`
 展板静态数据 (出处见 `docs/SUMMARY.md`):
 ```jsonc

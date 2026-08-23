@@ -34,6 +34,7 @@ import base64
 import io
 import os
 import sys
+import threading
 import time
 
 _HERE = os.path.dirname(os.path.abspath(__file__))           # demo/server
@@ -108,6 +109,9 @@ class RemoteUnavailable(Exception):
 # ---------------------------------------------------------------------------
 _state = {"model3": {}, "model9": None, "model10": None,
          "model3_clean": None}
+_health_cache = {}
+_health_lock = threading.Lock()
+_HEALTH_TTL_S = float(os.environ.get("GAZELLE_HEALTH_TTL", "10"))
 
 
 def _load_correction(path):
@@ -177,8 +181,7 @@ def _get_model(model_name):
 # ---------------------------------------------------------------------------
 # 接口: health / infer (与 remote_client 同签名 + model 选择)
 # ---------------------------------------------------------------------------
-def health(base_url=None, backend_mode=None):
-    """Probe the selected matrix transport with a finite-value matmul."""
+def _probe_health(backend_mode):
     try:
         pb = _get_backend(backend_mode)
         x = np.array([[1, 2]], dtype=np.uint8)
@@ -195,6 +198,33 @@ def health(base_url=None, backend_mode=None):
         label = ENGINE_LABEL
     return {"status": "ok", "engine": label,
             "detail": "raw=[%s]" % str(got[:4])}
+
+
+def health(base_url=None, backend_mode=None):
+    """Probe a transport; hardware results/failures share a short TTL."""
+    if backend_mode not in ("gazelle_ssh", "gazelle_serial"):
+        return _probe_health(backend_mode)
+
+    now = time.monotonic()
+    cached = _health_cache.get(backend_mode)
+    if cached and now - cached[0] < _HEALTH_TTL_S:
+        if cached[2]:
+            raise RemoteUnavailable(cached[2])
+        return dict(cached[1])
+    with _health_lock:
+        cached = _health_cache.get(backend_mode)
+        if cached and time.monotonic() - cached[0] < _HEALTH_TTL_S:
+            if cached[2]:
+                raise RemoteUnavailable(cached[2])
+            return dict(cached[1])
+        try:
+            result = _probe_health(backend_mode)
+        except RemoteUnavailable as exc:
+            _health_cache[backend_mode] = (
+                time.monotonic(), None, str(exc))
+            raise
+        _health_cache[backend_mode] = (time.monotonic(), result, "")
+        return dict(result)
 
 
 def _encode_act(act):

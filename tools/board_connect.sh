@@ -10,24 +10,30 @@
 # ==============================================================================
 set -u
 BOARD_HOST="${GAZELLE_HOST:-192.168.31.158}"
-BOARD_USER="uisrc"
-BOARD_PASS="5182"
+BOARD_USER="${GAZELLE_SSH_USER:-uisrc}"
+BOARD_PASS="${GAZELLE_SSH_PASSWORD:-5182}"
 
-sshx() { sshpass -p "$BOARD_PASS" ssh -o StrictHostKeyChecking=no \
-          -o ConnectTimeout=15 "$BOARD_USER@$BOARD_HOST" "$@"; }
+sshx() { SSHPASS="$BOARD_PASS" sshpass -e ssh -o StrictHostKeyChecking=no \
+          -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 \
+          "$BOARD_USER@$BOARD_HOST" "$@"; }
 
 srv_status() {
   echo "---- 板上进程/端口 ----"
-  sshx "who; echo ---; ps aux | grep -iE 'server_gazelle|compass' | grep -v grep | head -5; \
+  sshx "who; echo ---; ps aux | grep -iE 'server_gazelle|run_ds3|run_mnist|calibrat|compass' | grep -v grep | head -20; \
         echo ---; (ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep -E ':8000|:22' | head -4; \
-        echo ---; ls -la /home/uisrc/api.log 2>/dev/null | awk '{print \$5, \$9}'"
+        echo ---; python3 -c 'import json,urllib.request; print(json.load(urllib.request.urlopen(\"http://127.0.0.1:8000/health\",timeout=3)))' 2>/dev/null || echo 'path-A /health DOWN'; \
+        echo --- BOARD_USAGE.md; tail -20 /home/uisrc/BOARD_USAGE.md 2>/dev/null"
 }
 
 srv_start() {
   echo "---- 启动板上 server_gazelle.py (root, :8000) ----"
+  srv_status
+  read -rp "确认无人占用且已冷却≥5min？输入 yes 启动: " CONFIRM
+  [ "$CONFIRM" = "yes" ] || { echo "!! 已取消，不修改板卡状态"; return 1; }
   sshx "cd /home/uisrc/opticspacenet 2>/dev/null && \
         ls server_gazelle.py 2>/dev/null && \
-        echo $BOARD_PASS | sudo -S -p X nohup python3 server_gazelle.py > /tmp/srv_demo.log 2>&1 & \
+        printf '%s\\n' '$BOARD_PASS' | sudo -S -p X sh -c \
+          'nohup python3 server_gazelle.py > /tmp/srv_demo.log 2>&1 </dev/null &' && \
         sleep 3; \
         ps aux | grep server_gazelle | grep -v grep | head -2; \
         tail -2 /tmp/srv_demo.log 2>/dev/null"
@@ -35,14 +41,20 @@ srv_start() {
 
 srv_stop() {
   echo "---- 停止板上 server_gazelle.py ----"
-  sshx "echo $BOARD_PASS | sudo -S -p X pkill -f server_gazelle; sleep 1; \
+  srv_status
+  read -rp "这可能停止他队服务。输入 STOP 确认: " CONFIRM
+  [ "$CONFIRM" = "STOP" ] || { echo "!! 已取消，不修改板卡状态"; return 1; }
+  sshx "printf '%s\\n' '$BOARD_PASS' | sudo -S -p X pkill -f server_gazelle; sleep 1; \
         ps aux | grep server_gazelle | grep -v grep | wc -l"
 }
 
 ebr_check() {
   echo "---- EBR 快速检查 (compass_evb_test) ----"
+  srv_status
+  read -rp "确认无人占用且已冷却≥5min？输入 yes 运行 EVB: " CONFIRM
+  [ "$CONFIRM" = "yes" ] || { echo "!! 已取消，不运行板端工作负载"; return 1; }
   sshx "cd /home/uisrc/sample_code/code 2>/dev/null && \
-        echo $BOARD_PASS | sudo -S -p X timeout 600 python3 evb_test_sample.py 2>/dev/null | \
+        printf '%s\\n' '$BOARD_PASS' | sudo -S -p X timeout 600 python3 evb_test_sample.py 2>/dev/null | \
         tr '\r' '\n' | grep -aE 'error_std|ebr' | tail -2"
 }
 

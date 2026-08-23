@@ -79,15 +79,40 @@ class HttpBackend(object):
             "weight_shape": list(w_i8.shape),
         }).encode("utf-8")
 
+    @staticmethod
+    def _list_body(x_u8, weight_id=None, w_i8=None):
+        """Compatibility body for pre-base64 server_gazelle deployments."""
+        import json
+        body = {"act": np.asarray(x_u8, dtype=np.uint8).tolist()}
+        if weight_id is not None:
+            body["weight_id"] = weight_id
+        else:
+            body["weight"] = np.asarray(w_i8, dtype=np.int8).tolist()
+        return json.dumps(body).encode("utf-8")
+
+    def _body(self, x_u8, weight_id=None, w_i8=None):
+        if getattr(self, "_binary_protocol", True):
+            return self._b64_body(x_u8, weight_id=weight_id, w_i8=w_i8)
+        return self._list_body(x_u8, weight_id=weight_id, w_i8=w_i8)
+
     def _post(self, payload):
         import json
+        import urllib.error
         import urllib.request
 
         req = urllib.request.Request(
             "http://%s:%d/matmul" % (self.host, self.port),
             data=payload, headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            try:
+                body = exc.read().decode("utf-8", "replace")
+            except Exception:
+                body = ""
+            raise RuntimeError(
+                "board HTTP %d: %s" % (exc.code, body[-220:] or exc.reason))
         if "error" in data:
             raise RuntimeError("server error: %s" % data["error"])
         return data
@@ -107,20 +132,60 @@ class HttpBackend(object):
         assert k == kn
         w_key = hashlib.md5(w_int.astype(np.int8).tobytes()).hexdigest()
         w_uploaded = getattr(self, "_w_uploaded", set())
-        if w_key not in w_uploaded:
-            self._w_uploaded = w_uploaded
+
+        def upload_weight():
+            zero = np.zeros((1, k), dtype=np.uint8)
+            try:
+                self._post(self._body(
+                    zero, w_i8=w_int.astype(np.int8)))
+            except Exception as binary_error:
+                if not getattr(self, "_binary_protocol", True):
+                    raise
+                # The optimized b64 fields were added after the original
+                # board server.  Retry once with its JSON-list contract.
+                try:
+                    self._post(self._list_body(
+                        zero, w_i8=w_int.astype(np.int8)))
+                except Exception:
+                    raise binary_error
+                self._binary_protocol = False
+            # Mark only after a successful upload.  Otherwise one transient
+            # disconnect poisons this backend instance and all retries refer
+            # to a weight id the board never received.
             w_uploaded.add(w_key)
-            self._post(self._b64_body(
-                np.zeros((1, k), dtype=np.uint8), w_i8=w_int.astype(np.int8)))
+
+        self._w_uploaded = w_uploaded
+        if w_key not in w_uploaded:
+            upload_weight()
         out = np.zeros((m, n), dtype=np.float64)
         for start in range(0, m, self.chunk_rows):
             end = min(start + self.chunk_rows, m)
-            payload = self._b64_body(
+            payload = self._body(
                 x_int[start:end].astype(np.uint8), weight_id=w_key)
             acc = None
             for _ in range(self.reps):
-                data = self._post(payload)
-                arr = np.array(data["data"], dtype=np.float64).reshape(end - start, n)
+                try:
+                    data = self._post(payload)
+                except RuntimeError as exc:
+                    if "unknown weight_id" not in str(exc):
+                        raise
+                    # The board service may have restarted or evicted its
+                    # cache while this long-lived client kept local state.
+                    w_uploaded.discard(w_key)
+                    upload_weight()
+                    payload = self._body(
+                        x_int[start:end].astype(np.uint8), weight_id=w_key)
+                    data = self._post(payload)
+                if "data" not in data:
+                    raise RuntimeError("server response missing data")
+                arr = np.asarray(data["data"], dtype=np.float64)
+                if arr.size != (end - start) * n:
+                    raise RuntimeError(
+                        "server returned %d values, expected %d" %
+                        (arr.size, (end - start) * n))
+                arr = arr.reshape(end - start, n)
+                if not np.all(np.isfinite(arr)):
+                    raise RuntimeError("server returned non-finite matmul data")
                 acc = arr if acc is None else acc + arr
                 self.calls += 1
             out[start:end] = acc / float(self.reps)

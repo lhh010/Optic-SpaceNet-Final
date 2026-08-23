@@ -36,10 +36,11 @@
 
 <main class="max-w-[960px] mx-auto px-6 pt-16 pb-10">
   <div class="text-slate-400 text-xs mb-4">
-    依据 SOP (global/AGENTS.md): <b class="text-slate-200">四项全部达标</b>才开窗。
-    开窗前先: <code class="text-photon">who / ps | grep -i gazelle</code> 侦测他队占用 +
-    读板上台账 BOARD_USAGE.md 尾部; fresh compass_cali 后判据背靠背执行;
-    calib json 同窗口 20 分钟内使用 (stale −12.5pt)。
+    依据 <code class="text-photon">Optic-SpaceNet-Final/main</code>：本页通过 SSH
+    触发板端 canonical path B runner，并用 SCP 拉回 logits。先确认无人占用与冷却，
+    再检查校准新鲜度；随后 <b class="text-slate-200">四项全部达标</b>才开窗。
+    逐层可视化使用的 path A 不作为正式放行结果；运行本页前需停止板端
+    <code class="text-photon">server_gazelle.py</code>，否则前置检查会阻断。
   </div>
 
   <div class="card mb-4">
@@ -49,22 +50,22 @@
         <select id="ck-model" class="bg-panel border border-edge rounded-lg text-xs px-2 py-2">
           <option value="model10">M10 · ds3pool3</option>
           <option value="model9">M9 · w075ds3</option>
-          <option value="model3">Model 3 · SpaceNet V2+KD</option>
         </select>
       </div>
       <div>
-        <div class="text-xs text-slate-400 mb-1">① EBR (evb_test 读数)</div>
-        <input id="ck-ebr" type="number" step="0.001" placeholder="≥ 8"
+        <div class="text-xs text-slate-400 mb-1">④ mini-run 张数</div>
+        <input id="ck-n" type="number" min="1" max="500" value="100"
                class="bg-panel border border-edge rounded-lg text-xs px-2 py-2 w-24">
       </div>
-      <div>
-        <div class="text-xs text-slate-400 mb-1">② error_std (evb 读数, 可留空)</div>
-        <input id="ck-std" type="number" step="0.01" placeholder="基线 ~4.7"
-               class="bg-panel border border-edge rounded-lg text-xs px-2 py-2 w-28">
-      </div>
+      <button id="ck-usage" class="btn border border-edge text-slate-300 hover:border-photon">读取占用证据</button>
+      <label class="text-xs text-slate-300 flex items-center gap-2 border border-edge rounded-lg px-3 py-2">
+        <input id="ck-idle" type="checkbox" class="accent-cyan-400">
+        我已核对 who/ps/台账，且冷却≥5min
+      </label>
       <button id="ck-run" class="btn bg-photon text-ink hover:opacity-80">一键检查</button>
       <span id="ck-status" class="text-xs text-slate-500"></span>
     </div>
+    <pre id="ck-evidence" class="hidden mt-3 max-h-64 overflow-auto whitespace-pre-wrap text-[11px] text-slate-400 bg-ink/50 rounded-lg p-3"></pre>
   </div>
 
   <div id="ck-list" class="flex flex-col gap-3">
@@ -76,6 +77,12 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
+let usageLoaded = false;
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[ch]);
+}
 async function j(r) {
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `HTTP ${r.status}`);
   return r.json();
@@ -84,38 +91,62 @@ function badge(pass, value) {
   const cls = pass ? "ck-pass" : "ck-fail";
   return `<span class="border rounded-full px-2 py-0.5 text-[10px] ${cls}">${pass ? "PASS" : "FAIL"}</span>`;
 }
+function cards(items) {
+  return (items || []).map((c) => `
+    <div class="card ${c.pass ? "ck-pass" : "ck-fail"}">
+      <div class="flex items-center gap-2">
+        <span class="font-bold">${esc(c.name)}</span>
+        ${badge(c.pass, c.value)}
+        <span class="text-xs ml-auto">${esc(c.value || "")}</span>
+      </div>
+      <div class="text-[11px] text-slate-400 mt-1">${esc(c.detail)}</div>
+    </div>`).join("");
+}
+async function loadUsage() {
+  $("ck-usage").disabled = true;
+  const evidence = $("ck-evidence");
+  evidence.classList.remove("hidden");
+  evidence.textContent = "正在读取板端 who / ps / BOARD_USAGE.md…";
+  try {
+    const r = await j(await fetch("/api/checks/usage"));
+    usageLoaded = Boolean(r.ok);
+    evidence.textContent = `${r.ok ? "板卡" : "读取失败"} ${r.host}\n${r.evidence || "(无输出)"}`;
+  } catch (e) {
+    usageLoaded = false;
+    evidence.textContent = `读取失败：${e.message}`;
+  } finally {
+    $("ck-usage").disabled = false;
+  }
+}
 async function runAll() {
+  if (!usageLoaded || !$("ck-idle").checked) {
+    $("ck-status").innerHTML = `<span class="text-red-400">请先读取并人工核对占用证据</span>`;
+    return;
+  }
   $("ck-status").textContent = "运行中…";
-  $("ck-list").innerHTML = `<div class="card text-sm text-slate-500">正在执行判据 (mini-run 需数分钟, 真机)…</div>`;
+  $("ck-run").disabled = true;
+  $("ck-list").innerHTML = `<div class="card text-sm text-slate-500">正在检查校准并依次运行 ① EBR/error_std → ③ MNIST n=1000 → ④ path-B mini-run；可能需要 5–15 分钟…</div>`;
   const model = $("ck-model").value;
-  const ebr = $("ck-ebr").value.trim();
-  const std = $("ck-std").value.trim();
-  const params = new URLSearchParams({ model });
-  if (ebr) params.set("ebr", ebr);
-  if (std) params.set("error_std", std);
+  const n = Math.max(1, Math.min(500, Number($("ck-n").value) || 100));
+  const params = new URLSearchParams({ model, n: String(n), confirmed_idle: "true" });
   try {
     const r = await j(await fetch(`/api/checks/all?${params}`));
-    $("ck-list").innerHTML = r.checks.map((c) => `
-      <div class="card ${c.pass ? "ck-pass" : "ck-fail"}">
-        <div class="flex items-center gap-2">
-          <span class="font-bold">${c.name}</span>
-          ${badge(c.pass, c.value)}
-          <span class="text-xs ml-auto">${c.value || ""}</span>
-        </div>
-        <div class="text-[11px] text-slate-400 mt-1">${c.detail}</div>
-      </div>`).join("");
+    $("ck-list").innerHTML = cards(r.preflight) + cards(r.checks);
     const sop = $("ck-sop");
     sop.classList.remove("hidden");
     sop.innerHTML = `<div class="text-gold mb-1">SOP 纪律提醒:</div>` +
-      (r.sop_hint || []).map((h) => `<div>· ${h}</div>`).join("");
+      (r.sop_hint || []).map((h) => `<div>· ${esc(h)}</div>`).join("");
     $("ck-status").innerHTML = r.all_pass
       ? `<span class="text-emerald-400 font-bold">✓ 四项全部达标 — 可开窗</span>`
       : `<span class="text-red-400 font-bold">✗ 存在未达标项 — 禁止开窗</span>`;
   } catch (e) {
-    $("ck-list").innerHTML = `<div class="card ck-fail">判据执行失败: ${e.message}</div>`;
+    $("ck-list").innerHTML = `<div class="card ck-fail">判据执行失败: ${esc(e.message)}</div>`;
     $("ck-status").textContent = "";
+  } finally {
+    $("ck-run").disabled = false;
   }
 }
+$("ck-usage").onclick = loadUsage;
 $("ck-run").onclick = runAll;
 </script>
 </body>

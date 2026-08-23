@@ -1,225 +1,233 @@
-"""上板四项放行判据 (SOP, 见 global/AGENTS.md)。
+"""Gazelle release gates aligned with Optic-SpaceNet-Final ``main``.
 
-四项全部达标才开窗:
-  ① EBR ≥ 8                      (板上 compass_evb_test 读数, 手动录入)
-  ② error_std 对健康基线偏差 < ±2% (evb error_std 录入; 快速探针 rel<2% 自动)
-  ③ MNIST canary gap < 0.5pt     (真机 DSQ 三层 vs 同量化 numpy, 官方 200 张)
-  ④ EuroSAT mini-run 正常         (当前模型真机 vs numpy 干净参考, 逐图一致率≥80% 且 acc 正常)
-
-配套纪律 (脚本侧检查, board_connect.sh 执行):
-  - 开窗前读板台账 BOARD_USAGE.md 尾部 + who/ps 侦测他人占用
-  - calib json 同窗口生成、20 分钟内使用 (stale −12.5pt); 校准与跑批背靠背
-  - 他人使用后 ~40min 物理瞬态, fresh compass_cali 后四判据重过
+The four gates run through the canonical board-side path B.  Offline numpy or
+the per-layer path-A visualisation transport can never release the board.
 """
-import base64
-import io
 import os
-import sys
-import time
 
 import numpy as np
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_REPO = os.path.dirname(os.path.dirname(_HERE))
-for _p in (_HERE,):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
-
-from demo.server.gazelle_engine import HttpBackend, NumpyBackend  # noqa: E402
-from demo.server.gazelle_client import (  # noqa: E402
-    GAZELLE_HOST, GAZELLE_PORT, CLASSES, MODEL_DEFS, GAZELLE_FAKE,
-    _get_backend, _get_ds3)
-from demo.server import ds3net  # noqa: E402
-
-MNIST_RES = os.path.join(_HERE, "mnist_res")
-MNIST_WEIGHTS = {
-    "w1": os.path.join(MNIST_RES, "w1_int4_dsq.npy"),
-    "w2": os.path.join(MNIST_RES, "w2_int4_dsq.npy"),
-    "w3": os.path.join(MNIST_RES, "w3_int4_dsq.npy"),
-    "q": os.path.join(MNIST_RES, "dsq_quant_params.npy"),
-}
-MNIST_DATA_DIR = os.path.join(MNIST_RES, "data_mnist_200_np")
-
-EBR_STD_BASE = float(os.environ.get("HW_EBR_STD_BASE", "4.70"))  # C2 健康窗口 error_std 基线
-EBR_REL_TOL = float(os.environ.get("HW_EBR_REL_TOL", "2.0"))     # 基线偏差容忍 % (SOP ±2%)
-PROBE_REL_TOL = float(os.environ.get("HW_PROBE_REL_TOL", "2.0"))  # 快速探针 rel 误差 %
+from demo.server import board_runner, ds3net
+from demo.server.gazelle_engine import NumpyBackend
+from demo.server.gazelle_client import MODEL_DEFS, _get_ds3
 
 
-# ---------------------------------------------------------------------------
-# ① EBR / error_std (evb_test 读数, 手动录入)
-# ---------------------------------------------------------------------------
-def check_ebr(ebr_value):
-    ok = float(ebr_value) >= 8.0
-    return {"name": "① EBR ≥ 8", "pass": ok, "value": str(ebr_value),
-            "detail": "板上 compass_evb_test 读数录入 (board_connect.sh [4] 可查)"}
+ERROR_STD_BASELINE = np.array([
+    float(os.environ.get("HW_ERROR_STD_BASE_1", "4.694")),
+    float(os.environ.get("HW_ERROR_STD_BASE_2", "4.473")),
+])
+ERROR_STD_TOL_PCT = float(os.environ.get("HW_ERROR_STD_TOL", "2.0"))
+CANARY_N = int(os.environ.get("HW_CANARY_N", "1000"))
+MINIRUN_DEFAULT_N = int(os.environ.get("HW_CHECK_N", "100"))
+MINIRUN_GAP_PT = float(os.environ.get("HW_MINIRUN_GAP", "2.0"))
 
 
-def check_evb_std(error_std):
-    v = float(error_std)
-    dev = (v - EBR_STD_BASE) / EBR_STD_BASE * 100.0
-    # SOP: 低于基线视为改善 (pass); 仅恶化超阈值才 fail (不被绝对值规则误判)
-    ok = dev < EBR_REL_TOL
-    return {"name": "② error_std 对基线 <+%g%%" % EBR_REL_TOL,
-            "pass": ok, "value": "%.3f (基线 %.2f, 偏差 %+.2f%%)"
-                                 % (v, EBR_STD_BASE, dev),
-            "detail": "evb_test 读数录入; 低于基线视为改善自动通过; 恶化超阈值判 fail"}
+def _failed(name, detail, value=""):
+    return {"name": name, "pass": False, "value": value,
+            "detail": detail}
 
 
-# ---------------------------------------------------------------------------
-# ② 快速探针 (自动): 已知随机探针真机 vs numpy 精确参考
-# ---------------------------------------------------------------------------
-def check_probe():
-    rng = np.random.RandomState(42)
-    x = rng.randint(1, 200, size=(16, 8)).astype(np.uint8)
-    w = rng.randint(-100, 100, size=(8, 2)).astype(np.int8)
-    exact = x.astype(np.float64) @ w.astype(np.float64)
+def _blocked(name, reason):
+    out = _failed(name, "未执行：" + reason)
+    out["blocked"] = True
+    return out
+
+
+def check_ebr_values(values):
+    if not values or len(values) != 2:
+        return _failed("① EBR ≥ 8", "compass_evb_test 未输出两通道 EBR")
+    ebr = np.asarray(values, dtype=np.float64)
+    ok = bool(np.all(ebr >= 8.0))
+    return {"name": "① EBR ≥ 8", "pass": ok,
+            "value": "%.3f / %.3f" % tuple(ebr),
+            "detail": "板端 compass_evb_test 自动测量；两个通道都必须 ≥8"}
+
+
+def check_error_std_values(values):
+    if not values or len(values) != 2:
+        return _failed(
+            "② error_std 对健康基线偏差 < +%.1f%%" % ERROR_STD_TOL_PCT,
+            "compass_evb_test 未输出两通道 error_std")
+    measured = np.asarray(values, dtype=np.float64)
+    deviation = (measured - ERROR_STD_BASELINE) / ERROR_STD_BASELINE * 100.0
+    # The project record explicitly treats a lower noise value as an
+    # improvement.  Only degradation beyond the tolerance blocks release.
+    ok = bool(np.all(deviation < ERROR_STD_TOL_PCT))
+    return {
+        "name": "② error_std 对健康基线偏差 < +%.1f%%" % ERROR_STD_TOL_PCT,
+        "pass": ok,
+        "value": "%.3f / %.3f（%+.2f%% / %+.2f%%）" %
+                 (measured[0], measured[1], deviation[0], deviation[1]),
+        "detail": "健康基线 %.3f / %.3f；低于基线视为改善，任一通道恶化超阈值即失败" %
+                  tuple(ERROR_STD_BASELINE),
+    }
+
+
+def check_evb():
+    """Run one EVB workload and produce gates ① and ② from the same sample."""
     try:
-        got = _get_backend().matmul_2d(x.astype(np.int64), w.astype(np.int64))
-    except Exception as e:
-        return {"name": "② 探针 (自动)", "pass": False,
-                "detail": "真机 matmul 失败: %s" % str(e)[:150]}
-    err = np.abs(np.asarray(got) - exact).ravel()
-    rms = float(np.sqrt(np.mean(err ** 2)))
-    ref = float(np.sqrt(np.mean(exact ** 2))) + 1e-9
-    rel = rms / ref * 100.0
-    return {"name": "② 探针 rel<%.1f%%" % PROBE_REL_TOL, "pass": bool(rel < PROBE_REL_TOL),
-            "value": "%.2f%%" % rel,
-            "detail": "16 组已知探针 vs numpy 精确参考 (快速判据, 无需 evb)"}
-
-
-# ---------------------------------------------------------------------------
-# ③ MNIST canary (DSQ 三层, ×16 scale, 官方 200 张)
-# ---------------------------------------------------------------------------
-_mnist = None
-
-
-def _get_mnist():
-    global _mnist
-    if _mnist is None:
-        w1 = np.load(MNIST_WEIGHTS["w1"])[0].astype(np.int32)
-        w2 = np.load(MNIST_WEIGHTS["w2"])[0].astype(np.int32)
-        w3 = np.load(MNIST_WEIGHTS["w3"])[0].astype(np.int32)
-        q = np.load(MNIST_WEIGHTS["q"], allow_pickle=True).item()
-        _mnist = (w1, w2, w3, q)
-    return _mnist
-
-
-def _mnist_mm(backend, x_int, w_int):
-    x_up = (x_int.astype(np.int32) * 16).astype(np.uint8)
-    w_up = (w_int.astype(np.int32) * 16).astype(np.int8)
-    y = backend.matmul_2d(x_up, w_up)
-    return np.asarray(y, dtype=np.float64) / 256.0
-
-
-def _mnist_forward(backend, x_int, w1, w2, w3, q):
-    s_in, s_w1, s_h1 = q["input_scale"], q["w1_scale"], q["h1_scale"]
-    s_w2, s_h2, s_w3 = q["w2_scale"], q["h2_scale"], q["w3_scale"]
-    y1 = _mnist_mm(backend, x_int, w1) * (s_in * s_w1)
-    h1 = np.clip(np.round(np.maximum(0.0, y1) / s_h1), 0, 15).astype(np.int32)
-    y2 = _mnist_mm(backend, h1, w2) * (s_h1 * s_w2)
-    h2 = np.clip(np.round(np.maximum(0.0, y2) / s_h2), 0, 15).astype(np.int32)
-    return _mnist_mm(backend, h2, w3) * (s_h2 * s_w3)
-
-
-def _load_mnist_data(limit=200):
-    """官方抽样 200 张 (按类子文件夹 .npy)。返回 (x_int (N,784) uint4, labels)。"""
-    subdirs = sorted(d for d in os.listdir(MNIST_DATA_DIR)
-                     if os.path.isdir(os.path.join(MNIST_DATA_DIR, d)))
-    files = []
-    for d in subdirs:
-        for f in sorted(os.listdir(os.path.join(MNIST_DATA_DIR, d))):
-            if f.lower().endswith(".npy"):
-                files.append((int(d), os.path.join(MNIST_DATA_DIR, d, f)))
-    files = files[:limit]
-    imgs, labels = [], []
-    for lbl, p in files:
-        a = np.load(p)
-        imgs.append(np.asarray(a, dtype=np.float32).reshape(-1) / 255.0)
-        labels.append(lbl)
-    x = np.stack(imgs).astype(np.float32)
-    w1, w2, w3, q = _get_mnist()
-    x_int = np.clip(np.round(x / q["input_scale"]), 0, 15).astype(np.int32)
-    return x_int, np.array(labels, dtype=np.int64)
+        result = board_runner.run_evb()
+    except Exception as exc:
+        reason = str(exc)[:220]
+        return (_failed("① EBR ≥ 8", reason),
+                _failed("② error_std 对健康基线", reason))
+    return (check_ebr_values(result.get("ebr")),
+            check_error_std_values(result.get("error_std")))
 
 
 def check_canary():
-    if GAZELLE_FAKE:
-        return {"name": "③ MNIST canary", "pass": True,
-                "value": "numpy 参考模式 (GAZELLE_FAKE=1, 非真机)",
-                "detail": "离线联调仅验证链路, 上板需真机重跑"}
+    """final/main: board-side DSQ MNIST n=1000, hw/ref gap <0.5pt."""
     try:
-        x_int, labels = _load_mnist_data(200)
-        w1, w2, w3, q = _get_mnist()
-        y_hw = _mnist_forward(_get_backend(), x_int, w1, w2, w3, q)
-        y_np = _mnist_forward(NumpyBackend(), x_int, w1, w2, w3, q)
-    except Exception as e:
-        return {"name": "③ MNIST canary", "pass": False,
-                "detail": "失败: %s" % str(e)[:150]}
-    acc_hw = float(np.mean(np.argmax(y_hw, 1) == labels)) * 100
-    acc_np = float(np.mean(np.argmax(y_np, 1) == labels)) * 100
-    gap = abs(acc_hw - acc_np)
-    return {"name": "③ MNIST canary gap < 0.5pt",
-            "pass": bool(gap < 0.5),
-            "value": "hw %.2f%% vs ref %.2f%%, gap %.2fpt" % (acc_hw, acc_np, gap),
-            "detail": "DSQ 三层 MLP ×16 scale, n=200 (官方抽样), 真机 vs 同量化 numpy"}
+        result = board_runner.run_mnist(CANARY_N)
+    except Exception as exc:
+        return _failed("③ MNIST canary gap < 0.5pt", str(exc)[:220])
+    gap = float(result["gap"])
+    return {
+        "name": "③ MNIST canary gap < 0.5pt",
+        "pass": bool(gap < 0.5),
+        "value": "hw %.2f%% vs ref %.2f%%，gap %.2fpt（n=%d）" %
+                 (result["acc"], result["ref"], gap, CANARY_N),
+        "detail": "板端 run_mnist_gazelle.py 的 DSQ 三层 MLP 与同量化 NumPy 参考",
+    }
 
 
-# ---------------------------------------------------------------------------
-# ④ EuroSAT mini-run (当前模型, 真机 vs numpy 干净参考)
-# ---------------------------------------------------------------------------
-def check_minirun(model_name="model10", n=200, images=None, labels=None):
-    if GAZELLE_FAKE:
-        return {"name": "④ EuroSAT mini-run", "pass": True,
-                "value": "numpy 参考模式 (非真机)",
-                "detail": "离线联调仅验证链路, 上板需真机重跑"}
+def check_minirun(model_name="model10", n=MINIRUN_DEFAULT_N,
+                  images=None, labels=None, calib_json=None):
+    """final/main: path-B board accuracy vs local quantized reference <2pt."""
+    if model_name not in ("model9", "model10"):
+        return _failed("④ EuroSAT mini-run 偏差 < 2pt",
+                       "路径 B canonical runner 只支持 M9/M10")
     if images is None or labels is None:
-        return {"name": "④ EuroSAT mini-run", "pass": False,
-                "detail": "缺少 test200 数据 (先运行 tools/make_test200.py)"}
-    if model_name not in MODEL_DEFS:
-        return {"name": "④ EuroSAT mini-run", "pass": False,
-                "detail": "未知模型 %s" % model_name}
+        return _failed("④ EuroSAT mini-run 偏差 < 2pt",
+                       "缺少 test200 数据；先运行 tools/make_test200.py")
+    n = max(1, min(int(n), 500, len(images), len(labels)))
     try:
-        ws, meta, cc = _get_ds3(model_name)
-        x = np.asarray(images[:n], dtype=np.float64)
-        y = np.asarray(labels[:n])
-        backend = _get_backend()
-        hw = []
-        for i in range(x.shape[0]):
-            lg, _ = ds3net.forward_traced(x[i:i + 1], ws, meta, backend,
-                                          calib_col=cc)
-            hw.append(lg[0])
-        hw = np.stack(hw)
-        ref, _ = ds3net.forward_traced(x, ws, meta, NumpyBackend(),
-                                       calib_col=cc)
-    except Exception as e:
-        return {"name": "④ EuroSAT mini-run", "pass": False,
-                "detail": "失败: %s" % str(e)[:150]}
-    p_hw, p_ref = np.argmax(hw, 1), np.argmax(ref, 1)
-    agree = float(np.mean(p_hw == p_ref)) * 100
-    acc_hw = float(np.mean(p_hw == y)) * 100
-    ok = agree >= 80.0 and acc_hw >= 50.0
-    return {"name": "④ EuroSAT mini-run 对齐", "pass": bool(ok),
-            "value": "一致率 %.1f%%, hw acc %.1f%%" % (agree, acc_hw),
-            "detail": "当前模型 %s, n=%d, 真机 vs numpy 干净参考 (SOP: 一致率≥80% 且 acc 正常)"
-                      % (model_name, n)}
+        ws, meta, _ = _get_ds3(model_name)
+        batch = np.asarray(images[:n], dtype=np.float64)
+        targets = np.asarray(labels[:n], dtype=np.int64)
+        ref_logits = ds3net.forward(
+            batch, ws, meta, NumpyBackend(), calib_col=None,
+            head_elec=MODEL_DEFS[model_name]["head_elec"])
+        result = board_runner.run_ds3(
+            model_name, 0, n, calib_json=calib_json)
+        hw_logits = np.asarray(result["logits"])
+        if hw_logits.ndim != 2 or hw_logits.shape[0] < n:
+            raise ValueError("板端 logits 形状异常: %s" % (hw_logits.shape,))
+        hw_acc = float(np.mean(np.argmax(hw_logits[:n], 1) == targets)) * 100.0
+        ref_acc = float(np.mean(np.argmax(ref_logits[:n], 1) == targets)) * 100.0
+    except Exception as exc:
+        return _failed("④ EuroSAT mini-run 偏差 < 2pt", str(exc)[:220])
+    gap = abs(hw_acc - ref_acc)
+    return {
+        "name": "④ EuroSAT mini-run 偏差 < %.1fpt" % MINIRUN_GAP_PT,
+        "pass": bool(gap < MINIRUN_GAP_PT),
+        "value": "hw %.1f%% vs ref %.1f%%，gap %.1fpt（n=%d）" %
+                 (hw_acc, ref_acc, gap, n),
+        "detail": "板端 run_ds3_gazelle.py 路径 B + SCP logits，对比本地同量化 NumPy 参考",
+    }
 
 
-# ---------------------------------------------------------------------------
-# 汇总
-# ---------------------------------------------------------------------------
-def all_checks(ebr=None, evb_std=None, model_name="model10",
-               images=None, labels=None, n=200):
-    checks = []
-    if ebr is not None:
-        checks.append(check_ebr(ebr))
-    if evb_std is not None:
-        checks.append(check_evb_std(evb_std))
-    checks.append(check_probe())
-    checks.append(check_canary())
-    checks.append(check_minirun(model_name, n=n, images=images, labels=labels))
-    return {"all_pass": all(c["pass"] for c in checks), "checks": checks,
-            "sop_hint": [
-                "开窗前: who/ps 侦测他队占用 + 读板上台账 BOARD_USAGE.md 尾部",
-                "fresh compass_cali 后四判据背靠背执行; calib json 20 分钟内使用",
-                "他人使用后 ~40min 物理瞬态 → fresh 校准 → 判据重过",
-            ]}
+def preflight(model_name="model10", confirmed_idle=False):
+    """Non-negotiable SOP prerequisites that precede the four workloads."""
+    occupancy = {
+        "name": "前置：无人占用且已冷却 ≥5min",
+        "pass": bool(confirmed_idle),
+        "value": "已人工确认" if confirmed_idle else "未确认",
+        "detail": "先查看 who / ps 与 BOARD_USAGE.md；本服务不能可靠判断进程归属",
+    }
+    if not confirmed_idle:
+        conflicts = {
+            "name": "前置：path-B 无冲突进程", "pass": False,
+            "value": "未检查", "detail": "未确认板卡空闲前不连接板卡",
+        }
+        calibration = {
+            "name": "前置：对应模型校准 ≤20min",
+            "pass": False, "value": "未检查",
+            "detail": "未确认板卡空闲前不会发起任何板端工作负载",
+        }
+        return [occupancy, conflicts, calibration], None
+    ok, detail = board_runner.probe_board()
+    if not ok:
+        conflicts = {
+            "name": "前置：path-B 无冲突进程", "pass": False,
+            "value": "板卡不可达", "detail": detail,
+        }
+        calibration = {
+            "name": "前置：对应模型校准 ≤20min", "pass": False,
+            "value": "板卡不可达", "detail": detail,
+        }
+        return [occupancy, conflicts, calibration], None
+    try:
+        process_text = board_runner.conflicting_processes()
+        conflicts = {
+            "name": "前置：path-B 无冲突进程",
+            "pass": not bool(process_text),
+            "value": "无" if not process_text else "检测到占用",
+            "detail": ("未发现 server_gazelle/runner/校准进程" if not process_text
+                       else process_text[:500]),
+        }
+    except Exception as exc:
+        conflicts = {
+            "name": "前置：path-B 无冲突进程", "pass": False,
+            "value": "检查失败", "detail": str(exc)[:220],
+        }
+    try:
+        status = board_runner.calibration_status(model_name)
+        calibration = {
+            "name": "前置：对应模型校准 ≤20min",
+            "pass": bool(status["pass"]),
+            "value": os.path.basename(status.get("calib") or "未找到"),
+            "detail": status["detail"],
+        }
+        calib = status.get("calib") if status["pass"] else None
+    except Exception as exc:
+        calibration = {
+            "name": "前置：对应模型校准 ≤20min", "pass": False,
+            "value": "检查失败", "detail": str(exc)[:220],
+        }
+        calib = None
+    return [occupancy, conflicts, calibration], calib
+
+
+def all_checks(model_name="model10", images=None, labels=None,
+               n=MINIRUN_DEFAULT_N, confirmed_idle=False):
+    prereqs, calib_json = preflight(model_name, confirmed_idle)
+    if not all(item["pass"] for item in prereqs):
+        reason = next(item["detail"] for item in prereqs if not item["pass"])
+        checks = [
+            _blocked("① EBR ≥ 8", reason),
+            _blocked("② error_std 对健康基线", reason),
+            _blocked("③ MNIST canary gap < 0.5pt", reason),
+            _blocked("④ EuroSAT mini-run 偏差 < 2pt", reason),
+        ]
+    else:
+        ebr, error_std = check_evb()
+        # Do not burn another 5-10 minutes when the physical window is already
+        # known bad.  This also prevents a failed EBR check from heating it.
+        if not (ebr["pass"] and error_std["pass"]):
+            reason = "EBR/error_std 未通过"
+            checks = [ebr, error_std,
+                      _blocked("③ MNIST canary gap < 0.5pt", reason),
+                      _blocked("④ EuroSAT mini-run 偏差 < 2pt", reason)]
+        else:
+            canary = check_canary()
+            mini = (check_minirun(
+                model_name, n=n, images=images, labels=labels,
+                calib_json=calib_json) if canary["pass"] else
+                _blocked("④ EuroSAT mini-run 偏差 < 2pt",
+                         "MNIST canary 未通过"))
+            checks = [ebr, error_std, canary, mini]
+    all_pass = (all(item["pass"] for item in prereqs) and
+                all(item["pass"] for item in checks))
+    return {
+        "all_pass": all_pass,
+        "preflight": prereqs,
+        "checks": checks,
+        "path": "gazelle-hardware:pathB",
+        "sop_hint": [
+            "旧跳板机路径已失效；当前仅直连 uisrc@192.168.31.158",
+            "fresh compass_cali + 对应模型校准后，四项判据背靠背执行",
+            "单次运行 15-20min；空闲冷却 ≥5min；校准超过20min必须重做",
+            "路径 A 仅用于任意图片逐层可视化，不作为正式放行结果",
+        ],
+    }

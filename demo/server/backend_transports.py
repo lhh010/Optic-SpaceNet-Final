@@ -6,6 +6,7 @@ board /matmul HTTP service.  SSH mode carries /matmul traffic through a real
 local-forward tunnel.
 """
 import glob
+import ipaddress
 import os
 import re
 import socket
@@ -66,17 +67,31 @@ class SshTunnelBackend(HttpBackend):
         self.name = "gazelle-hardware-ssh"
 
     def _ensure_tunnel(self):
+        proc = self.__class__._process
         if _port_open("127.0.0.1", self.local_port):
-            return
-        with self._lock:
-            if _port_open("127.0.0.1", self.local_port):
+            if proc is not None and proc.poll() is None:
                 return
+            raise TransportUnavailable(
+                "SSH 本地转发端口 127.0.0.1:%d 已被其他进程占用" %
+                self.local_port)
+        with self._lock:
+            proc = self.__class__._process
+            if _port_open("127.0.0.1", self.local_port):
+                if proc is not None and proc.poll() is None:
+                    return
+                raise TransportUnavailable(
+                    "SSH 本地转发端口 127.0.0.1:%d 已被其他进程占用" %
+                    self.local_port)
             if (time.monotonic() - self.__class__._last_error_at < 5.0 and
                     self.__class__._last_error):
                 raise TransportUnavailable(self.__class__._last_error)
-            proc = self.__class__._process
             if proc is not None and proc.poll() is None:
-                return
+                proc.terminate()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                self.__class__._process = None
             env = os.environ.copy()
             env["SSHPASS"] = self.password
             cmd = [
@@ -93,7 +108,7 @@ class SshTunnelBackend(HttpBackend):
             try:
                 proc = subprocess.Popen(
                     cmd, env=env, stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             except (OSError, ValueError) as exc:
                 raise TransportUnavailable("cannot start SSH tunnel: %s" % exc)
             self.__class__._process = proc
@@ -107,8 +122,14 @@ class SshTunnelBackend(HttpBackend):
                 time.sleep(0.15)
             if proc.poll() is None:
                 proc.terminate()
-            message = "SSH unavailable: %s@%s (local tunnel :%d)" % (
-                self.user, self.board_host, self.local_port)
+            try:
+                stderr = proc.stderr.read().decode(
+                    "utf-8", errors="replace").strip() if proc.stderr else ""
+            except Exception:
+                stderr = ""
+            message = "SSH unavailable: %s@%s (local tunnel :%d)%s" % (
+                self.user, self.board_host, self.local_port,
+                (" — " + stderr[-180:]) if stderr else "")
             self.__class__._last_error_at = time.monotonic()
             self.__class__._last_error = message
             raise TransportUnavailable(message)
@@ -170,12 +191,12 @@ class SerialBootstrapBackend(HttpBackend):
                         write_timeout=2, exclusive=True) as ser:
                     ser.write(b"\r\n")
                     text = self._read_for(ser, 0.8)
-                    if re.search(r"login:\s*$", text, re.I):
+                    if re.search(r"login:\s*", text, re.I):
                         ser.write((self.console_user + "\r\n").encode())
-                        text += self._read_for(ser, 0.8)
-                    if re.search(r"password:\s*$", text, re.I):
+                        text += self._read_for(ser, 1.2)
+                    if re.search(r"password:\s*", text, re.I):
                         ser.write((self.console_password + "\r\n").encode())
-                        text += self._read_for(ser, 1.0)
+                        text += self._read_for(ser, 1.8)
                     marker = "__GAZELLE_ADDR__"
                     command = (
                         "echo %s; ip -4 -o addr show scope global; "
@@ -186,9 +207,25 @@ class SerialBootstrapBackend(HttpBackend):
                 raise TransportUnavailable(
                     "Gazelle 串口 %s 打开或登录失败: %s" %
                     (devices[0], str(exc)[:120]))
+            if marker not in text or "__GAZELLE_END__" not in text:
+                raise TransportUnavailable(
+                    "串口 console 未执行地址查询命令；可能仍停在登录提示或无 shell 权限")
+            address_text = text.rsplit(marker, 1)[-1].split(
+                "__GAZELLE_END__", 1)[0]
             candidates = re.findall(
-                r"\binet\s+((?:\d{1,3}\.){3}\d{1,3})/", text)
-            candidates = [ip for ip in candidates if not ip.startswith("127.")]
+                r"\binet\s+((?:\d{1,3}\.){3}\d{1,3})/", address_text)
+            valid = []
+            for item in candidates:
+                try:
+                    addr = ipaddress.ip_address(item)
+                except ValueError:
+                    continue
+                if addr.version == 4 and not addr.is_loopback:
+                    valid.append(item)
+            candidates = sorted(
+                set(valid), key=lambda item: (
+                    not item.startswith("192.168.31."),
+                    not item.startswith("192.168."), item))
             if candidates:
                 self.host = candidates[0]
             elif not os.environ.get("GAZELLE_SERIAL_HOST"):

@@ -105,12 +105,15 @@ while true; do
       ENVS="$ENVS GAZELLE_HOST=192.168.31.158 GAZELLE_PORT=8000"
       ENVS="$ENVS GAZELLE_WEIGHT_9=/workspace/weights/m9_j1w075ds3_v8probe15.pth"
       ENVS="$ENVS GAZELLE_WEIGHT_10=/workspace/weights/m10_ds3pool3_v8probe15.pth"
-      # 使用 tools/out/calib 里最新的逐列校准 (同窗口)
-      LATEST9=$(ls -t "$OUT_DIR/calib"/calib_col_demo_*.json 2>/dev/null | head -1)
-      # 区分 m9/m10 校准: 文件前缀相同, 用 mtime 无法区分 → 让用户指定
-      if [ -n "$LATEST9" ]; then
-        echo "  发现校准文件: $LATEST9 (与验证脚本共用, 手动确认对应模型)"
-      fi
+      # 新校准文件名带模型，避免把 M9 校准误用于 M10（或反之）。
+      LATEST9=$(ls -t "$OUT_DIR/calib"/calib_col_m9_*.json 2>/dev/null | head -1)
+      LATEST10=$(ls -t "$OUT_DIR/calib"/calib_col_m10_*.json 2>/dev/null | head -1)
+      SCALAR9=$(ls -t "$OUT_DIR/calib"/calib_scalar_m9_*.json 2>/dev/null | head -1)
+      SCALAR10=$(ls -t "$OUT_DIR/calib"/calib_scalar_m10_*.json 2>/dev/null | head -1)
+      [ -n "$LATEST9" ] && ENVS="$ENVS GAZELLE_CALIB_9=/workspace/out/calib/$(basename "$LATEST9")"
+      [ -n "$LATEST10" ] && ENVS="$ENVS GAZELLE_CALIB_10=/workspace/out/calib/$(basename "$LATEST10")"
+      [ -n "$SCALAR9" ] && ENVS="$ENVS GAZELLE_BOARD_CALIB_9=$(basename "$SCALAR9")"
+      [ -n "$SCALAR10" ] && ENVS="$ENVS GAZELLE_BOARD_CALIB_10=$(basename "$SCALAR10")"
       [ "$B" = "2" ] && ENVS="GAZELLE_FAKE=1 $ENVS"
       say "启动前端 (后台) → http://localhost:$FRONT_PORT"
       docker exec -d "$CONTAINER" bash -c \
@@ -134,7 +137,7 @@ while true; do
       BACKEND=http; [ "$VB" = "2" ] && BACKEND=numpy
       # 选择逐列校准 (若有)
       CAL=""
-      CLS=$(ls "$OUT_DIR/calib"/calib_col_demo_*.json 2>/dev/null)
+      CLS=$(ls "$OUT_DIR/calib"/calib_col_m*_demo_*.json 2>/dev/null)
       if [ -n "$CLS" ]; then
         echo "  可用逐列校准 (同窗口):"
         echo "$CLS" | nl

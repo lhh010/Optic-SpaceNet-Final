@@ -17,6 +17,7 @@ import io
 import os
 import random
 import sys
+import threading
 import time
 
 import numpy as np  # noqa: E402
@@ -37,7 +38,7 @@ from pydantic import BaseModel  # noqa: E402
 from torchvision import datasets  # noqa: E402
 
 from demo.server import compare, compare_models, inference_local, render  # noqa: E402
-from demo.server import board_checks  # noqa: E402  (上板四项放行判据)
+from demo.server import board_checks, board_runner  # noqa: E402  (上板放行判据)
 from demo.server import gazelle_client  # noqa: E402  (M9/M10: Gazelle 真机)
 from demo.server import remote_client as osim_client  # noqa: E402  (Model 3: osimulator)
 from demo.server.gazelle_client import (  # noqa: E402
@@ -76,6 +77,7 @@ async def no_cache_frontend(request, call_next):
 
 _dataset = None
 _test_indices = None
+_board_gate_lock = threading.Lock()
 
 
 def _get_test_set():
@@ -157,6 +159,9 @@ def infer(req: InferRequest):
     allowed = {"electronic", "osimulator", "gazelle_ssh", "gazelle_serial"}
     if req.backend not in allowed:
         raise HTTPException(400, "unknown backend %r" % req.backend)
+    if (req.backend in ("gazelle_ssh", "gazelle_serial") and
+            _board_gate_lock.locked()):
+        raise HTTPException(409, "path-B release check is using the board")
     try:
         base64.b64decode(req.image_b64, validate=True)
     except Exception as exc:
@@ -217,38 +222,73 @@ def infer(req: InferRequest):
     }
 
 
-# ---------------- 上板四项放行判据 (SOP: global/AGENTS.md) ----------------
-
-class EbrRequest(BaseModel):
-    ebr: float
-    error_std: float | None = None
+# ---------------- 上板四项放行判据 (final/main canonical path B) ---------
 
 
-@app.post("/api/checks/ebr")
-def checks_ebr(req: EbrRequest):
-    """判据①/②: 板上 compass_evb_test 读数手动录入 (board_connect.sh [4] 可查)。"""
-    out = [board_checks.check_ebr(req.ebr)]
-    if req.error_std is not None:
-        out.append(board_checks.check_evb_std(req.error_std))
+@app.get("/api/checks/usage")
+def checks_usage():
+    """只读 who/ps/BOARD_USAGE 证据；进程归属仍须人工确认。"""
+    try:
+        evidence = board_runner.inspect_usage()
+        return {"ok": True, "host": board_runner.board_host(),
+                "evidence": evidence}
+    except Exception as exc:
+        return {"ok": False, "host": board_runner.board_host(),
+                "evidence": str(exc)[:500]}
+
+
+@app.get("/api/checks/ebr")
+def checks_ebr(confirmed_idle: bool = Query(False)):
+    """判据①/②: 自动执行一次 EVB 并解析两通道 EBR/error_std。"""
+    if not confirmed_idle:
+        reason = "先查看 who/ps/BOARD_USAGE 并确认无人占用、已冷却≥5min"
+        return {"all_pass": False, "checks": [
+            {"name": "① EBR ≥ 8", "pass": False, "blocked": True,
+             "value": "未执行", "detail": reason},
+            {"name": "② error_std 对健康基线", "pass": False,
+             "blocked": True, "value": "未执行", "detail": reason},
+        ]}
+    if not _board_gate_lock.acquire(blocking=False):
+        raise HTTPException(409, "another path-B release check is running")
+    try:
+        out = list(board_checks.check_evb())
+    finally:
+        _board_gate_lock.release()
     return {"all_pass": all(c["pass"] for c in out), "checks": out}
 
 
 @app.get("/api/checks/probe")
 def checks_probe():
-    """判据②自动: 已知探针真机 vs numpy 参考。"""
-    return board_checks.check_probe()
+    """短 SSH 连通性诊断（不是四项放行判据之一）。"""
+    ok, detail = board_runner.probe_board()
+    return {"name": "Gazelle SSH path-B probe", "pass": ok,
+            "value": board_runner.board_host(), "detail": detail}
 
 
 @app.get("/api/checks/canary")
-def checks_canary():
+def checks_canary(confirmed_idle: bool = Query(False)):
     """判据③: MNIST DSQ canary gap < 0.5pt。"""
-    return board_checks.check_canary()
+    if not confirmed_idle:
+        return {"name": "③ MNIST canary gap < 0.5pt", "pass": False,
+                "blocked": True, "value": "未执行",
+                "detail": "未确认无人占用与冷却状态"}
+    if not _board_gate_lock.acquire(blocking=False):
+        raise HTTPException(409, "another path-B release check is running")
+    try:
+        return board_checks.check_canary()
+    finally:
+        _board_gate_lock.release()
 
 
 @app.get("/api/checks/minirun")
 def checks_minirun(model: str = Query("model10", alias="model"),
-                   n: int = Query(200)):
-    """判据④: EuroSAT mini-run (真机 vs numpy 干净参考)。"""
+                   n: int = Query(100, ge=1, le=500),
+                   confirmed_idle: bool = Query(False)):
+    """判据④: path-B 真机准确率 vs 本地参考，偏差 <2pt。"""
+    if not confirmed_idle:
+        return {"name": "④ EuroSAT mini-run 偏差 < 2pt", "pass": False,
+                "blocked": True, "value": "未执行",
+                "detail": "未确认无人占用与冷却状态"}
     imgs = labels = None
     for cand in ("/workspace/out/test200_images.npy",
                  os.path.join(REPO_ROOT, "tools", "out", "test200_images.npy")):
@@ -256,15 +296,29 @@ def checks_minirun(model: str = Query("model10", alias="model"),
             imgs = np.load(cand)
             labels = np.load(cand.replace("_images", "_labels"))
             break
-    return board_checks.check_minirun(model_name=model, n=n,
-                                      images=imgs, labels=labels)
+    if not _board_gate_lock.acquire(blocking=False):
+        raise HTTPException(409, "another path-B release check is running")
+    try:
+        prereqs, calib = board_checks.preflight(model, confirmed_idle=True)
+        if not all(item["pass"] for item in prereqs):
+            failed = next(item for item in prereqs if not item["pass"])
+            return {"name": "④ EuroSAT mini-run 偏差 < 2pt", "pass": False,
+                    "blocked": True, "value": "未执行",
+                    "detail": failed["detail"]}
+        return board_checks.check_minirun(
+            model_name=model, n=n, images=imgs, labels=labels,
+            calib_json=calib)
+    finally:
+        _board_gate_lock.release()
 
 
 @app.get("/api/checks/all")
 def checks_all(model: str = Query("model10", alias="model"),
-               ebr: float | None = None, error_std: float | None = None,
-               n: int = Query(200)):
-    """四判据一键汇总 (EBR/error_std 可选录入; 未录入则只跑自动三项)。"""
+               n: int = Query(100, ge=1, le=500),
+               confirmed_idle: bool = Query(False)):
+    """先检查前置条件，再按 ①→④ 顺序执行；缺项永不放行。"""
+    if model not in ("model9", "model10"):
+        raise HTTPException(400, "path-B release checks support model9/model10")
     imgs = labels = None
     for cand in ("/workspace/out/test200_images.npy",
                  os.path.join(REPO_ROOT, "tools", "out", "test200_images.npy")):
@@ -272,9 +326,14 @@ def checks_all(model: str = Query("model10", alias="model"),
             imgs = np.load(cand)
             labels = np.load(cand.replace("_images", "_labels"))
             break
-    return board_checks.all_checks(ebr=ebr, evb_std=error_std,
-                                   model_name=model, images=imgs,
-                                   labels=labels, n=n)
+    if not _board_gate_lock.acquire(blocking=False):
+        raise HTTPException(409, "another path-B release check is running")
+    try:
+        return board_checks.all_checks(
+            model_name=model, images=imgs, labels=labels, n=n,
+            confirmed_idle=confirmed_idle)
+    finally:
+        _board_gate_lock.release()
 
 
 @app.get("/api/metrics")
@@ -304,6 +363,9 @@ def compare_infer(req: CompareInferRequest):
         raise HTTPException(400, f"model_id must be 3, 9, or 10, got {req.model_id}")
     if req.backend not in compare_models.ALLOWED_BACKENDS:
         raise HTTPException(400, "backend must be osimulator, gazelle_ssh, or gazelle_serial")
+    if (req.backend in ("gazelle_ssh", "gazelle_serial") and
+            _board_gate_lock.locked()):
+        raise HTTPException(409, "path-B release check is using the board")
     try:
         result = compare_models.infer_model(
             req.model_id, req.image_b64, backend_mode=req.backend)

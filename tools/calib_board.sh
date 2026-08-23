@@ -6,25 +6,26 @@
 # 连接: ssh uisrc@192.168.31.158 (密码 5182)  板上目录 /home/uisrc/j1
 # 注意: 校准与跑批必须同窗口背靠背; calib json 不可跨窗口复用 (stale −12.5pt)。
 # ==============================================================================
-set -u
+set -uo pipefail
 BOARD_HOST="${GAZELLE_HOST:-192.168.31.158}"
-BOARD_USER="uisrc"
-BOARD_PASS="5182"
-BOARD_J1="/home/uisrc/j1"
+BOARD_USER="${GAZELLE_SSH_USER:-uisrc}"
+BOARD_PASS="${GAZELLE_SSH_PASSWORD:-5182}"
+BOARD_J1="${GAZELLE_BOARD_J1:-/home/uisrc/j1}"
 MODEL="${1:-m10}"                      # m9 | m10
 OUT_DIR="/workspace/out/calib"
 TS="$(date +%Y%m%d_%H%M%S)"
 
 case "$MODEL" in
-  m9)  WD="weights_m9_5400"; PREF="probe_m9demo_";;
+  m9)  WD="weights_w075ds3"; PREF="probe_m9demo_";;
   m10) WD="weights_m10_5400"; PREF="probe_m10demo_";;
   *)   echo "用法: calib_board.sh [m9|m10]"; exit 2;;
 esac
 
-sshx() { sshpass -p "$BOARD_PASS" ssh -o StrictHostKeyChecking=no \
-          -o ConnectTimeout=15 "$BOARD_USER@$BOARD_HOST" "$@"; }
-scpx() { sshpass -p "$BOARD_PASS" scp -o StrictHostKeyChecking=no \
-          -o ConnectTimeout=15 "$@"; }
+sshx() { SSHPASS="$BOARD_PASS" sshpass -e ssh -o StrictHostKeyChecking=no \
+          -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 \
+          "$BOARD_USER@$BOARD_HOST" "$@"; }
+scpx() { SSHPASS="$BOARD_PASS" sshpass -e scp -o StrictHostKeyChecking=no \
+          -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 "$@"; }
 
 mkdir -p "$OUT_DIR"
 
@@ -55,51 +56,78 @@ echo "   工具链 OK (weights=$WD)"
 
 echo "== [3/6] 他人占用检查 =="
 sshx "who; ps aux | grep -iE 'gazelle|compass|server' | grep -v grep | head -5; \
-      (ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep -E ':(8000|22)' | head -3"
-echo "   (若上方有他队进程/8000 被占, 请等待或协调后重跑)"
+      (ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep -E ':(8000|22)' | head -3; \
+      echo '--- BOARD_USAGE.md ---'; tail -20 /home/uisrc/BOARD_USAGE.md 2>/dev/null"
+read -rp "确认无人占用且器件已冷却≥5min？输入 yes 继续: " CONFIRM
+[ "$CONFIRM" = "yes" ] || { echo "!! 未确认占用/冷却状态，中止且不运行校准"; exit 1; }
 
 echo "== [4/6] fresh compass_cali (约 10-18 分钟) =="
-sshx "echo $BOARD_PASS | sudo -S -p X timeout 1100 compass_cali > /tmp/cali_demo.log 2>&1; \
-      grep -a 'calibration done' /home/uisrc/api.log | tail -1"
+sshx "printf '%s\\n' '$BOARD_PASS' | sudo -S -p X timeout 1100 \
+      compass_cali --mode-local > /tmp/cali_demo.log 2>&1; RC=\$?; \
+      tail -20 /tmp/cali_demo.log; exit \$RC" || {
+  echo "!! fresh compass_cali 失败，中止"; exit 1; }
 
 echo "== [5/6] EBR 检查 =="
-EBR=$(sshx "cd /home/uisrc/sample_code/code 2>/dev/null && \
-  echo $BOARD_PASS | sudo -S -p X timeout 600 python3 evb_test_sample.py 2>/dev/null | \
-  tr '\r' '\n' | grep -a 'ebr:' | head -1")
-echo "   $EBR"
-case "$EBR" in
-  *[0-9]*) ;;
-  *) echo "   !! EBR 未读到, 继续但请留意";;
-esac
+EVB=$(sshx "cd /home/uisrc/sample_code/code 2>/dev/null && \
+  printf '%s\\n' '$BOARD_PASS' | sudo -S -p X timeout 600 python3 evb_test_sample.py 2>/dev/null | \
+  tr '\r' '\n' | grep -aE 'error_std:|ebr:' | tail -2") || {
+  echo "!! EVB 执行失败，中止"; exit 1; }
+echo "   $EVB"
+python3 - "$EVB" <<'PY' || { echo "!! EBR/error_std 未达严格判据，中止"; exit 1; }
+import re
+import sys
+
+text = sys.argv[1]
+def pair(key):
+    m = re.search(r"%s\s*:\s*\[\s*([-+0-9.eE]+)\s+([-+0-9.eE]+)" % key, text)
+    return (float(m.group(1)), float(m.group(2))) if m else None
+
+ebr = pair("ebr")
+std = pair("error_std")
+base = (4.694, 4.473)
+if not ebr or not std or min(ebr) < 8:
+    raise SystemExit(1)
+if any((value - ref) / ref * 100.0 >= 2.0 for value, ref in zip(std, base)):
+    raise SystemExit(1)
+print("   PASS: EBR 两通道≥8，error_std 恶化<2%")
+PY
 
 echo "== [6/6] probe + 标量 calib + 逐列 calib =="
 sshx "cd $BOARD_J1 && \
-  echo $BOARD_PASS | sudo -S -p X env PYTHONIOENCODING=utf-8 \
+  printf '%s\\n' '$BOARD_PASS' | sudo -S -p X env PYTHONIOENCODING=utf-8 \
     DS3_WEIGHTS_DIR=$BOARD_J1/$WD PROBE_OUT_PREFIX=$PREF PROBE_IMAGES=512 \
     python3 probe_dump_ds3.py > /tmp/probe_demo.log 2>&1; \
-  echo probe_exit=\$?; tail -8 /tmp/probe_demo.log | grep -aE 'resid_std|DONE'" 
+  RC=\$?; echo probe_exit=\$RC; tail -8 /tmp/probe_demo.log | grep -aE 'resid_std|DONE'; exit \$RC" || {
+  echo "!! probe 失败，中止"; exit 1; }
 sshx "cd $BOARD_J1 && \
-  echo $BOARD_PASS | sudo -S -p X env PYTHONIOENCODING=utf-8 \
-    DS3_WEIGHTS_DIR=$BOARD_J1/$WD DS3_CALIB_OUT=$BOARD_J1/calib_scalar_demo_$TS.json \
+  printf '%s\\n' '$BOARD_PASS' | sudo -S -p X env PYTHONIOENCODING=utf-8 \
+    DS3_WEIGHTS_DIR=$BOARD_J1/$WD DS3_CALIB_OUT=$BOARD_J1/calib_scalar_${MODEL}_demo_$TS.json \
     python3 calibrate_any_ds3.py > /tmp/calib_sc_demo.log 2>&1; \
-  echo sc_exit=\$?; grep -a 'saved' /tmp/calib_sc_demo.log"
+  RC=\$?; echo sc_exit=\$RC; grep -a 'saved' /tmp/calib_sc_demo.log; SAVED=\$?; \
+  [ \$RC -eq 0 ] && [ \$SAVED -eq 0 ]" || {
+  echo "!! scalar calib 失败，中止"; exit 1; }
 sshx "cd $BOARD_J1 && \
-  echo $BOARD_PASS | sudo -S -p X env PYTHONIOENCODING=utf-8 \
-    CALIB_COL_PAIRS_DIR=$BOARD_J1 CALIB_COL_OUT=$BOARD_J1/calib_col_demo_$TS.json \
+  printf '%s\\n' '$BOARD_PASS' | sudo -S -p X env PYTHONIOENCODING=utf-8 \
+    CALIB_COL_PAIRS_DIR=$BOARD_J1 CALIB_COL_OUT=$BOARD_J1/calib_col_${MODEL}_demo_$TS.json \
     CALIB_COL_PREFIX=$PREF CALIB_COL_LAYERS=s1a,s1ds,s2a,s2b,s2ds,s3a,s3b \
-    CALIB_COL_SCALAR=$BOARD_J1/calib_scalar_demo_$TS.json \
+    CALIB_COL_SCALAR=$BOARD_J1/calib_scalar_${MODEL}_demo_$TS.json \
     python3 calibrate_col.py > /tmp/calib_col_demo.log 2>&1; \
-  echo col_exit=\$?; grep -a 'saved' /tmp/calib_col_demo.log"
+  RC=\$?; echo col_exit=\$RC; grep -a 'saved' /tmp/calib_col_demo.log; SAVED=\$?; \
+  [ \$RC -eq 0 ] && [ \$SAVED -eq 0 ]" || {
+  echo "!! column calib 失败，中止"; exit 1; }
 
 echo "== 拉回 calib json =="
-scpx "$BOARD_USER@$BOARD_HOST:$BOARD_J1/calib_scalar_demo_$TS.json" "$OUT_DIR/" 2>/dev/null
-scpx "$BOARD_USER@$BOARD_HOST:$BOARD_J1/calib_col_demo_$TS.json" "$OUT_DIR/" 2>/dev/null
+scpx "$BOARD_USER@$BOARD_HOST:$BOARD_J1/calib_scalar_${MODEL}_demo_$TS.json" "$OUT_DIR/" 2>/dev/null || {
+  echo "!! scalar json 拉回失败，中止"; exit 1; }
+scpx "$BOARD_USER@$BOARD_HOST:$BOARD_J1/calib_col_${MODEL}_demo_$TS.json" "$OUT_DIR/" 2>/dev/null || {
+  echo "!! column json 拉回失败，中止"; exit 1; }
 ls -la "$OUT_DIR" | tail -5
 echo ""
 echo "=========================================================="
 echo " $MODEL 校准完成 (同窗口有效, 约 20 分钟内使用):"
-echo "   标量: $OUT_DIR/calib_scalar_demo_$TS.json"
-echo "   逐列: $OUT_DIR/calib_col_demo_$TS.json"
-echo " 用法: run_sample_verify.py --calib-col $OUT_DIR/calib_col_demo_$TS.json"
-echo "       前端: GAZELLE_CALIB_$([ $MODEL = m9 ] && echo 9 || echo 10)=$OUT_DIR/calib_col_demo_$TS.json"
+echo "   标量: $OUT_DIR/calib_scalar_${MODEL}_demo_$TS.json"
+echo "   逐列: $OUT_DIR/calib_col_${MODEL}_demo_$TS.json"
+echo " 用法: run_sample_verify.py --calib-col $OUT_DIR/calib_col_${MODEL}_demo_$TS.json"
+echo "       前端逐层: GAZELLE_CALIB_$([ $MODEL = m9 ] && echo 9 || echo 10)=$OUT_DIR/calib_col_${MODEL}_demo_$TS.json"
+echo "       path-B 判据: GAZELLE_BOARD_CALIB_$([ $MODEL = m9 ] && echo 9 || echo 10)=calib_scalar_${MODEL}_demo_$TS.json"
 echo "=========================================================="
