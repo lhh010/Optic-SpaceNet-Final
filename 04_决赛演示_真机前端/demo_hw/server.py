@@ -32,21 +32,27 @@ from PIL import Image  # noqa: E402
 MODEL_NAME = os.environ.get("HW_MODEL", "model10")
 _calib = os.environ.get("HW_CALIB", "")   # 当前校准 json 名(可在 /api/calibrate 后动态更新)
 _calib_resolved = False
+_calib_last_try = 0.0                      # 失败退避: 板子不可达时 ≥30s 才重试解析
 import threading  # noqa
 _calib_state = {"status": "idle", "progress": "", "calib": _calib, "error": ""}
 
 
 def current_calib():
-    """返回当前校准名。HW_CALIB 为空时自动向板子询问最新标量校准 json(重启也生效)。"""
-    global _calib, _calib_resolved
+    """返回当前校准名。HW_CALIB 为空时自动向板子询问最新标量校准 json(重启也生效)。
+    先看 board.probe_board()(TTL 缓存), 板子不可达不白跑 SSH; 失败后 ≥30s 才重试,
+    避免离线时 health 轮询被 latest_calib 的 SSH 超时反复拖慢。"""
+    global _calib, _calib_resolved, _calib_last_try
     if not _calib:
-        if not _calib_resolved:
+        now = time.time()
+        if not _calib_resolved and now - _calib_last_try >= 30:
+            _calib_last_try = now
             try:
-                latest = board.latest_calib()
-                if latest:
-                    _calib = latest
-                    _calib_state["calib"] = latest
-                _calib_resolved = True   # 成功(或确认无新)才锁定, 板子暂不可达则不锁下次重试
+                if board.probe_board()[0]:
+                    latest = board.latest_calib()
+                    if latest:
+                        _calib = latest
+                        _calib_state["calib"] = latest
+                    _calib_resolved = True   # 成功(或确认无新)才锁定, 不可达则下轮再试
             except Exception:
                 pass
         return _calib

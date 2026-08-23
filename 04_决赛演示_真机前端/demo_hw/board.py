@@ -18,13 +18,13 @@ MNIST_DIR = os.environ.get("BOARD_MNIST", "/home/uisrc/mnist")
 _conn = None
 
 
-def _connect():
+def _connect(timeout=15):
     global _conn
     if _conn is None or _conn.get_transport() is None or not _conn.get_transport().is_active():
         _conn = paramiko.SSHClient()
         _conn.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         _conn.connect(BOARD_HOST, port=22, username=BOARD_USER,
-                     password=BOARD_PASS, timeout=15,
+                     password=BOARD_PASS, timeout=timeout,
                      look_for_keys=False, allow_agent=False)
     return _conn
 
@@ -34,8 +34,8 @@ def _quote(s):
     return "'" + s.replace("'", "'\\''") + "'"
 
 
-def ssh_run(cmd, timeout=3600):
-    c = _connect()
+def ssh_run(cmd, timeout=3600, connect_timeout=15):
+    c = _connect(connect_timeout)
     stdin, stdout, stderr = c.exec_command(cmd, timeout=timeout)
     out = stdout.read().decode("utf-8", "replace")
     err = stderr.read().decode("utf-8", "replace")
@@ -43,10 +43,10 @@ def ssh_run(cmd, timeout=3600):
     return out, err, rc
 
 
-def ssh_sudo_run(cmd, timeout=3600):
+def ssh_sudo_run(cmd, timeout=3600, connect_timeout=15):
     """sudo 执行(root, 经 stdin 喂密码); 板端 runner 需 root 写 api.log。"""
     wrapped = "echo " + _quote(BOARD_PASS) + " | sudo -S sh -c " + _quote(cmd)
-    return ssh_run(wrapped, timeout=timeout)
+    return ssh_run(wrapped, timeout=timeout, connect_timeout=connect_timeout)
 
 
 def run_ds3(offset, limit, calib_json=None, weights="weights_m10_5400"):
@@ -127,7 +127,8 @@ def run_calibrate(weights="weights_m10_5400", calib_out="calib_scalar_auto.json"
 
 def latest_calib():
     """板上 ~/j1 里最新的标量校准 json 名 (ls -t 按 mtime 新→旧)。无则 None。"""
-    out, err, rc = ssh_sudo_run("ls -t " + J1_DIR + "/calib_scalar_*.json 2>/dev/null | head -1", timeout=20)
+    out, err, rc = ssh_sudo_run("ls -t " + J1_DIR + "/calib_scalar_*.json 2>/dev/null | head -1",
+                                timeout=20, connect_timeout=5)
     name = out.strip()
     if name and name.endswith(".json"):
         return os.path.basename(name)
@@ -143,13 +144,23 @@ def run_ebr(timeout=600):
     return None, None
 
 
+_probe_cache = {"t": 0.0, "ok": False, "detail": ""}
+PROBE_TTL_S = float(os.environ.get("BOARD_PROBE_TTL", "10"))
+
+
 def probe_board():
-    """可达性: SSH 开一个 sudo 无害命令。返回 (ok, detail)。"""
+    """可达性: 快速探测(独立短超时) + TTL 缓存。
+    板子离线/闪断时 health 轮询不再每次阻塞 ~15-21s, 多个并发请求共享一次探测。"""
+    now = time.time()
+    if now - _probe_cache["t"] < PROBE_TTL_S:
+        return _probe_cache["ok"], _probe_cache["detail"]
     try:
-        out, err, rc = ssh_sudo_run("echo PROBE_OK", timeout=15)
-        return (rc == 0 and "PROBE_OK" in out), ("SSH " + BOARD_HOST)
+        out, err, rc = ssh_sudo_run("echo PROBE_OK", timeout=6, connect_timeout=5)
+        ok, detail = (rc == 0 and "PROBE_OK" in out), ("SSH " + BOARD_HOST)
     except Exception as e:
-        return False, str(e)[:120]
+        ok, detail = False, str(e)[:120]
+    _probe_cache.update(t=now, ok=ok, detail=detail)
+    return ok, detail
 
 
 def upload(local_path, remote_path):
