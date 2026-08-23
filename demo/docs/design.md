@@ -149,3 +149,27 @@ GAZELLE_CALIB(可选逐通道修正 npz) / GAZELLE_FAKE / GAZELLE_TIMEOUT(300)�
 
 **联调提示**: 本机无 torch 时前端可用 `GAZELLE_FAKE=1` (numpy 参考) 联调;
 真机窗口按 SOP 走放行判据。M9/M10 逐列校准 json 必须同窗口 (stale 失效)。
+
+## 2026-08-23 更新 (3): 上板四项放行判据 (SOP 集成)
+
+前端新增「上板检查」页面 (`/checks.html`, 入口在演示页顶栏), 实现 SOP
+(global/AGENTS.md) 四项放行判据, 全部达标才开窗:
+
+1. **EBR ≥ 8** — 板上 compass_evb_test 读数手动录入 (`/api/checks/ebr`);
+2. **error_std 对基线 <+2%** — evb error_std 录入; 低于基线视为改善自动通过
+   (不被绝对值规则误判); 快速自动探针 (`/api/checks/probe`) 真机已知矩阵
+   vs numpy 参考 rel<2%;
+3. **MNIST canary gap < 0.5pt** (`/api/checks/canary`) — DSQ 三层 ×16 scale,
+   官方抽样 200 张, 真机 vs 同量化 numpy;
+4. **EuroSAT mini-run 正常** (`/api/checks/minirun`) — 当前模型 (model3/9/10)
+   真机 vs numpy 干净参考, 逐图一致率≥80% 且 acc 正常 (默认 n=200,
+   test200 数据由 tools/make_test200.py 生成)。
+
+汇总接口 `/api/checks/all` 一键执行 + SOP 纪律提示 (台账/占用侦测/20min
+校准纪律/40min 瞬态)。实现: `demo/server/board_checks.py` (判据逻辑) +
+`app.py` 路由 + `demo/web/checks.html` (前端面板, 视觉样式与主页面一致)。
+
+工具链 (`tools/`): Dockerfile (torch CPU + fastapi + picocom/sshpass/pyserial),
+start.sh (环境/菜单), board_connect.sh (SSH/串口直连 Gazelle), calib_board.sh
+(真机校准: compass_cali→probe→标量/逐列 calib→拉回), run_sample_verify.py
+(M9/M10 200 张抽样验证), make_test200.py。

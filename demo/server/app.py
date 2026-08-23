@@ -18,6 +18,8 @@ import random
 import sys
 import time
 
+import numpy as np  # noqa: E402
+
 _HERE = os.path.dirname(os.path.abspath(__file__))          # demo/server
 REPO_ROOT = os.path.dirname(os.path.dirname(_HERE))           # repo root
 for _p in (_HERE, os.path.join(REPO_ROOT, "src")):
@@ -35,6 +37,7 @@ from torchvision import datasets  # noqa: E402
 
 from demo.server import compare, compare_models, inference_local, render  # noqa: E402
 from demo.server import gazelle_client as remote_client  # noqa: E402  (Gazelle 真机, 替代容器 osimulator)
+from demo.server import board_checks  # noqa: E402  (上板四项放行判据)
 from demo.server.compare_models import COMPARE_METRICS  # noqa: E402
 from demo.server.inference_local import CLASSES, DATA_DIR  # noqa: E402
 from demo.server.metrics import METRICS  # noqa: E402
@@ -154,6 +157,66 @@ def infer(req: InferRequest):
             "model": model,
         },
     }
+
+
+# ---------------- 上板四项放行判据 (SOP: global/AGENTS.md) ----------------
+
+class EbrRequest(BaseModel):
+    ebr: float
+    error_std: float | None = None
+
+
+@app.post("/api/checks/ebr")
+def checks_ebr(req: EbrRequest):
+    """判据①/②: 板上 compass_evb_test 读数手动录入 (board_connect.sh [4] 可查)。"""
+    out = [board_checks.check_ebr(req.ebr)]
+    if req.error_std is not None:
+        out.append(board_checks.check_evb_std(req.error_std))
+    return {"all_pass": all(c["pass"] for c in out), "checks": out}
+
+
+@app.get("/api/checks/probe")
+def checks_probe():
+    """判据②自动: 已知探针真机 vs numpy 参考。"""
+    return board_checks.check_probe()
+
+
+@app.get("/api/checks/canary")
+def checks_canary():
+    """判据③: MNIST DSQ canary gap < 0.5pt。"""
+    return board_checks.check_canary()
+
+
+@app.get("/api/checks/minirun")
+def checks_minirun(model: str = Query("model10", alias="model"),
+                   n: int = Query(200)):
+    """判据④: EuroSAT mini-run (真机 vs numpy 干净参考)。"""
+    imgs = labels = None
+    for cand in ("/workspace/out/test200_images.npy",
+                 os.path.join(REPO_ROOT, "tools", "out", "test200_images.npy")):
+        if os.path.isfile(cand):
+            imgs = np.load(cand)
+            labels = np.load(cand.replace("_images", "_labels"))
+            break
+    return board_checks.check_minirun(model_name=model, n=n,
+                                      images=imgs, labels=labels)
+
+
+@app.get("/api/checks/all")
+def checks_all(model: str = Query("model10", alias="model"),
+               ebr: float | None = None, error_std: float | None = None,
+               n: int = Query(200)):
+    """四判据一键汇总 (EBR/error_std 可选录入; 未录入则只跑自动三项)。"""
+    imgs = labels = None
+    for cand in ("/workspace/out/test200_images.npy",
+                 os.path.join(REPO_ROOT, "tools", "out", "test200_images.npy")):
+        if os.path.isfile(cand):
+            imgs = np.load(cand)
+            labels = np.load(cand.replace("_images", "_labels"))
+            break
+    return board_checks.all_checks(ebr=ebr, evb_std=error_std,
+                                   model_name=model, images=imgs,
+                                   labels=labels, n=n)
 
 
 @app.get("/api/metrics")

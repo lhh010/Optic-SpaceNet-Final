@@ -17,6 +17,7 @@
 ================================================================================
 """
 
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -38,9 +39,12 @@ try:
     _load_gazelle_model = _load_gazelle
     _entrance = _ent
     _HAS_REAL_OPTICAL = True
-    print("[optic_layers] [OK] Real optical simulator loaded (osimulator)")
+    if os.environ.get("OPTIC_VERBOSE", "0") == "1":
+        print("[optic_layers] [OK] Real optical simulator loaded (osimulator)")
 except ImportError:
-    print("[optic_layers] [WARN] osimulator not installed, using FakeOpticalEngine")
+    _HAS_REAL_OPTICAL = False
+    if os.environ.get("OPTIC_VERBOSE", "0") == "1":
+        print("[optic_layers] [WARN] osimulator not installed, using FakeOpticalEngine")
 
 
 # ============================================================
