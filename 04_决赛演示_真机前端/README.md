@@ -38,27 +38,52 @@ uvicorn demo_hw.server:app --port 8100
 
 ## 1.5 离线/仅局域网运行（现场无外网时）
 
-> demo **运行本身不依赖外网**：权重/数据/官方 MNIST 全在本地，板子走内网(192.168.31.158)。唯一需要外网的是**首次 `pip install` 依赖**——提前装好或带离线 wheelhouse。
+> demo 运行**本身不依赖外网**：权重/数据/官方 MNIST 全在本地，板子走内网(192.168.31.158)。唯一需要外网的是**首次 `pip install` 依赖**——提前装好或带离线 wheelhouse。
 
-**开跑前务必确认（缺一不可）**：
-1. **依赖已装**：`fastapi uvicorn paramiko pillow numpy torch torchvision`（`pip list` 确认；无外网时用 `pip install --no-index --find-links <wheelhouse>` 装或带 `python` 环境整包）；
-2. **本地材料就位**：`03_决赛_EuroSAT真机/eurosat_research/weights/m10_ds3pool3_v8probe15.pth`、`02_复赛_EuroSAT仿真/data/EuroSAT_RGB`（gitignore，本地已在）、`04_.../CICC_2026_MNIST_TEST_DATASET/`（官方200，已入库）；
-3. **板子内网可达**：连「小米主路由器」WiFi(test1234)，`Test-NetConnection 192.168.31.158 -Port 22` 通过；板上 `run_ds3_gazelle.py`/`weights_m10_5400`/`run_mnist_official.py`+官方200 已就位；
-4. **已完成 fresh `compass_cali` + 标量校准**（否则精度低；`/api/calibrate` 可在线重校准，但需约10-12min）。
+### 开跑前务必确认（缺一不可）
+1. **依赖已装**：`fastapi uvicorn paramiko pillow numpy torch torchvision`（`pip list` 确认；无外网时 `pip install --no-index --find-links <wheelhouse> -r requirements.txt` 或带 python 环境整包）；
+2. **本地材料就位**：`03_.../eurosat_research/weights/m10_ds3pool3_v8probe15.pth`、`02_.../data/EuroSAT_RGB`、`CICC_2026_MNIST_TEST_DATASET/`（官方200）；
+3. **板子内网可达**：连「小米主路由器」WiFi(test1234)，板子 22 通；板上 `run_ds3_gazelle.py`/`weights_m10_5400`/`run_mnist_official.py`+官方200 就位；
+4. **已完成 fresh `compass_cali` + 标量校准**（否则精度低）。
 
-**离线启动序列（无网络依赖）**：
+### 逐终端操作流程
+
+**▶ 终端 A —— 演示机（本地 Windows PowerShell）**
 ```powershell
-# 1) 连内网 WiFi 小米主路由器(test1234) → 确认板子可达
-Test-NetConnection 192.168.31.158 -Port 22   # True
-# 2) 起 demo（指向板子 + 校准）
+# ① 连内网 WiFi（系统托盘无线图标 → 小米主路由器 → test1234）
+# ② 确认板子可达（应 True）
+Test-NetConnection 192.168.31.158 -Port 22
+Test-NetConnection 192.168.31.158 -Port 8000   # False 正常(路径B不需要server_gazelle)
+# ③ (可选)重跑校准：先看板上状态，避免起 demo 前板子没校准
+powershell -ExecutionPolicy Bypass -File E:\LT-Simulator\决赛提交包\04_决赛演示_真机前端\check_board.ps1
+# ④ 启动 demo（指向板子 + 校准；校准名以板上实际为准，如 calib_scalar_auto_<ts>.json）
 cd E:\LT-Simulator\决赛提交包\04_决赛演示_真机前端
-$env:BOARD_HOST="192.168.31.158"; $env:HW_MODEL="model10"; $env:HW_CALIB="calib_scalar_m10_0823b.json"
+$env:BOARD_HOST='192.168.31.158'; $env:HW_MODEL='model10'; $env:HW_CALIB='calib_scalar_m10_0823b.json'
 python -m uvicorn demo_hw.server:app --port 8100
-# 3) 浏览器打开 http://127.0.0.1:8100（无需外网）
 ```
-- 全程只需局域网：浏览器→demo(本地)→SSH(板子)→光算。无任何外网请求。
-- 若现场要用另一台机器当浏览器访问，uvicorn 加 `--host 0.0.0.0`，且那台机器连同一局域网即可。
+
+**▶ 终端 B —— 板子（SSH，开跑前建议先清板 + 必要时校准）**
+```bash
+# ① 上板
+ssh uisrc@192.168.31.158      # 密码 5182
+# ② 清板：杀残留跑批/校准进程 + 删临时 logits
+echo 5182 | sudo -S pkill -9 -f run_ds3_gazelle.py; echo 5182 | sudo -S pkill -9 -f run_mnist_gazelle.py
+echo 5182 | sudo -S rm -f /tmp/ds3_logits_*.npy
+# ③ 确认板上素材就位
+ls ~/j1/run_ds3_gazelle.py ~/j1/weights_m10_5400 ~/mnist/run_mnist_official.py ~/mnist/test_images_official200.npy
+# ④ (如需重新校准) fresh compass_cali 必须先完整跑完, 再单独标量校准; 都要 root
+echo 5182 | sudo -S compass_cali --mode-local      # ~10min
+cd ~/j1 && echo 5182 | sudo -S env DS3_WEIGHTS_DIR=weights_m10_5400 DS3_CALIB_OUT=calib_scalar_fresh.json python3 calibrate_any_ds3.py   # ~3min
+#   完成后把 demo 的 HW_CALIB 设为这个新 json 名(或直接用前端顶部「重新校准」按钮)
+```
+
+**▶ 浏览器** —— 打开 <http://127.0.0.1:8100>（无需外网），状态灯绿即可演示。
+
+### 说明
+- 全程只需局域网：浏览器→demo(本地)→SSH(板子)→光算，**无任何外网请求**。
+- 若现场用另一台机器当浏览器访问，uvicorn 加 `--host 0.0.0.0`，且那台机器连同一局域网。
 - 校准/判据/跑批/逐图对比/MNIST 官方 200 全部离线可用。
+- 板上若已被他队用，须先 `who`/`ps` 确认无人占用 + 冷却≥5min，再 fresh 校准开窗。
 
 ## 2. 校准（15 min 方案）
 
