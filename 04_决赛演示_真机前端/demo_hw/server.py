@@ -53,6 +53,7 @@ CALIB_COL_FILE = os.environ.get("HW_CALIB_COL", "")
 HEAD_ELEC = os.environ.get("DS3_HEAD_ELEC", "0") == "1"
 CHECK_N = int(os.environ.get("HW_CHECK_N", "10"))
 MNIST_DIR = os.environ.get("HW_MNIST_DIR", "")              # 官方 200 张目录
+PROBE_BASELINE = float(os.environ.get("HW_PROBE_BASELINE", "4.7"))  # 判据②基线(C2健康口径)
 
 _MODELS = {
     "model10": ("m10_ds3pool3_v8probe15.pth", "max3", "M10 ds3pool3"),
@@ -186,15 +187,17 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"],
 
 
 def _probe_board(timeout=5):
-    """可达性探测: 独立短超时 HttpBackend 发一个小矩阵乘。"""
+    """可达性探测: 独立短超时 HttpBackend 发一个小矩阵乘。
+    注意: 板上 compass_matmul 会按 tia_gain 缩放(交接已证), 返回值非精确 -1;
+    健康判定只需端点可达 + 返回有限数值, 不再硬断言 -1。"""
     pb = HttpBackend(host=OPTC_HOST, port=OPTC_PORT, timeout=timeout)
     try:
         x = np.array([[1, 2]], dtype=np.uint8)
         w = np.array([[1], [-1]], dtype=np.int8)
         got = pb.matmul_2d(x, w)
-        ok = bool(np.allclose(got, [[-1.0]], atol=1e-6))
-        return ok, ("" if ok else "probe result abnormal: %s"
-                    % np.asarray(got).ravel()[:4])
+        arr = np.asarray(got, dtype=np.float64).ravel()
+        ok = bool(arr.size >= 1 and np.all(np.isfinite(arr)))
+        return ok, ("raw=[%s]" % str(arr[:4]))
     except Exception as e:
         return False, str(e)[:150]
 
