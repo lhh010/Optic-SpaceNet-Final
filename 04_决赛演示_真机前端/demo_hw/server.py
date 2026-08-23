@@ -79,7 +79,10 @@ def checks_canary():
 def checks_minirun():
     """判据4: EuroSAT mini-run — 板端 acc vs 本地 numpy 干净参考。"""
     x, targets, idx = _eurosat_batch(0, CHECK_N)
-    ref = _local_ref_acc(x, targets) if x is not None else None
+    ref = None
+    if x is not None:
+        rl = _local_ref(x)
+        ref = float(np.mean(np.argmax(rl, 1) == targets)) * 100
     try:
         r = board.run_ds3(0, CHECK_N, calib_json=HW_CALIB or None, weights=WEIGHTS)
     except Exception as e:
@@ -119,18 +122,24 @@ def _eurosat_batch(offset, limit):
     idx = test_idx[offset:offset + limit]
     if len(idx) == 0:
         return None, None, None
-    imgs, targets = [], []
+    imgs, targets, b64s = [], [], []
     for i in idx:
         path, target = ds.samples[i]
         im = Image.open(path).convert("RGB").resize((64, 64))
         arr = (np.asarray(im, dtype=np.float32) / 255.0 - MEAN) / STD
         imgs.append(arr.transpose(2, 0, 1))
         targets.append(target)
-    return np.stack(imgs).astype(np.float64), np.array(targets), idx
+        # 原图缩略图 b64 (用于前端显示)
+        import io
+        import base64
+        buf = io.BytesIO()
+        im.save(buf, format="JPEG")
+        b64s.append(base64.b64encode(buf.getvalue()).decode())
+    return np.stack(imgs).astype(np.float64), np.array(targets), b64s
 
 
-def _local_ref_acc(x, targets):
-    """本地 numpy 干净参考(M10 ds3net)准确率 — 用于 mini-run 参考/演示。"""
+def _local_ref(x):
+    """本地 numpy 干净参考(M10 ds3net) logits。返回 (ws_cache) 复用。"""
     import ds3net  # noqa
     from gazelle_engine import NumpyBackend  # noqa
     weight = os.path.join(_PKG, "03_决赛_EuroSAT真机", "eurosat_research", "weights",
@@ -138,8 +147,7 @@ def _local_ref_acc(x, targets):
                           else "m9_j1w075ds3_v8probe15.pth")
     pool = "max3" if MODEL_NAME == "model10" else "max"
     ws, meta = ds3net.load_ds3(weight, pool)
-    logits = ds3net.forward(x, ws, meta, NumpyBackend())
-    return float(np.mean(np.argmax(logits, 1) == targets)) * 100
+    return ds3net.forward(x, ws, meta, NumpyBackend())
 
 
 @app.get("/api/run/eurosat")
@@ -151,15 +159,19 @@ def run_eurosat(offset: int = 0, limit: int = CHECK_N):
         r = board.run_ds3(offset, limit, calib_json=HW_CALIB or None, weights=WEIGHTS)
     except Exception as e:
         raise HTTPException(503, "板上 runner 失败: %s" % e)
-    # 本地 numpy 参考用于 gap
-    x, targets, _ = _eurosat_batch(offset, limit)
-    ref = _local_ref_acc(x, targets) if x is not None else None
+    # 本地 numpy 参考用于 gap + 逐图对比
+    x, targets, b64s = _eurosat_batch(offset, limit)
+    ref_logits = _local_ref(x) if x is not None else None
+    ref = None
+    if ref_logits is not None:
+        ref = float(np.mean(np.argmax(ref_logits, 1) == targets)) * 100
     gap = round(abs(r["acc"] - ref), 2) if r["acc"] is not None and ref is not None else None
+    rows = _build_rows(offset, b64s, targets, r.get("logits"), ref_logits)
     return {"model": MODEL_NAME, "weights": WEIGHTS, "offset": offset, "n": limit,
             "acc": r["acc"], "ref": round(ref, 2) if ref is not None else None,
             "gap": gap, "elapsed_s": r["elapsed_s"],
             "sec_per_img": r["sec_per_img"], "calib": HW_CALIB or "(none)",
-            "engine": "gazelle-hw:pathB", "trace": r["trace"]}
+            "engine": "gazelle-hw:pathB", "trace": r["trace"], "rows": rows}
 
 
 @app.get("/api/mnist/run")
@@ -179,6 +191,42 @@ def run_mnist_endpoint(limit: int = 200, offset: int = 0, official: bool = True)
     return {"n": limit, "acc": r["acc"], "ref": r["ref"], "gap": r["gap"],
             "elapsed_s": r["elapsed_s"], "source": r["source"],
             "engine": "gazelle-hw:pathB", "stderr": r["stderr"]}
+
+
+def _softmax1d(z):
+    z = np.asarray(z, dtype=np.float64)
+    z = z - z.max()
+    e = np.exp(z)
+    return e / e.sum()
+
+
+def _topk(z, k=5):
+    p = _softmax1d(z)
+    idx = np.argsort(-p)[:k]
+    return [{"cls": CLASSES[int(i)], "p": round(float(p[i]), 4)} for i in idx]
+
+
+def _build_rows(offset, b64s, targets, hw_logits, ref_logits):
+    """逐图: 图 b64 + 真机 Top5 + 参考 Top5 + 一致性。"""
+    rows = []
+    n = len(b64s)
+    for i in range(n):
+        tgt = int(targets[i])
+        hw = hw_logits[i] if hw_logits is not None and i < len(hw_logits) else None
+        ref = ref_logits[i] if ref_logits is not None else None
+        row = {"idx": offset + i, "img": b64s[i], "true": CLASSES[tgt]}
+        if hw is not None:
+            row["hw_top1"] = CLASSES[int(np.argmax(hw))]
+            row["hw_topk"] = _topk(hw)
+            row["hw_correct"] = bool(int(np.argmax(hw)) == tgt)
+        if ref is not None:
+            row["ref_top1"] = CLASSES[int(np.argmax(ref))]
+            row["ref_topk"] = _topk(ref)
+            row["ref_correct"] = bool(int(np.argmax(ref)) == tgt)
+        if hw is not None and ref is not None:
+            row["agree"] = bool(int(np.argmax(hw)) == int(np.argmax(ref)))
+        rows.append(row)
+    return rows
 
 
 app.mount("/", StaticFiles(directory=os.path.join(_HERE, "web"), html=True),

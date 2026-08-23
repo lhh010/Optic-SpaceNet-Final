@@ -56,6 +56,8 @@ def run_ds3(offset, limit, calib_json=None, weights="weights_m10_5400"):
     if calib_json:
         env["DS3_CALIB"] = calib_json
     envs = " ".join(k + "=" + _quote(v) for k, v in env.items())
+    logits_path = "/tmp/ds3_logits_%d.npy" % int(time.time())
+    envs = envs + " DS3_LOGITS_OUT=" + _quote(logits_path)
     cmd = "cd " + J1_DIR + " && " + envs + " python3 run_ds3_gazelle.py"
     t0 = time.time()
     out, err, rc = ssh_sudo_run(cmd, timeout=1200)
@@ -63,10 +65,11 @@ def run_ds3(offset, limit, calib_json=None, weights="weights_m10_5400"):
     m = re.search(r"FINAL:\s*([0-9.]+)%", out)
     acc = float(m.group(1)) if m else None
     mtrace = re.findall(r"\[\s*(\d+)/\d+\] acc=([0-9.]+)%", out)
+    logits = _read_npy(remote=logits_path)  # (n,10) 真机 logits
     return {"acc": acc, "elapsed_s": round(elapsed, 1),
             "sec_per_img": round(elapsed / max(1, limit), 2) if acc is not None else None,
             "trace": [{"n": int(n), "acc": float(a)} for n, a in mtrace],
-            "rc": rc, "stderr": (err[-300:] if rc else "")}
+            "logits": logits, "rc": rc, "stderr": (err[-300:] if rc else "")}
 
 
 def run_mnist(limit, method="dsq", official=False):
@@ -87,6 +90,25 @@ def run_mnist(limit, method="dsq", official=False):
     gap = round(abs(acc - ref), 2) if acc is not None and ref is not None else None
     return {"acc": acc, "ref": ref, "gap": gap,
             "elapsed_s": round(elapsed, 1), "rc": rc, "stderr": err[-200:]}
+
+
+def _read_npy(remote_path, timeout=30):
+    """从板子 SFTP 拉一个 npy 到内存并返回 np 数组。失败返回 None。"""
+    import tempfile
+    try:
+        c = _connect()
+        sftp = c.open_sftp()
+        local = os.path.join(tempfile.gettempdir(), "board_" + os.path.basename(remote_path))
+        sftp.get(remote_path, local)
+        sftp.close()
+        a = np.load(local)
+        try:
+            os.remove(local)
+        except Exception:
+            pass
+        return a
+    except Exception as e:
+        return None
 
 
 def probe_board():

@@ -64,6 +64,8 @@ $("rgo").onclick=async()=>{$("rgo").disabled=true;$("rout").textContent="跑批�
   let s=`✔ [${j.offset},${j.offset+j.n}) acc <b>${j.acc}%</b> · ${j.elapsed_s}s（${j.sec_per_img}s/张）· ${j.engine}`;
   if(j.ref!==null&&j.ref!==undefined)s+=` · 参考 ${j.ref}% · gap ${j.gap}pt`;
   s+=`<br>校准 ${j.calib}`+(j.trace&&j.trace.length?` · 轨迹 ${j.trace.map(t=>`${t.n}:${t.acc}%`).join(" → ")}`:"");
+  s+=`<h3 style="margin:16px 0 8px 0">逐图对比（真机 vs 参考）</h3>`;
+  s+=(j.rows||[]).map(rowCard).join("");
   $("rout").innerHTML=s;}
   catch(e){$("rout").textContent="✘ 失败："+e.message;}
   $("rgo").disabled=false;};
@@ -75,6 +77,16 @@ $("mgo").onclick=async()=>{$("mgo").disabled=true;$("mout").textContent="MNIST �
   $("mout").innerHTML=s;}
   catch(e){$("mout").textContent="✘ 失败："+e.message;}
   $("mgo").disabled=false;};
+function topkBar(tk,color){return (tk||[]).map(t=>`<div style="font-size:.8rem">${t.cls} ${(t.p*100).toFixed(1)}%<div class="bar"><i style="width:${t.p*100}%;background:${color}"></i></div></div>`).join("");}
+function rowCard(row){const c=row.hw_correct?"#4ade80":"#f87171";const rc=row.ref_correct?"#4ade80":"#f87171";
+  const agree=row.agree===true?"一致":"<b style="color:#f87171">不一致</b>";
+  return `<div style="display:flex;gap:12px;border:1px solid #2a3550;border-radius:8px;padding:10px;margin:8px 0">
+    <div style="flex:0 0 96px"><img src="data:image/jpeg;base64,${row.img}" style="width:96px;border-radius:6px"><br><span class="meta">#${row.idx}</span></div>
+    <div style="flex:1">
+      <div style="margin-bottom:4px"><b>真值</b> ${row.true} · <b>真机</b> <b style="color:${c}">${row.hw_top1||"-"}</b> · <b>参考</b> <b style="color:${rc}">${row.ref_top1||"-"}</b> · ${agree}</div>
+      <div style="display:flex;gap:16px"><div style="flex:1"><span class="meta">真机</span>${topkBar(row.hw_topk,"#38bdf8")}</div><div style="flex:1"><span class="meta">参考</span>${topkBar(row.ref_topk,"#a78bfa")}</div></div>
+    </div>
+  </div>`;}
 </script>
 </body>
 </html>
