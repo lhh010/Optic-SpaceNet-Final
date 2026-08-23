@@ -1,26 +1,25 @@
-# 决赛真机演示前端 v2 · Runbook（demo-hw）
+# 决赛真机演示前端 v3 · Runbook（demo-hw）
 
-> 2026-08-23 v2 改版：
-> ① **模型换 M10 ds3pool3（默认）/ M9 w075ds3**——本地 numpy 前向（`ds3net.py`，逐行镜像板端 runner 数值语义），光算 matmul 直连板上 `server_gazelle.py`（`OPTC_HOST` 可直接指板 IP，不再假设 SSH 隧道）；
-> ② 判据③升级为**真 MNIST canary**（DSQ 三层 MLP，初赛 97.35% 链路）；
-> ③ 新增 **MNIST 官方抽样 200 张跑批** 与 **EuroSAT 分段跑批**（按 30min 窗口预算设计）。
+> 2026-08-23 v3 改版：**demo 从 pathA(HTTP matmul) 切到 pathB(板端 runner 直调 compass)**。
+> 实测 pathA 每次光算 matmul 约 10s(与规模无关, 单图 90s+)，无法做实时演示；
+> pathB 板上 runner 直调 compass ~3.2s/张(与全量运行同链路)。
 
 ## 架构
 
 ```
 浏览器 demo_hw/web/index.html
   └─ HTTP :8100 ─▶ 本地 FastAPI (demo_hw/server.py)
-        └─ ds3net.forward (M10/M9 numpy 前向, 镜像 run_ds3_gazelle.py)
-              └─ 7 光算层 matmul → HTTP OPTC_HOST:OPTC_PORT ─▶ 板上 server_gazelle.py
-                   (m≤2 tiling = M10 全量 95.33% canonical 链路, HW_CHUNK 可调)
+        └─ board.py (paramiko SSH + sudo) 触发板上 runner
+              └─ run_ds3_gazelle.py (M10, ~3.2s/张, 95.33% canonical 链)
+              └─ run_mnist_gazelle.py / run_mnist_official.py (官方200)
 ```
 
-## 0. 前置条件
+## 0. 前置
 
-1. 板上已起服务：`sudo env OPTC_PORT=8000 python3 server_gazelle.py`（root，环境变量传参）；
-2. 本地能直达板上 8000 端口。**2026-08-23 起板子为内网直连**：连 WiFi「小米主路由器」(密码 test1234) → 板 IP `192.168.31.158`，`OPTC_HOST=192.168.31.158` 直连、**无需跳板机/隧道**（旧的 140.206.121.211:2036 + 10.102.13.37 公网路径已失效）。完整流程见同目录 `板子内网直连与上板检查.md`；
-3. 已完成 fresh `compass_cali`（~10min）+ 四项放行判据全过；
-4. 本地依赖：`pip install fastapi uvicorn pillow numpy torch torchvision`。
+1. 板子内网可达(当前 `192.168.31.158`, 连「小米主路由器」wifi test1234, uisrc/5182)；
+2. 板上有运行脚本：`~/j1/run_ds3_gazelle.py`、`~/j1/weights_m10_5400`、`~/mnist/run_mnist_official.py` + 官方200 npy；
+3. **已完成 fresh compass_cali + 标量校准**（见「校准」节）；
+4. 本地依赖：`pip install fastapi uvicorn paramiko pillow numpy torch torchvision`。
 
 ## 1. 启动
 
@@ -28,59 +27,37 @@
 cd 决赛提交包/04_决赛演示_真机前端
 uvicorn demo_hw.server:app --port 8100
 ```
-
 | 环境变量 | 默认 | 说明 |
 |---|---|---|
-| `HW_MODEL` | `model10` | `model10`（ds3pool3, SOTA 95.33%）/ `model9`（w075ds3, 94.43%） |
-| `HW_BACKEND` | `http` | `numpy` = 离线干净参考（不占板） |
-| `OPTC_HOST/PORT` | `127.0.0.1:8000` | 板上 server_gazelle 地址，**直连板设 `192.168.31.158:8000`**（内网直连，无隧道） |
-| `HW_CHUNK` | `2` | 光算 matmul 行分块；2=FPGA 行回绕规避（canonical），板上 server 实测支持大 m 时可调大加速 |
-| `HW_CALIB_COL` | 空 | 逐列校准 json（calibrate_col.py 产物，同窗口！） |
-| `DS3_HEAD_ELEC` | `0` | `1`=head FC 走电算 |
-| `HW_CHECK_N` | `10` | 判据④ mini-run 张数 |
-| `HW_MNIST_DIR` | 空 | 主办方抽样图目录（png + 可选 `labels.txt` 每行 `name,label`）；空=内置官方测试集前 N 张 |
+| `HW_MODEL` | `model10` | model10→weights_m10_5400, model9→weights_w075ds3 |
+| `HW_CALIB` | 空 | 板上标量 calib json 文件名(如 `calib_scalar_m10_0823.json`) |
+| `BOARD_HOST` | `192.168.31.158` | 板上 SSH 地址 |
+| `HW_CHECK_N` | `8` | 判据④ mini-run 张数 |
 
-状态灯：绿=真机探针真实可达（5s 主动探测，无假绿）；「真机不可达」=配置 http 但板不通；numpy=离线模式。
+状态灯：绿=SSH 通 + runner 可用(pathB)；「真机不可达」=SSH 不通。
 
-## 2. 30 分钟窗口预算（C2 实测）
+## 2. 校准（15 min 方案）
 
-| 项 | 耗时 |
-|---|---|
-| fresh compass_cali | ~10 min |
-| 四项放行判据 | ~5 min |
-| **跑批段** | **~15 min** |
+板上执行(需 root)：
+```bash
+compass_cali --mode-local                          # fresh bringup ~10min
+cd ~/j1 && DS3_WEIGHTS_DIR=weights_m10_5400 \
+  DS3_CALIB_OUT=calib_scalar_m10_0823.json \
+  python3 calibrate_any_ds3.py                     # 标量 per-layer ~3min
+```
+注：`calibrate_any_ds3.py` 必须在 `compass_cali` 完成后运行(否则 device busy)，且需 root(api.log)。
+Demo 通过 `HW_CALIB=calib_scalar_m10_0823.json` 引用。
 
-- 实测吞吐（板端 runner 口径）：**M10 3.23s/张、M9 1.98s/张**；
-- 15 min ≈ M10 280 张 / M9 450 张 → **默认段 [0,200)**（M10 ~11min，留裕量）；
-- 全量 5400（M10 ~4.8h）单窗口不可行——现场只跑抽样段，全量数字用日志/图表证据链；
-- ⚠️ 本前端走 HTTP 直连，m≤2 tiling 下单图 ~250 次往返，**慢于板端 runner**——首次联调实测单图延迟后再定段长；板上 server 实测接受大 m 时可 `HW_CHUNK=1024` 提速；
-- MNIST 200 张：秒级~分钟级，无压力。
+## 3. 演示流程
 
-## 3. 演示流程（建议话术）
+1. 状态灯绿；
+2. 点「运行 ③④ 判据」：③ MNIST canary、④ EuroSAT mini-run(默认 8 张)；
+3. 「EuroSAT 真机跑批」：默认 [0,8) 张(~26s)，可调 1 张/10 张；显示 hw acc + 参考 + gap；
+4. 「MNIST 官方抽样」：跑官方 200 张(或小数张)；显示 acc/ref/gap。
 
-1. 指状态灯：「直连 Gazelle 真机，每次矩阵乘在光学核心执行」；
-2. 点「运行②③④」讲判据设计 → 板端读 EBR 录入 → 四灯全绿；
-3. 单图推理（备好不同类别 EuroSAT 图；错误样本呼应错分分析页）；
-4. MNIST 官方抽样 200 张一键跑（DSQ 初赛链路，gap ≤0.1pt 口径）；
-5. 有余力再跑 EuroSAT [0,200) 段（或 M9 切换演示）。
+## 4. 已知限制 / 待联调
 
-## 4. 故障排查
-
-| 现象 | 处置 |
-|---|---|
-| 「真机不可达」 | 检查板上 server_gazelle / 网络 / OPTC_HOST；探针 5s 超时即报，无假绿 |
-| 推理 503 | 板被占用/热崩溃 → 冷却≥1h + fresh 校准重开窗 |
-| 跑批精度偏低 | 校准 stale（calib 不可跨窗口）→ 重新 probe+calib_col 背靠背 |
-| 只验页面逻辑 | `HW_BACKEND=numpy` 启动 |
-
-## 5. 诚实边界（答辩口径）
-
-- 页面演示真机单图/抽样段链路（连接、判据、逐层光算），**不代表全量数字**；全量以 02_验证报告口径表为准（M10 95.33% / M9 94.43%）；
-- MNIST 200 为官方抽样现场验证；canary/mini-run 为放行判据演示；
-- 状态灯不是绿色时不得声称在跑真机。
-
-## 6. 已知限制 / 待联调项（板恢复后第一优先）
-
-- **真机侧未实测**（板子 2026-08-21 失联，预计 08-23 下午恢复）；联调重点：单图延迟（HTTP m≤2 vs 大 chunk）、判据②读数 ±2% 内、canary gap、MNIST 200 全流程；
-- `HW_MNIST_DIR` 官方抽样图就位后需现场导入并核对 labels.txt 格式；
-- 逐列校准 json 必须同窗口生成（`HW_CALIB_COL`），跨窗口必失效（stale −12.5pt 实证）。
+- 路径 B 跑的是**板上测试集 npy**(`weights_m10_5400/test_images_j1.npy`)，非任意上传图——演示为「测试集批量跑批」形态；
+- `calibrate_any_ds3.py` 标量校准精度略低于逐列(col 96.4%)，约 94-95%；需要 96%+ 则用逐列(probe+calibrate_col, ~25min)；
+- MNIST 官方200 已上板(`~/mnist/test_images_official200.npy` + `run_mnist_official.py`)；
+- 校准跨窗口必失效，演示前同窗口重新校准。
