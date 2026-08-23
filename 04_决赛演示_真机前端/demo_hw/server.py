@@ -132,6 +132,7 @@ def calibrate():
         return {"status": "running", "detail": "校准进行中, 请稍候"}
     global _calib
     def work():
+        global _calib
         _calib_state["status"] = "running"
         _calib_state["progress"] = "compass_cali (fresh bringup, ~10min)..."
         newname = "calib_scalar_auto_%d.json" % int(time.time())
