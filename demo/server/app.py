@@ -33,11 +33,12 @@ from PIL import Image  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from torchvision import datasets  # noqa: E402
 
-from demo.server import compare, compare_models, inference_local, remote_client, render  # noqa: E402
+from demo.server import compare, compare_models, inference_local, render  # noqa: E402
+from demo.server import gazelle_client as remote_client  # noqa: E402  (Gazelle 真机, 替代容器 osimulator)
 from demo.server.compare_models import COMPARE_METRICS  # noqa: E402
 from demo.server.inference_local import CLASSES, DATA_DIR  # noqa: E402
 from demo.server.metrics import METRICS  # noqa: E402
-from demo.server.remote_client import RemoteUnavailable  # noqa: E402
+from demo.server.gazelle_client import RemoteUnavailable  # noqa: E402
 
 WEB_DIR = os.path.join(REPO_ROOT, "demo", "web")
 
@@ -77,7 +78,8 @@ def health():
         remote = remote_client.health()["engine"]
     except RemoteUnavailable:
         remote = "down"
-    return {"local": local, "remote": remote}
+    return {"local": local, "remote": remote,
+            "gazelle_host": getattr(remote_client, "GAZELLE_HOST", "")}
 
 
 @app.get("/api/sample")

@@ -87,3 +87,40 @@ demo/
 - `inference_local`: FP32 与 fake 光计算两条路径产出契约一致的 PathResult;
 - `app`: FastAPI TestClient 全接口 (remote mock 与真实 fake 各一遍);
 - 烟测 (手动): deploy.sh 真机单图推理, 核对 pred/耗时/激活形状。
+
+---
+
+## 2026-08-23 更新: 光计算数据来源切换为 Gazelle 真机
+
+**架构变化**: 光计算路径不再走"容器 optic_server(osimulator) + SSH 隧道 8765",
+改为 **gazelle_client 直连 Gazelle 真机** (光电分离, 与 opticspacenet 路径 A 同构):
+
+```
+浏览器 ── /api/infer ──▶ demo/server/gazelle_client.py
+                          ├─ 本地 torch 电计算 (model_trace 同源 Model 3; stem/BN/ReLU/Pool)
+                          ├─ 光层 matmul ── HTTP :8000 ──▶ 板上 server_gazelle.py
+                          │                                  └─ compass_sdk ──▶ 光芯片
+                          └─ PathResult (engine="gazelle-osim", 逐层激活 act_b64)
+```
+
+- 新增文件: `demo/server/gazelle_client.py` (接口与 remote_client 相同:
+  health/infer/RemoteUnavailable, app.py/compare_models.py 仅换 import);
+  `demo/server/gazelle_engine.py` (HttpBackend/NumpyBackend/GazelleOpticalEngine,
+  自 opticspacenet 复制, 依赖 src/core/optic_layers.py)。
+- `demo/web/` 前端零改动; 状态灯标签沿用 "gazelle-osim" (青) / "fake-optical" (金) / "down" (红)。
+- 降级链不变: 真机失败 → RemoteUnavailable → 本地 fake 引擎 (meta.degraded=true)。
+
+**连接与启动**:
+1. 板上 (ssh uisrc@192.168.31.158, 密码 5182) 启动:
+   `cd /home/uisrc/opticspacenet && sudo python3 server_gazelle.py` (监听 :8000);
+2. 本地 (repo 根):
+   `GAZELLE_HOST=192.168.31.158 uvicorn demo.server.app:app --port 8000`
+3. 离线联调 (不占板): `GAZELLE_FAKE=1 uvicorn demo.server.app:app --port 8000`
+   (光层走 numpy 精确参考, health 仍报 gazelle-osim 便于前端联调, 现场切回真机前注意核对)。
+
+**环境变量**: GAZELLE_HOST(192.168.31.158) / GAZELLE_PORT(8000) /
+GAZELLE_WEIGHT(默认 weights/spacenet_v2_phase4_v3_int8.pth) /
+GAZELLE_CALIB(可选逐通道修正 npz) / GAZELLE_FAKE / GAZELLE_TIMEOUT(300)。
+
+**compare 页面**: 仅 Model 3 接入真机; Model 1/2 请求自动降级本地 fake
+(gazelle_client 对 model_id≠3 raise RemoteUnavailable → compare_models 回退)。

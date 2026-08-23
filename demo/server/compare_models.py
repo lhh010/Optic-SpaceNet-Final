@@ -7,9 +7,9 @@ Provides:
 import base64
 import time
 
-from demo.server import inference_local_multi, remote_client
+from demo.server import inference_local_multi, gazelle_client as remote_client
 from demo.server.inference_local import preprocess
-from demo.server.remote_client import RemoteUnavailable
+from demo.server.gazelle_client import RemoteUnavailable
 
 
 # ============================================================
