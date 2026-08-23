@@ -1,32 +1,31 @@
-# 演示机侧: 连内网后先跑这个确认到板连通 + 8000 光算服务健康
+# Connect check to Gazelle board (direct LAN, no tunnel). ASCII only for PS5.1.
 $BOARD = '192.168.31.158'
-Write-Host '== 1. 本机内网 IP =='
+Write-Host '== 1. local LAN IP =='
 Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -like '192.168.31.*' } |
-  ForEach-Object { Write-Host ("  " + $_.IPAddress + "  " + $_.InterfaceAlias) }
+  ForEach-Object { Write-Host ('  ' + $_.IPAddress + '  ' + $_.InterfaceAlias) }
 
-Write-Host '`n== 2. TCP 探测 =='
+Write-Host '== 2. TCP ports =='
 foreach ($p in @(22,8000)) {
   $r = Test-NetConnection -ComputerName $BOARD -Port $p -WarningAction SilentlyContinue
-  Write-Host ("  :{0}  {1}" -f $p, $(if ($r.TcpTestSucceeded) {'OPEN'} else {'CLOSE/不通'}))
+  $st = $(if ($r.TcpTestSucceeded) {'OPEN'} else {'CLOSE / not reachable'})
+  Write-Host ('  :' + $p + '  ' + $st)
 }
 
-Write-Host '`n== 3. 光算服务 /health (可直达, 无需隧道) =='
+Write-Host '== 3. optical server /health =='
 try {
-  $h = Invoke-RestMethod -Uri "http://$BOARD`:8000/health" -TimeoutSec 5
-  Write-Host ("  status={0}  tia_gain={1}  calls={2}  cached={3}  uptime={4}s" -f $h.status, $h.tia_gain, $h.calls, $h.cached_weights, $h.uptime_s)
+  $h = Invoke-RestMethod -Uri ('http://' + $BOARD + ':8000/health') -TimeoutSec 5
+  Write-Host ('  status=' + $h.status + '  tia_gain=' + $h.tia_gain + '  calls=' + $h.calls + '  cached=' + $h.cached_weights + '  uptime=' + $h.uptime_s + 's')
 } catch {
-  Write-Host "  /health 失败: $($_.Exception.Message)  (板上 server_gazelle 未起?)"
+  Write-Host ('  /health FAILED: ' + $_.Exception.Message + '  (server_gazelle not running?)')
 }
 
-Write-Host '`n== 4. matmul 探针 (1x2 @ 2x1, 期望 [[-1]]) =='
+Write-Host '== 4. matmul probe (1x2 @ 2x1, expect [[-1]]) =='
 try {
   $body = '{"act_b64":"AQI=","act_shape":[1,2],"weight_b64":"Af8=","weight_shape":[2,1]}'
-  $m = Invoke-RestMethod -Uri "http://$BOARD`:8000/matmul" -Method Post -ContentType 'application/json' -Body $body -TimeoutSec 10
-  Write-Host ("  matmul 返回: {0}" -f ($m.data -join ','))
+  $m = Invoke-RestMethod -Uri ('http://' + $BOARD + ':8000/matmul') -Method Post -ContentType 'application/json' -Body $body -TimeoutSec 10
+  Write-Host ('  matmul returned: ' + ($m.data -join ','))
 } catch {
-  Write-Host "  matmul 失败: $($_.Exception.Message)"
+  Write-Host ('  matmul FAILED: ' + $_.Exception.Message)
 }
 
-if ($LASTEXITCODE -eq 0) {
-  Write-Host '`n结论: 内网连通正常, 可启动 demo 前端。'
-}
+Write-Host '== done. If 8000 OPEN and matmul=-1, board ready. =='
