@@ -8,6 +8,3 @@
 
 # Obsidian 编辑器配置
 .obsidian/
-
-# 官方 MNIST 演示数据集（外部提供）
-04_决赛演示_真机前端/CICC_2026_MNIST_TEST_DATASET/
