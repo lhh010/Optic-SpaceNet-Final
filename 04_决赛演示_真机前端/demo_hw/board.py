@@ -178,7 +178,7 @@ def probe_board():
         pass                            # 保留 rc 信息
     elif not ok:
         detail = "SSH不可达: " + (detail or "未知错误")[:60]
-    _probe_cache.update(t=now, ok=ok, detail=detail)
+    _probe_cache.update(t=time.time(), ok=ok, detail=detail)   # 用完成时刻, 否则失败probe耗时>TTL致缓存已过期而重复探测
     return ok, detail
 
 
