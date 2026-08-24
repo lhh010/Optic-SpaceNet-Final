@@ -146,19 +146,38 @@ def run_ebr(timeout=600):
 
 _probe_cache = {"t": 0.0, "ok": False, "detail": ""}
 PROBE_TTL_S = float(os.environ.get("BOARD_PROBE_TTL", "10"))
+PROBE_CONNECT_S = float(os.environ.get("BOARD_PROBE_CONNECT", "5"))
+PROBE_EXEC_S = float(os.environ.get("BOARD_PROBE_EXEC", "8"))
 
 
 def probe_board():
-    """可达性: 快速探测(独立短超时) + TTL 缓存。
-    板子离线/闪断时 health 轮询不再每次阻塞 ~15-21s, 多个并发请求共享一次探测。"""
+    """可达性: 快速探测(独立短超时) + TTL 缓存 + 首次失败重试一次。
+    板子离线/闪断时 health 轮询不阻塞堆积; 对瞬时网络抖动(慢连接/刚上电/ARP)
+    更宽容, 避免"在线但抖动"被误判为不可达。"""
     now = time.time()
     if now - _probe_cache["t"] < PROBE_TTL_S:
         return _probe_cache["ok"], _probe_cache["detail"]
-    try:
-        out, err, rc = ssh_sudo_run("echo PROBE_OK", timeout=6, connect_timeout=5)
-        ok, detail = (rc == 0 and "PROBE_OK" in out), ("SSH " + BOARD_HOST)
-    except Exception as e:
-        ok, detail = False, str(e)[:120]
+    ok, detail = False, ""
+    for attempt in (1, 2):
+        try:
+            out, err, rc = ssh_sudo_run("echo PROBE_OK",
+                                        timeout=PROBE_EXEC_S,
+                                        connect_timeout=PROBE_CONNECT_S)
+            if rc == 0 and "PROBE_OK" in out:
+                ok, detail = True, "SSH " + BOARD_HOST
+            else:
+                detail = "连接成功但命令rc=%d" % rc
+            break                       # 有连接结果就不必重试
+        except Exception as e:
+            detail = str(e)[:60]        # 连接层失败: 可能超时/闪断
+            if attempt == 1:
+                time.sleep(0.5)         # 留给刚上电/网络恢复一点时间再试一次
+    if not ok and "timed out" in detail.lower():
+        detail = "网络超时(板子未接网或闪断, 等待重连)"
+    elif not ok and detail.startswith("连接成功"):
+        pass                            # 保留 rc 信息
+    elif not ok:
+        detail = "SSH不可达: " + (detail or "未知错误")[:60]
     _probe_cache.update(t=now, ok=ok, detail=detail)
     return ok, detail
 

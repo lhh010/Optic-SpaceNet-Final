@@ -7,7 +7,7 @@
 <style>
 body{font-family:system-ui,sans-serif;max-width:880px;margin:24px auto;padding:0 16px;background:#0f1420;color:#e8ecf4}
 h1{font-size:1.4rem} .card{background:#171e2e;border:1px solid #2a3550;border-radius:12px;padding:16px;margin:12px 0}
-#status{font-weight:600} .ok{color:#4ade80} .down{color:#f87171}
+#status{font-weight:600} .ok{color:#4ade80} .down{color:#f87171} .warn{color:#fbbf24}
 button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:10px 22px;font-size:1rem;cursor:pointer}
 button:disabled{opacity:.4} .meta{color:#93a4c3;font-size:.85rem}
 input[type=number]{width:72px;color:#111;border-radius:4px;border:1px solid #555;padding:3px}
@@ -50,7 +50,7 @@ const $=id=>document.getElementById(id);
 async function health(){try{const r=await fetch("/api/health");const j=await r.json();
   const remote=j.remote||"";
   if(remote.startsWith("gazelle-hw")){$("status").textContent="● 真机已连接（路径B · "+(j.board||"")+"）";$("status").className="ok";}
-  else if(remote==="unreachable"){$("status").textContent="● 真机不可达: "+(j.detail||"");$("status").className="down";}
+  else if(remote==="unreachable"){$("status").textContent="● 板子网络断开/闪断·自动重连中 — "+(j.detail||"");$("status").className="warn";}
   else{$("status").textContent="● 后端异常";$("status").className="down";}
   $("engmeta").textContent=`  模型 ${j.label||j.model||"?"} · 校准 ${j.calib||"-"}`;}catch(e){$("status").textContent="● 后端未启动";$("status").className="down";}}
 health();setInterval(health,15000);
